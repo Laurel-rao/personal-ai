@@ -53,7 +53,26 @@ byId('nextButton').addEventListener('click', () => browseHistory(1));
 byId('playButton').addEventListener('click', togglePlay);
 document.querySelectorAll('.mode-button').forEach((button) => button.addEventListener('click', () => { reviewState.mode = button.dataset.mode; document.querySelectorAll('.mode-button').forEach((item) => item.classList.toggle('active', item === button)); setOrder(currentItem()?.id); renderReview(); }));
 document.querySelectorAll('.scope-button').forEach((button) => button.addEventListener('click', () => { reviewState.scope = button.dataset.scope; document.querySelectorAll('.scope-button').forEach((item) => item.classList.toggle('active', item === button)); setOrder(currentItem()?.id); renderReview(); }));
-document.addEventListener('keydown', (event) => { if (event.target.matches('input, textarea, select')) return; if (event.key === 'ArrowLeft') { event.preventDefault(); label('unlike'); } if (event.key === 'ArrowRight') { event.preventDefault(); label('like'); } if (event.key === 'ArrowUp') { event.preventDefault(); browseHistory(-1); } if (event.key === 'ArrowDown') { event.preventDefault(); browseHistory(1); } if (event.code === 'Space') { event.preventDefault(); togglePlay(); } });
+function isEditableTarget(target) {
+  return target instanceof Element && Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+}
+
+function handleReviewKeydown(event) {
+  if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.repeat || isEditableTarget(event.target)) return;
+  const actions = {
+    ArrowLeft: () => label('unlike'),
+    ArrowRight: () => label('like'),
+    ArrowUp: () => browseHistory(-1),
+    ArrowDown: () => browseHistory(1),
+    Space: togglePlay,
+  };
+  const action = actions[event.key] || actions[event.code];
+  if (!action) return;
+  event.preventDefault();
+  action();
+}
+
+window.addEventListener('keydown', handleReviewKeydown, { capture: true });
 byId('reviewStage').addEventListener('touchstart', (event) => { const touch = event.changedTouches[0]; reviewState.touchStart = { x: touch.clientX, y: touch.clientY }; }, { passive: true });
 byId('reviewStage').addEventListener('touchend', (event) => { if (!reviewState.touchStart) return; const touch = event.changedTouches[0]; const dx = touch.clientX - reviewState.touchStart.x; const dy = touch.clientY - reviewState.touchStart.y; reviewState.touchStart = null; if (Math.max(Math.abs(dx), Math.abs(dy)) < 48) return; if (Math.abs(dx) > Math.abs(dy)) label(dx > 0 ? 'like' : 'unlike'); else browseHistory(dy < 0 ? 1 : -1); }, { passive: true });
 loadReview(); setInterval(() => loadReview(currentItem()?.id), 5000);

@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>视频生成 · 创作工作台</title>
+    <link rel="stylesheet" href="./styles.css?v=20260818-layout-fit" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">AI</div>
+          <div>
+            <h1>创作工作台</h1>
+            <p>TEXT · IMAGE · VIDEO</p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <nav class="workspace-tabs" aria-label="工作台切换">
+            <a class="workspace-tab active" href="/">视频生成</a>
+            <a class="workspace-tab" href="/image">图片生成</a>
+            <a class="workspace-tab" href="/chat">文本对话</a>
+          </nav>
+          <div class="service-state" id="serviceState" data-state="idle">
+            <span class="state-dot" aria-hidden="true"></span>
+            <span id="serviceStateText">等待连接</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="connection-band" aria-label="服务配置">
+        <label class="field field-grow">
+          <span>服务地址</span>
+          <input
+            id="baseUrl"
+            type="url"
+            value="https://www.autodl.art"
+            spellcheck="false"
+            autocomplete="off"
+          />
+        </label>
+        <label class="field workflow-field">
+          <span>Workflow ID</span>
+          <input
+            id="workflowId"
+            type="text"
+            value="minimax_h3_lightx2v_v5_15s"
+            spellcheck="false"
+            autocomplete="off"
+          />
+        </label>
+        <button class="button button-secondary connection-button" id="testConnection" type="button">
+          检查连接
+        </button>
+      </section>
+
+      <main class="workspace">
+        <section class="composer-panel" aria-labelledby="composerTitle">
+          <div class="section-heading">
+            <div>
+              <p class="section-index">01</p>
+              <h2 id="composerTitle">创建任务</h2>
+            </div>
+            <span class="quiet-meta"><strong id="imageCount">0</strong>/<span id="slotCount">3</span> 张参考图</span>
+          </div>
+
+          <div class="image-grid" id="imageGrid" aria-label="参考图片"></div>
+
+          <div class="frame-tools">
+            <button class="button button-secondary" id="generateFramesButton" type="button">
+              Zero 生成首尾帧
+            </button>
+            <span id="frameGenerationState" role="status">需要首尾帧时可自动生成两张连续参考图</span>
+          </div>
+
+          <div class="workflow-mode-note" id="workflowModeNote" role="status"></div>
+
+          <div class="video-settings" id="videoSettings" hidden>
+            <label class="compact-field">
+              <span>采样步数</span>
+              <input id="stepsInput" type="number" min="1" max="100" value="12" inputmode="numeric" />
+            </label>
+            <label class="compact-field">
+              <span>输出宽度</span>
+              <input id="widthInput" type="number" min="256" max="4096" step="8" value="864" inputmode="numeric" />
+            </label>
+            <label class="compact-field">
+              <span>输出高度</span>
+              <input id="heightInput" type="number" min="256" max="4096" step="8" value="480" inputmode="numeric" />
+            </label>
+            <label class="compact-field">
+              <span>生成时长（秒）</span>
+              <input id="durationInput" type="number" min="1" max="15" value="15" inputmode="numeric" />
+            </label>
+            <label class="compact-field autodl-only-field">
+              <span>输出清晰度</span>
+              <select id="resolutionInput" aria-label="输出清晰度">
+                <option value="768p竖" selected>768p 竖屏</option>
+                <option value="768p横">768p 横屏</option>
+              </select>
+            </label>
+            <label class="compact-field autodl-only-field">
+              <span>随机种子</span>
+              <input id="seedInput" type="number" value="212238359716024" inputmode="numeric" aria-label="随机种子" />
+            </label>
+            <label class="compact-field autodl-only-field">
+              <span>音乐曲线</span>
+              <select id="musicPreset" aria-label="音乐曲线">
+                <option value="low-rise" selected>低沉 → 激昂欢快</option>
+                <option value="ambient">环境氛围</option>
+                <option value="none">不追加音乐要求</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="prompt-block">
+            <div class="prompt-heading">
+              <label for="promptInput" id="promptLabel">视频提示词</label>
+              <div class="prompt-tools">
+                <label class="sr-only" for="promptTemplate">战国分镜模板</label>
+                <select id="promptTemplate" class="prompt-template-select">
+                  <option value="meeting-chase">战国 01 · 双人交错特写</option>
+                  <option value="command-transition">战国 02 · 喝止转场</option>
+                </select>
+                <button class="text-button prompt-template-button" id="loadWarringPrompt" type="button">载入战国 Ref2VA</button>
+                <span id="promptCount">0 字</span>
+              </div>
+            </div>
+            <textarea
+              id="promptInput"
+              rows="8"
+              placeholder="描述人物、场景、动作、镜头、对白与声音……"
+            ></textarea>
+          </div>
+
+          <div class="composer-actions">
+            <p id="formHint">填写提示词后即可提交</p>
+            <button class="button button-primary" id="generateButton" type="button" disabled>
+              <span class="button-label">生成视频</span>
+              <span class="button-arrow" aria-hidden="true">→</span>
+            </button>
+          </div>
+        </section>
+
+        <aside class="progress-panel" aria-labelledby="progressTitle">
+          <div class="section-heading progress-heading">
+            <div>
+              <p class="section-index">02</p>
+              <h2 id="progressTitle">当前任务</h2>
+            </div>
+            <button class="text-button" id="stopPolling" type="button" hidden>停止轮询</button>
+          </div>
+
+          <div class="empty-state" id="emptyProgress">
+            <div class="empty-symbol" aria-hidden="true"><span></span></div>
+            <h3>尚未开始</h3>
+            <p>提交任务后，进度与生成结果会显示在这里。</p>
+          </div>
+
+          <div class="task-progress" id="taskProgress" hidden>
+            <div class="task-summary">
+              <div>
+                <span class="status-badge" id="taskBadge">排队中</span>
+                <h3 id="taskTitle">正在提交任务</h3>
+              </div>
+              <span class="elapsed" id="elapsedTime">00:00</span>
+            </div>
+            <div class="progress-track" id="progressTrack" aria-label="任务进度">
+              <span id="progressFill"></span>
+            </div>
+            <dl class="task-facts">
+              <div>
+                <dt>任务 ID</dt>
+                <dd id="promptIdValue">—</dd>
+              </div>
+              <div>
+                <dt>轮询</dt>
+                <dd id="pollCountValue">0 次</dd>
+              </div>
+              <div>
+                <dt>更新时间</dt>
+                <dd id="updatedAtValue">—</dd>
+              </div>
+            </dl>
+            <div class="result-gallery" id="resultGallery"></div>
+            <details class="raw-result" id="rawResultPanel">
+              <summary>查看接口返回</summary>
+              <pre id="rawResult"></pre>
+            </details>
+          </div>
+        </aside>
+      </main>
+
+      <section class="history-section" aria-labelledby="historyTitle">
+        <div class="history-toolbar">
+          <div class="section-heading history-heading">
+            <div>
+              <p class="section-index">03</p>
+              <h2 id="historyTitle">任务与资产</h2>
+            </div>
+            <div class="view-tabs" role="tablist" aria-label="记录视图">
+              <button class="view-tab is-active" id="historyTab" type="button" role="tab" aria-selected="true">生成历史</button>
+              <button class="view-tab" id="assetsTab" type="button" role="tab" aria-selected="false">资产库</button>
+            </div>
+          </div>
+          <div class="history-actions">
+            <label class="track-field">
+              <span class="sr-only">任务 ID</span>
+              <input id="trackPromptId" type="text" placeholder="输入任务 ID 继续追踪" spellcheck="false" />
+            </label>
+            <button class="button button-secondary" id="trackButton" type="button">追踪</button>
+            <button class="text-button danger-text" id="clearHistory" type="button">清空历史</button>
+          </div>
+        </div>
+
+        <div class="history-table-wrap" id="historyView" role="tabpanel" aria-labelledby="historyTab">
+          <table class="history-table">
+            <thead>
+              <tr>
+                <th>创建时间</th>
+                <th>提示词</th>
+                <th>参考图</th>
+                <th>状态</th>
+                <th>任务 ID</th>
+                <th class="action-column">操作</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+          <div class="history-empty" id="historyEmpty">暂无生成记录</div>
+        </div>
+        <div class="assets-view" id="assetsView" role="tabpanel" aria-labelledby="assetsTab" hidden>
+          <div class="assets-summary">
+            <span><strong id="assetCount">0</strong> 个生成资产</span>
+            <button class="text-button" id="refreshAssets" type="button">刷新资产</button>
+          </div>
+          <div class="assets-grid" id="assetsGrid"></div>
+          <div class="assets-empty" id="assetsEmpty">暂无可查看资产</div>
+        </div>
+      </section>
+    </div>
+
+    <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+
+    <template id="imageSlotTemplate">
+      <article class="image-slot" data-state="empty">
+        <div class="image-preview">
+          <img alt="" hidden />
+          <div class="image-placeholder">
+            <span class="slot-number"></span>
+            <strong>添加图片</strong>
+            <small>上传或粘贴 URL</small>
+          </div>
+          <div class="upload-overlay" hidden>
+            <span class="spinner" aria-hidden="true"></span>
+            <span>上传中</span>
+          </div>
+          <button class="remove-image" type="button" aria-label="移除图片" title="移除图片" hidden>×</button>
+          <input class="file-input" type="file" accept="image/*" hidden />
+        </div>
+        <label class="url-field">
+          <span class="sr-only">图片 URL</span>
+          <input type="url" placeholder="粘贴图片 URL" spellcheck="false" />
+        </label>
+      </article>
+    </template>
+
+    <script src="./app.js?v=20260818-warring-storyboard"></script>
+  </body>
+</html>

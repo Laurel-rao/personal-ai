@@ -1,0 +1,371 @@
+{
+  "92": {
+    "inputs": {
+      "filename_prefix": "video/MiniMax_H3",
+      "format": "mp4",
+      "codec": "auto",
+      "video-preview": "",
+      "video": [
+        "130",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "保存视频"
+    }
+  },
+  "115": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": 0.9,
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "Resolution Selector (Size)"
+    }
+  },
+  "119": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "120": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "121": {
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "VAE解码（音频）"
+    }
+  },
+  "122": {
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "123": {
+    "inputs": {
+      "sampler_name": "res_multistep"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "K采样器选择"
+    }
+  },
+  "124": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 24,
+      "denoise": 1,
+      "model": [
+        "284",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "基本调度器"
+    }
+  },
+  "125": {
+    "inputs": {
+      "noise": [
+        "129",
+        0
+      ],
+      "guider": [
+        "126",
+        0
+      ],
+      "sampler": [
+        "123",
+        0
+      ],
+      "sigmas": [
+        "124",
+        0
+      ],
+      "latent_image": [
+        "136",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "自定义采样器（高级）"
+    }
+  },
+  "126": {
+    "inputs": {
+      "model": [
+        "284",
+        0
+      ],
+      "conditioning": [
+        "136",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "基本引导器"
+    }
+  },
+  "127": {
+    "inputs": {
+      "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNet加载器"
+    }
+  },
+  "128": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "加载CLIP"
+    }
+  },
+  "129": {
+    "inputs": {
+      "noise_seed": 581725979536657
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "随机噪波"
+    }
+  },
+  "130": {
+    "inputs": {
+      "fps": 24,
+      "bit_depth": 8,
+      "images": [
+        "122",
+        0
+      ],
+      "audio": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "创建视频"
+    }
+  },
+  "131": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "132",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "数学表达式"
+    }
+  },
+  "132": {
+    "inputs": {
+      "value": 15
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Float (Duration)"
+    }
+  },
+  "136": {
+    "inputs": {
+      "prompt": [
+        "138",
+        0
+      ],
+      "width": [
+        "115",
+        0
+      ],
+      "height": [
+        "115",
+        1
+      ],
+      "length": [
+        "131",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "128",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ],
+      "audio_vae": [
+        "120",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "139",
+        0
+      ],
+      "ref_images.ref_image_1": [
+        "137",
+        0
+      ],
+      "ref_images.ref_image_2": [
+        "289",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "MiniMax H3 Reference to Video"
+    }
+  },
+  "137": {
+    "inputs": {
+      "image": "generated-1 (35) 2.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "138": {
+    "inputs": {
+      "value": "@Image 3作为本视频唯一首帧。第一帧严格保持@Image 3的构图、人物位置、视线方向、古装造型、发型、体型比例、马车结构、竹帘状态、街道环境和日光方向，并从该画面自然开始运动；不要改变第一帧的景别和空间关系。\n\n@Image 1仅控制成年男主的面部身份，严格保持脸型、眉眼、鼻子、嘴部比例和整体辨识度；不继承其背景、现代服装、姿势和构图。\n\n@Image 2仅控制成年女主的面部身份，严格保持脸型、眉眼、鼻子、嘴部比例和整体辨识度；不继承其背景、现代服装、姿势和构图。\n\n素材权限不可混用：男主面部身份以@Image 1为最高优先级，女主面部身份以@Image 2为最高优先级；@Image 3只负责首帧、服装、发型、人物位置、场景和光线，不得覆盖或改变男女主的面部身份。\n\n0–2.8秒，正反打对视：从女主清晰脸部近景开始，她透过马车窗口看向街边男主。切至男主腰部以上反打镜头，男主刚刚抬起头，视线准确落向女主。再切回女主，她短暂停止观察街景，与男主隔街对视。两人的眼神方向、视线高度和180度轴线一致，对视持续约1.5秒；表情自然克制，只有轻微呼吸、眨眼和目光停顿。\n\n2.8–5.5秒，路人惊马：镜头切到能够同时看清马车前方和街道空间的中广景。一名普通路人突然从摊位之间横穿街道，慌乱中撞落手里的竹篮。竹篮先落地并发出清脆撞击声，马匹听见声音后才受到惊吓：头部猛然抬起，身体向后紧绷，前蹄短暂抬离地面。严格按照“竹篮落地—声音出现—马受惊—车夫失去控制”的顺序表现，不得让马提前狂奔。\n\n5.5–8.5秒，马车失控：受惊的马突然向画面右侧加速狂奔，木制车轮由慢转迅速变为高速滚动，马车车身随路面明显颠簸。女主身体因惯性向后晃动，立即抓紧车窗边框保持平衡，竹帘和衣袖被风掀动。车夫慌忙收紧缰绳，但无法立刻控制马匹。女主身份和脸部不得在震动、遮挡中改变。\n\n8.5–12.5秒，男主追车：男主先被突发声响惊醒，迅速转身离开摊位，沿马车离开的方向向画面右侧追赶。镜头由腰部中景平稳横移为侧面中全景，跟随男主奔跑。男主目光始终追踪前方马车，衣摆和发带随速度向后摆动；脚步与地面接触真实，人物不能滑行、瞬移或突然超过马车。马车始终位于前方，并逐渐拉开距离。\n\n12.5–14.9秒，掉入坑中：男主因持续抬头追踪马车，没有注意到街道前方被灰尘和松散木板遮住的修缮坑。先表现右脚踩上松动木板，木板受力下陷并断开，随后男主重心前倾、双手本能伸出，身体才失去平衡掉入坑中。镜头略微减速并保持中全景，清楚展示“踩中木板—木板塌陷—身体失衡—掉入坑内”的完整因果。男主落下后扬起少量尘土，不出现血腥或严重伤害画面。\n\n14.9–15.0秒，转场：男主身体完全跌出画面的瞬间，硬切为占满画面的纯黑画面，持续准确0.1秒。黑场内没有人物、文字、图案、光斑或渐变，现场声音同时瞬间停止，作为切换到另一个故事的明确断点。\n\n声音：自然市集环境声、竹篮落地声、马匹嘶鸣、急促马蹄声、车轮震动声、车夫收缰声、男主奔跑脚步声、木板断裂声和落坑闷响。无背景音乐，无字幕，无旁白。\n\n保持马车始终由画面左侧向右侧移动，男主只能沿相同方向追赶；禁止跨越轴线造成方向反转。禁止路人复制男女主面孔，禁止马匹或马车突然增减、穿模、漂移和结构变化；禁止多余肢体、手脚扭曲、人物瞬移、动作顺序颠倒、无原因摔倒、夸张喜剧表情、快速闪烁、现代物件、文字、品牌标志和水印。"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Input Text (Prompt)"
+    }
+  },
+  "139": {
+    "inputs": {
+      "image": "generated-1 (36) 2.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "280": {
+    "inputs": {
+      "num_blocks": -1
+    },
+    "class_type": "UniBlockSwap",
+    "_meta": {
+      "title": "UniBlockSwap"
+    }
+  },
+  "281": {
+    "inputs": {
+      "reserved": 1,
+      "mode": "manual",
+      "seed": 918872043759028,
+      "auto_max_reserved": 0,
+      "clean_gpu_before": true,
+      "anything": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "ReservedVRAMSetter",
+    "_meta": {
+      "title": "Set Reserved VRAM(GB) ⚙️"
+    }
+  },
+  "282": {
+    "inputs": {
+      "reuse_threshold": 0.3,
+      "start_percent": 0.2,
+      "end_percent": 0.9,
+      "verbose": false,
+      "model": [
+        "281",
+        0
+      ]
+    },
+    "class_type": "EasyCache",
+    "_meta": {
+      "title": "EasyCache"
+    }
+  },
+  "283": {
+    "inputs": {
+      "sage_attention": "auto",
+      "allow_compile": true,
+      "model": [
+        "282",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "SAGE注意力补丁KJ"
+    }
+  },
+  "284": {
+    "inputs": {
+      "enable_fp16_accumulation": true,
+      "model": [
+        "283",
+        0
+      ]
+    },
+    "class_type": "ModelPatchTorchSettings",
+    "_meta": {
+      "title": "Model Patch Torch Settings"
+    }
+  },
+  "289": {
+    "inputs": {
+      "image": "企业微信20260819-174026@2x.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  }
+}

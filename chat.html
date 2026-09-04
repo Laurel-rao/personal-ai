@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>文本对话 · 创作工作台</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/chat-simple.css" />
+  </head>
+  <body class="chat-body">
+    <div class="chat-shell">
+      <header class="topbar chat-topbar">
+        <a class="brand brand-link" href="/" aria-label="返回创作工作台">
+          <span class="brand-mark" aria-hidden="true">AI</span>
+          <span><strong>创作工作台</strong><small>TEXT · IMAGE · VIDEO</small></span>
+        </a>
+        <div class="topbar-actions">
+          <nav class="workspace-tabs" aria-label="工作台切换">
+            <a class="workspace-tab" href="/">视频生成</a>
+            <a class="workspace-tab" href="/image">图片生成</a>
+            <a class="workspace-tab active" href="/chat">文本对话</a>
+          </nav>
+        </div>
+      </header>
+      <main class="chat-main">
+        <aside class="conversation-sidebar" aria-label="对话列表">
+          <button class="new-chat-button" id="newChatButton" type="button">新对话</button>
+          <nav class="conversation-list" id="conversationList" aria-label="对话列表"></nav>
+        </aside>
+        <section class="conversation-panel" aria-label="文本对话">
+          <div class="message-list" id="messageList" aria-live="polite"></div>
+          <form class="composer" id="chatForm">
+            <textarea id="chatInput" rows="1" placeholder="输入消息" aria-label="输入消息"></textarea>
+            <button id="sendButton" type="submit">发送</button>
+          </form>
+        </section>
+      </main>
+    </div>
+    <script src="/chat.js"></script>
+  </body>
+</html>

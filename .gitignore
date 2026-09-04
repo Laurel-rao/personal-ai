@@ -1,0 +1,33 @@
+__pycache__/
+*.pyc
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Local runtime state, dependency caches, and generated output.
+.npm-cache/
+data/
+downloads/
+generated/
+outputs/
+tmp/
+vendor/node_modules/
+vendor/.npmcache/
+
+# Generated media and prompt experiments are intentionally local-only.
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.mp4
+*.mov
+*.webm
+*.m4v
+p_*.txt
+face_*.txt
+prompts/
+h3-six-lives-prompts.md
+seedance-2.5-six-lives-prompts.md
+婚礼穿越视频/

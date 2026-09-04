@@ -1,0 +1,4 @@
+interface:
+  display_name: "视频质量评分"
+  short_description: "按剧情一票否决、时间戳证据与八维标准验收生成视频"
+  default_prompt: "Use $video-quality-scorer to score this generated video against its authoritative story contract with timestamp evidence."

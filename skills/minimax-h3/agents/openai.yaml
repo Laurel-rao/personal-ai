@@ -1,0 +1,4 @@
+interface:
+  display_name: "MiniMax H3 视频导演"
+  short_description: "编写、优化和诊断 MiniMax H3 多模态视频提示词与编辑指令"
+  default_prompt: "使用 $minimax-h3 将我的创意和参考素材整理成可直接用于 MiniMax H3 的视频提示词。"

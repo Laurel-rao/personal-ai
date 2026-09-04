@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>图片生成 · 创作工作台</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/image.css" />
+  </head>
+  <body class="image-body">
+    <div class="image-shell">
+      <header class="topbar image-topbar">
+        <a class="brand brand-link" href="/" aria-label="返回视频生成">
+          <span class="brand-mark" aria-hidden="true">AI</span>
+          <span><strong>创作工作台</strong><small>TEXT · IMAGE · VIDEO</small></span>
+        </a>
+        <nav class="workspace-tabs" aria-label="工作台切换">
+          <a class="workspace-tab" href="/">视频生成</a>
+          <a class="workspace-tab active" href="/image">图片生成</a>
+          <a class="workspace-tab" href="/chat">文本对话</a>
+        </nav>
+      </header>
+      <main class="image-main">
+        <iframe id="photoLabFrame" src="http://127.0.0.1:4174/?embedded=1" title="图片生成" loading="eager"></iframe>
+      </main>
+    </div>
+  </body>
+</html>

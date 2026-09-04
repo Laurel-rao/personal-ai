@@ -1,0 +1,17 @@
+商业居家写真照，真实、随意、生活化抓拍氛围，不摆拍。成年年轻女性，身高约160cm，纤细筷子腿、瘦小结实的体态。服装：居家辣妹细吊带背心 + 睡衣短裤。场景：可爱的女生卧室，站在布艺沙发旁。光线：清晨冷光从窗户斜侧打入，日系富士胶片风格——清晨偏冷的低色温、低对比、柔和颗粒、轻微褪色，自然光为主不补硬光。全身构图、机位平视、人物占画面主体、背景半虚化。人物保持同一张原创脸、同一发型与同一套服装，仅表情与局部动作不同。
+
+Generate 6 complete full-body images, each one expression variant of the same girl, same bedroom, same outfit, same cool morning Fuji film light, same full-body composition. Enumerate each:
+
+Image 1 (元气回头招呼): girl standing beside the sofa turns her head back over her shoulder toward the camera, body facing away; bright open-mouth laughing smile, eyes curved; one hand raised waving hello; one foot tips onto the lighter ground, weight shifted back, light and lively, energetic vibe. Slight motion, candid morning look.
+
+Image 2 (小恶魔恶作剧): girl standing beside the sofa, head tilted to one side, eyes glancing sideways toward camera playfully and slyly; tongue slightly out; one eye winks; one fingertip pokes her own cheek in a "gotcha" mischievous way; other arm relaxed, weight on one leg. Playful devilish vibe, candid.
+
+Image 3 (傲娇嘟嘴): girl standing beside the sofa, head turned away from camera showing her profile, but eyes darted sideways at lens; lips slightly pouted forward; one hand on her hip, chin slightly raised, a bit proud and coy, weight shifted to one side. Tsundere pouty vibe, relaxed and unposed, morning cool light on her side face.
+
+Image 4 (甜妹捧脸): girl standing beside the sofa, both hands gently cupping her own cheeks, fingers loosely closed, eyes sparkling and looking slightly up at camera, gentle affectionate shine; lips pressed into a small sweet closed smile (not teeth), expression sweet and shy-cute; shoulders relaxed, slightly tucked-in. Gentle lovable vibe, morning light on her face, soft highlight.
+
+Image 5 (害羞学妹掩面): girl standing beside the sofa, one hand raised lightly covering her mouth as if giggling from a compliment; eyes curved into crescents, head turned slightly away, gaze downward or aside; body leans back a half-step, weight pulled back, showing shyness; other arm hangs naturally. Modest shy vibe, natural candid, adult youth vibe, not childlike.
+
+Image 6 (比心示好): girl standing beside the sofa, facing camera, one hand makes a finger-heart (thumb and index finger crossed into a heart); other arm relaxed; eyes curved, wide open bright laugh, one eye winks, big open grin, abundant joy; body leans slightly forward, feet slightly bounced or on tiptoe, energetic and welcoming. Lively affectionate vibe, morning cool light, low contrast Fuji film grain.
+
+Keep the same identity face, same hairstyle, same camisole and pajama shorts, same bedroom and sofa, same composition across all 6. No text, no watermark, no logo. Full-body, coherent Fuji cool morning film look.

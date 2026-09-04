@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>精英闯关 · ELITE ARENA — 粒子波浪原型</title>
+    <style>
+      :root {
+        color-scheme: dark;
+
+        /* 蓝系三层（深 / 中 / 亮） */
+        --blue-deep: #16213f;
+        --blue-indigo: #1b2a5e;
+        --blue-azure: #3d7bff;
+        --blue-cyan: #a8d8ff;
+        --blue-ice: #e6f2ff;
+
+        --ink: #eef4ff;
+        --ink-dim: #9fb3d6;
+        --hairline: rgba(140, 178, 255, 0.10);
+        --hairline-strong: rgba(140, 178, 255, 0.16);
+      }
+
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: -apple-system, "SF Pro Display", "PingFang SC", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+        background:
+          radial-gradient(120% 90% at 68% 42%, #0c1226 0%, #070b18 46%, #04060d 100%);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* 细线网格 */
+      .grid {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 1;
+        background-image:
+          linear-gradient(rgba(140, 178, 255, 0.05) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(140, 178, 255, 0.05) 1px, transparent 1px);
+        background-size: 72px 72px;
+        -webkit-mask-image: radial-gradient(120% 120% at 50% 50%, #000 40%, transparent 78%);
+                mask-image: radial-gradient(120% 120% at 50% 50%, #000 40%, transparent 78%);
+      }
+
+      /* 粒子画布 */
+      #field { position: fixed; inset: 0; z-index: 2; display: block; }
+
+      /* 中央轻微晕影，制造纵深 */
+      .vignette {
+        position: fixed;
+        inset: 0;
+        z-index: 3;
+        pointer-events: none;
+        background: radial-gradient(120% 120% at 50% 42%, transparent 55%, rgba(3, 5, 12, 0.65) 100%);
+      }
+
+      /* 前景内容 */
+      .stage {
+        position: fixed;
+        inset: 0;
+        z-index: 4;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: clamp(32px, 7vw, 96px);
+        gap: 4vw;
+        pointer-events: none;
+      }
+      .stage > * { pointer-events: auto; }
+
+      /* 左侧文案区 */
+      .copy {
+        max-width: 46vw;
+        min-width: 320px;
+      }
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
+        color: var(--blue-cyan);
+        opacity: 0.92;
+        margin-bottom: 26px;
+      }
+      .eyebrow::before {
+        content: "";
+        width: 34px;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--blue-cyan));
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: clamp(44px, 6.2vw, 96px);
+        line-height: 1.04;
+        letter-spacing: 0.01em;
+        font-weight: 780;
+        background: linear-gradient(180deg, #ffffff 0%, #cfe0ff 55%, var(--blue-azure) 130%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .title-sub {
+        display: block;
+        margin: 16px 0 22px;
+        font-size: clamp(13px, 1.1vw, 17px);
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--ink-dim);
+      }
+      .desc {
+        max-width: 34ch;
+        margin: 0 0 38px;
+        font-size: clamp(15px, 1.25vw, 18px);
+        line-height: 1.7;
+        color: var(--ink-dim);
+      }
+
+      .actions { display: flex; gap: 16px; flex-wrap: wrap; }
+      .btn {
+        appearance: none;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        padding: 14px 28px;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        cursor: pointer;
+        transition: transform 0.18s ease, box-shadow 0.22s ease, background 0.22s ease, color 0.22s ease;
+      }
+      .btn:active { transform: translateY(1px) scale(0.99); }
+      .btn-primary {
+        color: #07101f;
+        background: linear-gradient(180deg, var(--blue-ice), var(--blue-cyan) 45%, #7db6ff);
+        box-shadow: 0 8px 30px rgba(80, 140, 255, 0.28), inset 0 1px 0 rgba(255,255,255,0.7);
+      }
+      .btn-primary:hover { box-shadow: 0 12px 42px rgba(80, 140, 255, 0.4); transform: translateY(-1px); }
+      .btn-ghost {
+        color: var(--ink);
+        background: transparent;
+        border-color: var(--hairline-strong);
+      }
+      .btn-ghost:hover { border-color: var(--blue-cyan); color: #fff; background: rgba(120, 170, 255, 0.06); }
+
+      /* 右侧圆形关卡轨迹 + 奖杯 */
+      .track-side {
+        width: clamp(300px, 30vw, 440px);
+        aspect-ratio: 1 / 1;
+        flex: 0 0 auto;
+        display: grid;
+        place-items: center;
+      }
+      .rings { position: relative; width: 100%; height: 100%; }
+      .ring {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        border: 1px solid transparent;
+      }
+      .ring-3 { width: 100%; height: 100%; }
+      .ring-2 { width: 66%; height: 66%; }
+      .ring-1 { width: 33%; height: 33%; }
+      .ring {
+        border-color: var(--hairline-strong);
+        background:
+          radial-gradient(closest-side, transparent 70%, rgba(90, 140, 255, 0.05) 100%);
+      }
+      .ring-1 { border-color: rgba(168, 216, 255, 0.4); box-shadow: 0 0 40px rgba(90, 150, 255, 0.18); }
+      .lane {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        padding: 0;
+        border: 1px dashed rgba(168, 216, 255, 0.14);
+      }
+      .lane-label {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        color: var(--ink-dim);
+        white-space: nowrap;
+      }
+
+      /* 奖杯核心 */
+      .trophy {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        width: 30%;
+        aspect-ratio: 1;
+        display: grid;
+        place-items: center;
+        filter: drop-shadow(0 6px 22px rgba(90, 150, 255, 0.35));
+      }
+      .trophy svg { width: 100%; height: 100%; }
+
+      /* 右下调试面板 */
+      .tweaks {
+        position: fixed;
+        right: 22px; bottom: 22px;
+        z-index: 10;
+        background: rgba(9, 14, 28, 0.72);
+        border: 1px solid var(--hairline-strong);
+        border-radius: 16px;
+        padding: 16px 18px;
+        min-width: 220px;
+        font-size: 13px;
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+      }
+      .tweaks h4 {
+        margin: 0 0 12px;
+        font-size: 12px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--ink-dim);
+      }
+      .tweak-row { margin-bottom: 12px; }
+      .tweak-row:last-child { margin-bottom: 0; }
+      .tweak-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+      .tweak-head span:last-child { color: var(--blue-cyan); font-variant-numeric: tabular-nums; }
+      input[type="range"] {
+        width: 100%;
+        appearance: none;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(140, 178, 255, 0.22);
+        outline: none;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        appearance: none;
+        width: 14px; height: 14px;
+        border-radius: 50%;
+        background: var(--blue-cyan);
+        border: 2px solid #07101f;
+        box-shadow: 0 0 12px rgba(140, 190, 255, 0.6);
+        cursor: pointer;
+      }
+      .seg { display: flex; border: 1px solid var(--hairline-strong); border-radius: 999px; overflow: hidden; }
+      .seg button {
+        flex: 1;
+        appearance: none;
+        background: transparent;
+        border: none;
+        color: var(--ink-dim);
+        padding: 6px 0;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .seg button.is-active { background: rgba(120, 170, 255, 0.16); color: #fff; }
+
+      @media (prefers-reduced-motion: reduce) {
+        #field { visibility: hidden; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grid" aria-hidden="true"></div>
+    <canvas id="field" aria-hidden="true"></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+
+    <section class="stage">
+      <!-- 左侧文案 -->
+      <div class="copy">
+        <span class="eyebrow">精英闯关 / ELITE ARENA</span>
+        <h1>以题为刃<br />向上闯关</h1>
+        <span class="title-sub">Sharpen the mind · Conquer each level</span>
+        <p class="desc">在层层设限的关隘中，用每一次思考劈开路径。此刻起，题即为刃，向上，从不回头。</p>
+        <div class="actions">
+          <button class="btn btn-primary" type="button">开始闯关</button>
+          <button class="btn btn-ghost" type="button">查看规则</button>
+        </div>
+      </div>
+
+      <!-- 右侧三层圆形关卡轨迹 + 奖杯 -->
+      <div class="track-side">
+        <div class="rings">
+          <div class="ring ring-3"><div class="lane"></div></div>
+          <div class="ring ring-2"><div class="lane"></div></div>
+          <div class="ring ring-1"></div>
+          <div class="lane-label" style="transform: translate(-50%, -50%) translateY(-42%);">LEVEL 03</div>
+          <div class="trophy">
+            <!-- 简约奖杯 SVG -->
+            <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+              <defs>
+                <linearGradient id="tg" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#eaf3ff"/>
+                  <stop offset="0.55" stop-color="#9cc4ff"/>
+                  <stop offset="1" stop-color="#4d7fe6"/>
+                </linearGradient>
+              </defs>
+              <path d="M20 10h24v6c0 6.6-5.4 12-12 12s-12-5.4-12-12v-6z" fill="url(#tg)" opacity="0.95"/>
+              <path d="M20 12H13c0 7 4 12 10 13M44 12h7c0 7-4 12-10 13" stroke="#cfe0ff" stroke-width="2.4" stroke-linecap="round"/>
+              <path d="M27 34h10l-2 6h-6z" fill="#cfe0ff"/>
+              <path d="M24 44h16M28 40l-4 18h16l-4-18" stroke="#a8d8ff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M20 58h24" stroke="#6ea6ff" stroke-width="2.4" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右下调试面板 -->
+    <aside class="tweaks" id="tweaks">
+      <h4>Tweaks</h4>
+      <div class="tweak-row">
+        <div class="tweak-head"><span>粒子数量</span><span id="countVal"></span></div>
+        <input id="count" type="range" min="200" max="1200" step="50" value="650" />
+      </div>
+      <div class="tweak-row">
+        <div class="tweak-head"><span>流动速度</span><span id="speedVal"></span></div>
+        <input id="speed" type="range" min="10" max="90" step="5" value="38" />
+      </div>
+      <div class="tweak-row">
+        <div class="tweak-head"><span>波浪幅度</span><span id="ampVal"></span></div>
+        <input id="amp" type="range" min="4" max="30" step="1" value="15" />
+      </div>
+      <div class="tweak-row">
+        <div class="seg" id="mode">
+          <button data-mode="wave" class="is-active" type="button">波浪</button>
+          <button data-mode="swirl" type="button">环绕</button>
+        </div>
+      </div>
+    </aside>
+
+    <script>
+      (function () {
+        "use strict";
+
+        var canvas = document.getElementById("field");
+        var ctx = canvas.getContext("2d");
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var W = 0, H = 0;
+
+        var CFG = {
+          count: 650,
+          speed: 0.38,
+          amp: 15,
+          mode: "wave" // wave | swirl
+        };
+
+        // 三层蓝：深靛（远/上）→ 亮蓝（中）→ 冰青（高光/底）
+        var DEEP = [27, 42, 94];     // #1B2A5E
+        var AZURE = [61, 123, 255];  // #3D7BFF
+        var CYAN = [168, 216, 255];  // #A8D8FF
+
+        // 右侧圆环中心（与前景对齐，约占 68% 横向、42% 纵向）
+        var RING = { x: 0.75, y: 0.5, r: 0.22 };
+
+        // 左侧文案保护矩形（粒子在此区淡出，避免遮挡标题/按钮）
+        var PROTECT = { x: 0.06, y: 0.16, w: 0.44, h: 0.68 };
+
+        function resize() {
+          W = window.innerWidth;
+          H = window.innerHeight;
+          canvas.width = Math.floor(W * dpr);
+          canvas.height = Math.floor(H * dpr);
+          canvas.style.width = W + "px";
+          canvas.style.height = H + "px";
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          PROTECT = { x: 0.05, y: 0.14, w: 0.47, h: 0.72 };
+          RING.x = 0.76; RING.y = 0.5;
+        }
+        resize();
+        window.addEventListener("resize", resize);
+
+        // —— 粒子的「带状中心线」：不规则非对称波浪 ——
+        // 返回中心在 x 处的基准 y（归一化 0..1）。较低=深沉，较高=上扬。
+        var tBase = 0;
+
+        function waveCenterY(x, t) {
+          // 基础坡度：左低右高，整体从左上向中部上扬
+          var base = 0.52 - 0.10 * x + 0.04 * Math.sin(t * 0.4 + x * 3.1);
+          // 主波 + 次谐波，制造不规则非对称
+          var a1 = Math.sin(x * 5.4 - t * 1.8);
+          var a2 = Math.sin(x * 9.7 + t * 0.9) * 0.5;
+          var a3 = Math.sin(x * 2.3 - t * 1.35 + 1.2) * 0.6;
+          return base + (a1 + a2 + a3) * (CFG.amp / 100) * 0.5 + 0.03;
+        }
+
+        // 厚度（带状半宽），随时间 + 噪声起伏 → 密度不均
+        function halfThickness(x, t) {
+          var n = Math.sin(x * 8.2 + t * 1.1) + Math.sin(x * 4.1 - t * 1.7);
+          n = 0.5 + 0.5 * (n / 2);
+          return 0.05 + 0.075 * n; // 归一化宽度
+        }
+
+        // 简单伪随机数（每颗粒 ID 固定，产生碎隙/漂移）
+        var seed = 1;
+        function rand() {
+          seed = (seed * 16807) % 2147483647;
+          return (seed - 1) / 2147483646;
+        }
+
+        // 粒子数组
+        var particles = [];
+
+        function makeParticle(anywhere) {
+          var band = rand() * 2 - 1; // -1(上/深) .. 1(下/亮)
+          var p = {
+            x: rand(),
+            y: 0.5,
+            band: band,
+            size: 1 + Math.round(rand() * 2.5), // 1..3 px 小方块
+            tw: rand() * 6.28,
+            tws: 1 + rand() * 1.6,
+            // 颜色滑块：0 深靛 → 0.5 亮蓝 → 1 冰青
+            shade: 0.5 + 0.5 * band,
+            gap: rand() < 0.18, // 部分粒子「游离漂散」，制造碎隙
+            drift: (rand() - 0.5) * 0.08,
+            // 个别粒子作为「高光星点」，更亮更大
+            spark: rand() < 0.12,
+            alive: true
+          };
+          p.y = anywhere ? rand() : waveCenterY(p.x, tBase) + p.band * halfThickness(p.x, tBase);
+          return p;
+        }
+
+        function buildCount(n) {
+          particles = [];
+          for (var i = 0; i < n; i++) particles.push(makeParticle(true));
+        }
+
+        function lerp(a, b, k) { return a + (b - a) * k; }
+        function mix3(a, b, k) {
+          return [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)];
+        }
+
+        function updateParticle(p, t, dt) {
+          if (CFG.mode === "wave") {
+            // 横向流动：沿 x 向右/左推进
+            p.x += CFG.speed * dt * 0.045;
+            if (p.x > 1.05) { p.x = -0.05; p.band = rand() * 2 - 1; p.shade = 0.5 + 0.5 * p.band; }
+
+            // 目标 y = 中心线 + band * 厚度
+            var cy = waveCenterY(p.x, t);
+            var th = halfThickness(p.x, t);
+            var target = cy + p.band * th + p.drift * Math.sin(t * 0.9 + p.tw);
+            // 弹簧回位，产生顺畅的贴带滚动
+            p.y += (target - p.y) * 0.045;
+
+            // 环绕流动：靠近右侧时吸附进圆环（流入奖杯）
+            var dx = p.x - RING.x, dy = p.y - RING.y;
+            var dist = Math.hypot(dx, dy);
+            var near = Math.max(0, 1 - dist / (RING.r * 1.6));
+            if (near > 0) {
+              var ang = Math.atan2(dy, dx) + 0.01 + t * 0.4 * (1 - near * 0.4);
+              var rr = Math.min(dist, RING.r * 0.9);
+              p.x = RING.x + Math.cos(ang) * rr;
+              p.y = RING.y + Math.sin(ang) * rr;
+              p.shade = 0.6 + 0.4 * Math.sin(ang * 2 + t);
+            }
+          } else {
+            // 环绕模式：整体围绕圆环旋转，无视波浪
+            var dx2 = p.x - RING.x, dy2 = p.y - RING.y;
+            var d2 = Math.max(0.02, Math.hypot(dx2, dy2));
+            var a2 = Math.atan2(dy2, dx2) + CFG.speed * dt * 0.18;
+            var want = RING.r * (0.35 + 0.6 * (0.5 + 0.5 * p.band));
+            var r2 = lerp(d2, want, 0.05);
+            p.x = RING.x + Math.cos(a2) * r2;
+            p.y = RING.y + Math.sin(a2) * r2;
+            p.shade = 0.5 + 0.5 * Math.sin(a2 * (1 + Math.floor(p.band * 3)) * 0.5 + t);
+          }
+        }
+
+        function protectMask(px, py) {
+          // 在左侧文字区把粒子透明化（0=遮挡，1=可见），留出呼吸区
+          if (px < PROTECT.x || px > PROTECT.x + PROTECT.w || py < PROTECT.y || py > PROTECT.y + PROTECT.h) return 1;
+          if (px < PROTECT.x + 0.04 || px > PROTECT.x + PROTECT.w - 0.04) return 0.4;
+          return 0.05;
+        }
+
+        function draw(t) {
+          ctx.clearRect(0, 0, W, H);
+          // 加性发光
+          ctx.globalCompositeOperation = "lighter";
+
+          var dt = 1;
+          for (var i = 0; i < particles.length; i++) {
+            var p = particles[i];
+            updateParticle(p, t, dt);
+
+            var px = p.x * W, py = p.y * H;
+
+            // 颜色：三层蓝按 shade 插值（DEEP → AZURE → CYAN），高光再亮一档
+            var col;
+            if (p.shade < 0.5) col = mix3(DEEP, AZURE, p.shade * 2);
+            else col = mix3(AZURE, CYAN, (p.shade - 0.5) * 2);
+
+            var tw = 0.72 + 0.28 * Math.sin(t * p.tws + p.tw);
+            var alpha = tw * protectMask(px / W, py / H);
+            if (alpha <= 0.02) continue;
+
+            var size = p.size;
+            // spark 高光星点：更亮更接近冰白
+            if (p.spark) {
+              col = [224, 242, 255];
+              size = p.size + 1.4;
+              alpha = Math.min(1, alpha * 1.6);
+            }
+
+            ctx.globalAlpha = Math.min(0.9, alpha);
+            ctx.fillStyle = "rgb(" + (col[0] | 0) + "," + (col[1] | 0) + "," + (col[2] | 0) + ")";
+
+            // 小方块：非对称偏移，制造碎隙/不规则感；spark 带柔光晕
+            if (p.spark) {
+              ctx.shadowColor = "rgba(160,210,255,0.9)";
+              ctx.shadowBlur = 8;
+            } else {
+              ctx.shadowBlur = 0;
+            }
+            var off = p.gap ? 1.6 : 0;
+            ctx.fillRect(px + off - size / 2, py + off * 0.4 - size / 2, size, size);
+          }
+          ctx.globalAlpha = 1;
+          ctx.shadowBlur = 0;
+          ctx.globalCompositeOperation = "source-over";
+        }
+
+        // —— 动画循环 ——
+        var last = performance.now();
+        var frameT = 0;
+        function loop(now) {
+          var dt = Math.min(0.05, (now - last) / 1000);
+          last = now;
+          frameT += dt;
+          tBase = frameT;
+          draw(frameT);
+          requestAnimationFrame(loop);
+        }
+
+        // —— 控件绑定 ——
+        function updateLabel(id, val, fmt) {
+          document.getElementById(id).textContent = (fmt ? fmt(val) : val);
+        }
+        var countEl = document.getElementById("count");
+        var speedEl = document.getElementById("speed");
+        var ampEl = document.getElementById("amp");
+        updateLabel("countVal", countEl.value);
+        updateLabel("speedVal", speedEl.value);
+        updateLabel("ampVal", ampEl.value);
+
+        countEl.addEventListener("input", function () {
+          CFG.count = +countEl.value;
+          updateLabel("countVal", CFG.count);
+          buildCount(CFG.count);
+        });
+        speedEl.addEventListener("input", function () {
+          CFG.speed = +speedEl.value / 100;
+          updateLabel("speedVal", speedEl.value);
+        });
+        ampEl.addEventListener("input", function () {
+          CFG.amp = +ampEl.value;
+          updateLabel("ampVal", ampEl.value);
+        });
+        document.getElementById("mode").addEventListener("click", function (e) {
+          if (e.target.tagName !== "BUTTON") return;
+          var mode = e.target.getAttribute("data-mode");
+          CFG.mode = mode;
+          var btns = this.querySelectorAll("button");
+          for (var i = 0; i < btns.length; i++) btns[i].classList.toggle("is-active", btns[i] === e.target);
+        });
+
+        buildCount(CFG.count);
+        requestAnimationFrame(loop);
+      })();
+    </script>
+  </body>
+</html>

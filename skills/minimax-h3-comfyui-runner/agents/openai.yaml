@@ -1,0 +1,4 @@
+interface:
+  display_name: "MiniMax H3 ComfyUI 调用器"
+  short_description: "提交、轮询并下载 MiniMax H3 ComfyUI 工作流结果"
+  default_prompt: "使用 $minimax-h3-comfyui-runner 提交内置 H3 工作流并下载生成结果。"

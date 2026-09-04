@@ -1,0 +1,31 @@
+:root {
+  --ink: #17211d;
+  --muted: #56625d;
+  --line: #d9dedb;
+  --paper: #f5f6f4;
+  --panel: #ffffff;
+  --accent: #087f65;
+  --accent-dark: #04634f;
+}
+
+body.embedded .topbar {
+  display: none;
+}
+
+body.embedded .app-shell {
+  min-height: 100%;
+}
+
+body.embedded .workspace {
+  padding: 32px 4vw 56px;
+}
+
+body.embedded .review-workspace {
+  min-height: 100vh;
+}
+
+@media (max-width: 720px) {
+  body.embedded .workspace {
+    padding: 20px 16px 40px;
+  }
+}

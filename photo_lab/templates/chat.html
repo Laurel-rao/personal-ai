@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>对话 · Photo Lab</title>
+  <base href="{{ request.script_root or '' }}/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="static/app.css">
+  <link rel="stylesheet" href="static/vendor/nlux/nova-2.17.1.css">
+  <link rel="stylesheet" href="static/chat.css">
+</head>
+<body class="chat-body">
+  <header class="topbar chat-topbar">
+    <a class="brand brand-link" href="./"><span class="brand-mark">P</span><span>PHOTO LAB</span><small>QWEN CHAT</small></a>
+    <nav class="top-actions" aria-label="页面导航"><a class="menu-link" href="./">创作</a><a class="menu-link active" href="chat">对话</a><a class="menu-link" href="review">图片标注</a></nav>
+  </header>
+  <main class="chat-main">
+    <div class="chat-context"><span id="chatHealthDot" class="health-dot" aria-hidden="true"></span><span id="chatStatus">正在连接 Qwen…</span></div>
+    <div id="chatRoot" aria-label="Qwen 对话"></div>
+  </main>
+  <script src="static/vendor/nlux/nlux-core-2.17.1.umd.js"></script>
+  <script src="static/chat.js"></script>
+</body>
+</html>

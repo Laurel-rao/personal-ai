@@ -1,0 +1,170 @@
+const $ = (id) => document.getElementById(id);
+const state = { items: [], history: { items: [], page: 1, total_pages: 1, total: 0 }, historyPage: 1, historyVisible: false, generationMode: 'single' };
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+}
+
+async function copyText(text) {
+  const value = String(text || '').trim();
+  if (!value) throw new Error('没有可复制的提示词');
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return;
+    } catch (_) {
+      // Embedded pages can be denied clipboard permission, so use the browser fallback below.
+    }
+  }
+  const helper = document.createElement('textarea');
+  helper.value = value;
+  helper.setAttribute('readonly', '');
+  helper.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+  document.body.append(helper);
+  helper.select();
+  const copied = document.execCommand('copy');
+  helper.remove();
+  if (!copied) throw new Error('浏览器未允许访问剪贴板');
+}
+
+function statusLabel(status) {
+  return ({ queued: 'QUEUED', running: 'RUNNING', success: 'DONE', error: 'ERROR' }[status] || status).toUpperCase();
+}
+
+function renderActive() {
+  const active = state.items.filter((item) => ['queued', 'running'].includes(item.status));
+  $('queueCount').textContent = `生成队列 ${active.length}`;
+  if (!active.length) {
+    $('activeTasks').className = 'task-list empty-state';
+    $('activeTasks').innerHTML = '<div class="empty-icon">◌</div><strong>还没有进行中的任务</strong><span>提交一条提示词，进度会显示在这里</span>';
+    return;
+  }
+  $('activeTasks').className = 'task-list';
+  $('activeTasks').innerHTML = active.map((item) => `<div class="task-card"><div class="task-top"><div class="task-name">${escapeHtml(item.prompt)}</div><span class="status">${statusLabel(item.status)}</span></div><div class="progress-track"><div class="progress-bar" style="width:${item.progress || 0}%"></div></div><div class="task-meta"><span>${escapeHtml(item.message || '等待中')}</span><span>${item.progress || 0}% <button class="cancel-button" data-task-id="${item.id}">取消</button></span></div></div>`).join('');
+}
+
+function renderHistory() {
+  const finished = state.history.items;
+  const pager = $('historyPager');
+  if (!finished.length) { $('history').innerHTML = '<div class="history-empty">完成的生成会保存在这里</div>'; return; }
+  $('history').innerHTML = finished.map((item, index) => {
+    const image = item.outputs?.[0];
+    const actions = image ? `<div class="history-card-actions"><button class="history-action-button" type="button" data-history-action="preview" data-history-index="${index}" title="放大图片" aria-label="放大图片"><i data-lucide="maximize-2"></i></button><button class="history-action-button" type="button" data-history-action="copy" data-history-index="${index}" title="复制提示词" aria-label="复制提示词"><i data-lucide="copy"></i></button><a class="history-action-button" href="${escapeHtml(image.url)}" download="${escapeHtml(image.filename || 'generated-image.png')}" title="下载图片" aria-label="下载图片"><i data-lucide="download"></i></a></div>` : '';
+    return `<article class="history-card"><div class="history-image ${image ? '' : 'loading-shimmer'}">${image ? `<img src="${escapeHtml(image.url)}" alt="生成结果" loading="lazy">` : (item.status === 'error' ? '生成失败' : '无预览')}</div><div class="history-copy"><p>${escapeHtml(item.prompt)}</p><div class="history-meta"><time>${new Date(item.created_at).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })} · ${statusLabel(item.status)}</time>${actions}</div></div></article>`;
+  }).join('');
+  window.lucide?.createIcons();
+  pager.hidden = state.history.total_pages <= 1;
+  $('historyPageInfo').textContent = `${state.history.page} / ${state.history.total_pages} · ${state.history.total} 条`;
+  pager.querySelector('[data-history-page="previous"]').disabled = state.history.page <= 1;
+  pager.querySelector('[data-history-page="next"]').disabled = state.history.page >= state.history.total_pages;
+}
+
+async function refresh() {
+  const historyQuery = state.historyVisible ? `?include_history=1&history_page=${state.historyPage}&history_page_size=10` : '';
+  const [tasks, health] = await Promise.all([fetch(`api/tasks${historyQuery}`).then((r) => r.json()), fetch('api/health').then((r) => r.json()).catch(() => ({ ok: false }))]);
+  state.items = tasks.active_items || tasks.items || [];
+  if (state.historyVisible) {
+    state.history = tasks.history || { items: [], page: 1, total_pages: 1, total: 0 };
+    renderHistory();
+  }
+  renderActive();
+  $('healthDot').className = `health-dot ${health.ok ? 'online' : 'offline'}`;
+  $('healthText').textContent = health.ok ? `${health.version || 'ComfyUI'} · ${String(health.device || 'GPU').split(' : ')[0]}` : '生成引擎不可达';
+}
+
+async function poll() {
+  await refresh();
+  if (state.items.some((item) => ['queued', 'running'].includes(item.status))) setTimeout(poll, 1200);
+}
+
+function batchPrompts() {
+  return $('batchPrompts').value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+}
+
+function renderGenerationMode() {
+  const batch = state.generationMode === 'batch';
+  $('singlePromptField').hidden = batch;
+  $('batchPromptField').hidden = !batch;
+  $('prompt').required = !batch;
+  $('batchPrompts').required = batch;
+  document.querySelectorAll('.mode-tab').forEach((button) => button.classList.toggle('active', button.dataset.mode === state.generationMode));
+  $('submitButton').querySelector('span').textContent = batch ? `加入 ${batchPrompts().length || 0} 条生成队列` : '加入生成队列';
+}
+
+function renderBatchCount() {
+  const count = batchPrompts().length;
+  $('batchPromptCount').textContent = `${count} 条待生成`;
+  if (state.generationMode === 'batch') $('submitButton').querySelector('span').textContent = `加入 ${count} 条生成队列`;
+}
+
+function renderSizePresets() {
+  const width = Number($('width').value);
+  const height = Number($('height').value);
+  document.querySelectorAll('.size-preset').forEach((button) => button.classList.toggle('active', Number(button.dataset.width) === width && Number(button.dataset.height) === height));
+}
+
+$('generateForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const width = Number($('width').value);
+  const height = Number($('height').value);
+  const batch_size = Number($('batchSize').value);
+  const button = $('submitButton');
+  button.disabled = true; button.querySelector('span').textContent = '正在加入队列…'; $('formMessage').textContent = '';
+  try {
+    const batch = state.generationMode === 'batch';
+    const response = await fetch(batch ? 'api/generate/batch' : 'api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(batch ? { prompts: batchPrompts(), negative_prompt: $('negativePrompt').value, width, height, batch_size, seed: $('seed').value || null } : { prompt: $('prompt').value, negative_prompt: $('negativePrompt').value, width, height, batch_size, seed: $('seed').value || null }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || '提交失败');
+    $('formMessage').textContent = batch ? `已创建 ${result.created} 条任务` : `任务已创建 · ${result.id.slice(0, 8)}`;
+    poll();
+  } catch (error) { $('formMessage').textContent = error.message; } finally { button.disabled = false; renderGenerationMode(); }
+});
+
+$('batchPrompts').addEventListener('input', renderBatchCount);
+document.querySelectorAll('.mode-tab').forEach((button) => button.addEventListener('click', () => { state.generationMode = button.dataset.mode; renderGenerationMode(); renderBatchCount(); }));
+document.querySelectorAll('.size-preset').forEach((button) => button.addEventListener('click', () => { $('width').value = button.dataset.width; $('height').value = button.dataset.height; renderSizePresets(); }));
+$('width').addEventListener('input', renderSizePresets);
+$('height').addEventListener('input', renderSizePresets);
+$('refreshBtn').addEventListener('click', poll);
+$('toggleHistory').addEventListener('click', async () => {
+  state.historyVisible = !state.historyVisible;
+  $('historyContent').hidden = !state.historyVisible;
+  $('clearHistory').hidden = !state.historyVisible;
+  $('toggleHistory').textContent = state.historyVisible ? '收起' : '展示';
+  $('toggleHistory').setAttribute('aria-expanded', String(state.historyVisible));
+  if (!state.historyVisible) return;
+  state.historyPage = 1;
+  $('history').innerHTML = '<div class="history-empty">正在查询历史记录…</div>';
+  await refresh();
+});
+$('historyPager').addEventListener('click', (event) => { const button = event.target.closest('[data-history-page]'); if (!button || button.disabled || !state.historyVisible) return; state.historyPage += button.dataset.historyPage === 'next' ? 1 : -1; refresh(); });
+$('history').addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-history-action]');
+  if (!button) return;
+  const item = state.history.items[Number(button.dataset.historyIndex)];
+  const image = item?.outputs?.[0];
+  if (!item || !image) return;
+  if (button.dataset.historyAction === 'preview') {
+    $('previewImage').src = image.url;
+    $('previewPrompt').textContent = item.prompt || '未记录提示词';
+    if (!$('imagePreviewDialog').open) $('imagePreviewDialog').showModal();
+    return;
+  }
+  if (button.dataset.historyAction !== 'copy') return;
+  try {
+    await copyText(item.prompt);
+    button.classList.add('copied');
+    button.title = '已复制';
+    button.setAttribute('aria-label', '提示词已复制');
+    setTimeout(() => { button.classList.remove('copied'); button.title = '复制提示词'; button.setAttribute('aria-label', '复制提示词'); }, 1200);
+  } catch (_) {
+    button.title = '复制失败';
+  }
+});
+$('closeImagePreview').addEventListener('click', () => $('imagePreviewDialog').close());
+$('imagePreviewDialog').addEventListener('click', (event) => { if (event.target === $('imagePreviewDialog')) $('imagePreviewDialog').close(); });
+$('activeTasks').addEventListener('click', async (event) => { const button = event.target.closest('.cancel-button'); if (!button) return; button.disabled = true; await fetch(`api/tasks/${button.dataset.taskId}/cancel`, { method: 'POST' }); poll(); });
+$('clearHistory').addEventListener('click', async () => { await fetch('api/tasks/history', { method: 'DELETE' }); state.history = { items: [], page: 1, total_pages: 1, total: 0 }; if (state.historyVisible) await refresh(); });
+renderGenerationMode();
+renderSizePresets();
+poll();

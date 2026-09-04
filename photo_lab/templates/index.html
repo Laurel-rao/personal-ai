@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Photo Lab · ComfyUI 生成工作台</title>
+  <base href="{{ request.script_root or '' }}/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="static/app.css">
+  <link rel="stylesheet" href="static/embed.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body{% if embedded %} class="embedded"{% endif %}>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">P</span><span>PHOTO LAB</span><small>COMFYUI CONSOLE</small></div>
+      <div class="top-actions"><a class="menu-link" href="../chat" target="_top">文本对话</a><a class="menu-link" href="{{ 'review?embedded=1' if embedded else 'review' }}">图片标注</a><span id="healthDot" class="health-dot"></span><span id="healthText">正在连接生成引擎</span><button class="icon-button" id="refreshBtn" title="刷新数据">↻</button></div>
+    </header>
+    <main class="workspace">
+      <section class="composer panel">
+        <div class="eyebrow">CREATE / 01</div>
+        <h1>创意<em>大师</em></h1>
+        <form id="generateForm">
+          <div class="generate-mode" role="tablist" aria-label="生成方式">
+            <button type="button" class="mode-tab active" data-mode="single">单张</button>
+            <button type="button" class="mode-tab" data-mode="batch">批量</button>
+          </div>
+          <div id="singlePromptField">
+            <label>正向提示词 <span>必填</span></label>
+            <textarea id="prompt" rows="3" placeholder="描述主体、场景、光线和镜头语言…" required>一个身穿白色夏日连衣裙的女孩站在海边，金色夕阳，电影感摄影</textarea>
+          </div>
+          <div id="batchPromptField" hidden>
+            <label>批量提示词 <span>一行一条</span></label>
+            <textarea id="batchPrompts" rows="5" placeholder="一行一条提示词&#10;海边夕阳下的电影感人像&#10;窗边自然光的半身写真"></textarea>
+            <div id="batchPromptCount" class="batch-count">0 条待生成</div>
+          </div>
+          <label>负向提示词</label>
+          <input id="negativePrompt" value="blurry ugly bad, low quality">
+          <div class="field-row dimensions-row">
+            <div><label>宽度 <span>PX</span></label><input id="width" type="number" min="64" max="2048" step="8" value="1024"></div>
+            <div><label>高度 <span>PX</span></label><input id="height" type="number" min="64" max="2048" step="8" value="1024"></div>
+            <div><label>每条生成 <span>张</span></label><input id="batchSize" type="number" min="1" max="8" step="1" value="1"></div>
+          </div>
+          <div class="size-presets" aria-label="尺寸比例预设">
+            <button type="button" class="size-preset" data-width="1024" data-height="1024">方图 1:1</button>
+            <button type="button" class="size-preset" data-width="768" data-height="1024">人像 3:4</button>
+            <button type="button" class="size-preset" data-width="768" data-height="1152">海报 2:3</button>
+            <button type="button" class="size-preset" data-width="1280" data-height="720">横版 16:9</button>
+            <button type="button" class="size-preset" data-width="720" data-height="1280">手机 9:16</button>
+          </div>
+          <div class="field-row">
+            <div><label>种子</label><input id="seed" type="number" placeholder="随机"></div>
+          </div>
+          <button id="submitButton" class="primary-button" type="submit"><span>加入生成队列</span><b>↗</b></button>
+          <div id="formMessage" class="form-message"></div>
+        </form>
+      </section>
+      <section class="queue-column">
+        <div class="section-heading"><div><div class="eyebrow">QUEUE / 02</div><h2>任务进度</h2></div><span id="queueCount" class="counter" aria-live="polite">生成队列 0</span></div>
+        <div id="activeTasks" class="task-list empty-state"><div class="empty-icon">◌</div><strong>还没有进行中的任务</strong><span>提交一条提示词，进度会显示在这里</span></div>
+        <div class="section-heading history-heading"><div><div class="eyebrow">ARCHIVE / 03</div><h2>历史生成</h2></div><div class="history-actions"><button id="toggleHistory" class="text-button" type="button" aria-expanded="false">展示</button><button id="clearHistory" class="text-button" type="button" hidden>清理记录</button></div></div>
+        <div id="historyContent" hidden>
+          <div id="history" class="history-list"></div>
+          <div id="historyPager" class="history-pager" hidden>
+            <button type="button" class="pager-button" data-history-page="previous" title="上一页">←</button>
+            <span id="historyPageInfo"></span>
+            <button type="button" class="pager-button" data-history-page="next" title="下一页">→</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <dialog id="imagePreviewDialog" class="image-preview-dialog" aria-label="图片预览">
+    <div class="image-preview-panel">
+      <div class="image-preview-toolbar"><span>图片预览</span><button id="closeImagePreview" class="history-action-button" type="button" title="关闭预览" aria-label="关闭预览"><i data-lucide="x"></i></button></div>
+      <img id="previewImage" alt="放大预览">
+      <p id="previewPrompt"></p>
+    </div>
+  </dialog>
+  <script src="static/app.js"></script>
+</body>
+</html>

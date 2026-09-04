@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>图片标注 · Photo Lab</title>
+  <base href="{{ request.script_root or '' }}/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="static/app.css">
+  <link rel="stylesheet" href="static/embed.css">
+  <link rel="stylesheet" href="static/review.css">
+</head>
+<body class="review-body{% if embedded %} embedded{% endif %}">
+  <header class="topbar review-topbar">
+    <a class="brand brand-link" href="{{ './?embedded=1' if embedded else './' }}"><span class="brand-mark">P</span><span>PHOTO LAB</span><small>IMAGE REVIEW</small></a>
+    <div class="review-summary"><span id="reviewQueueCount" class="review-queue" aria-live="polite">生成队列 0</span><span id="reviewSummary">加载图片库...</span></div>
+    <div class="review-menu"><a class="menu-link" href="./">生成</a><a class="menu-link" href="../chat" target="_top">文本对话</a></div>
+  </header>
+  <main class="review-workspace">
+    <section class="review-stage" id="reviewStage">
+      <div class="review-image-wrap" id="reviewImageWrap"><div class="review-empty">正在加载待标注图片...</div></div>
+      <div class="swipe-indicator unlike-indicator" id="unlikeIndicator">UNLIKE</div>
+      <div class="swipe-indicator like-indicator" id="likeIndicator">LIKE</div>
+    </section>
+    <aside class="review-controls">
+      <div class="scope-switch" aria-label="图片范围"><button class="scope-button active" data-scope="pending">待标注</button><button class="scope-button" data-scope="all">全部记录</button></div>
+      <div class="mode-switch" aria-label="浏览模式"><button class="mode-button active" data-mode="sequential">顺序</button><button class="mode-button" data-mode="random">随机</button></div>
+      <button id="playButton" class="play-button">开始自动浏览</button>
+      <div class="label-actions">
+        <button id="unlikeButton" class="label-button unlike" title="左键">← <span>Unlike</span></button>
+        <button id="likeButton" class="label-button like" title="右键"><span>Like</span> →</button>
+      </div>
+      <div class="nav-actions"><button id="previousButton" class="nav-button">↑ 上一张</button><button id="nextButton" class="nav-button">下一张 ↓</button></div>
+      <div class="review-caption">
+        <div><span class="eyebrow" id="reviewSource">PHOTO LAB</span><p id="reviewPrompt">图片生成后会自动进入此处。</p></div>
+        <div class="review-position" id="reviewPosition">0 / 0</div>
+      </div>
+      <div class="shortcut-help"><span><kbd>←</kbd><kbd>→</kbd> 标注并下一张</span><span><kbd>↑</kbd><kbd>↓</kbd> 浏览</span><span><kbd>Space</kbd> 自动浏览</span><span class="mobile-help">手机：左右滑动标注，上下滑动浏览</span></div>
+    </aside>
+  </main>
+  <script src="static/review.js"></script>
+</body>
+</html>

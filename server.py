@@ -53,6 +53,7 @@ QWEN_API_URL = os.environ.get(
     "https://uu288331-788499bf7eab.bjb1.seetacloud.com:8443/v1",
 ).rstrip("/")
 QWEN_MODEL = os.environ.get("QWEN_MODEL", "qwen3:4b")
+PHOTO_LAB_URL = os.environ.get("PHOTO_LAB_URL", "http://127.0.0.1:4174").rstrip("/")
 
 
 def utc_now() -> str:
@@ -259,6 +260,8 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/photo" or parsed.path.startswith("/photo/"):
+            return self.proxy_photo_lab(parsed)
         if parsed.path in STATIC_FILES:
             return self.serve_static(STATIC_FILES[parsed.path])
         if parsed.path == "/api/health":
@@ -279,6 +282,8 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/photo" or parsed.path.startswith("/photo/"):
+            return self.proxy_photo_lab(parsed)
         if parsed.path == "/api/history":
             return self.handle_history_upsert()
         if parsed.path == "/api/workflow/generate":
@@ -295,6 +300,8 @@ class AppHandler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path == "/photo" or parsed.path.startswith("/photo/"):
+            return self.proxy_photo_lab(parsed)
         if parsed.path != "/api/history":
             return self.send_json(404, {"success": False, "error": "未找到该地址"})
         query = urllib.parse.parse_qs(parsed.query)
@@ -305,6 +312,49 @@ class AppHandler(BaseHTTPRequestHandler):
         items = [entry for entry in load_history() if str(entry.get("promptId") or entry.get("id")) != key]
         write_history(items)
         self.send_json(200, {"success": True, "deleted": key})
+
+    def proxy_photo_lab(self, parsed: urllib.parse.ParseResult) -> None:
+        """Expose the private Photo Lab service below one public workspace URL."""
+        relative_path = parsed.path[len("/photo"):] or "/"
+        target = f"{PHOTO_LAB_URL}{relative_path}"
+        if parsed.query:
+            target = f"{target}?{parsed.query}"
+        body = None if self.command in {"GET", "HEAD"} else self.read_body()
+        forward_headers = {"X-Forwarded-Prefix": "/photo"}
+        for header in ("Accept", "Content-Type", "Range", "User-Agent"):
+            value = self.headers.get(header)
+            if value:
+                forward_headers[header] = value
+        proxy_request = urllib.request.Request(
+            target,
+            data=body,
+            headers=forward_headers,
+            method=self.command,
+        )
+        try:
+            response = urllib.request.urlopen(proxy_request, timeout=180)
+        except urllib.error.HTTPError as error:
+            response = error
+        except Exception as error:
+            return self.send_json(502, {"success": False, "error": f"图片服务不可用: {error}"})
+        with response:
+            payload = response.read()
+            self.send_response(response.status)
+            for header in (
+                "Content-Type",
+                "Cache-Control",
+                "Content-Disposition",
+                "Content-Range",
+                "Accept-Ranges",
+                "ETag",
+                "Last-Modified",
+            ):
+                value = response.headers.get(header)
+                if value:
+                    self.send_header(header, value)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
 
     def serve_static(self, path: Path) -> None:
         try:

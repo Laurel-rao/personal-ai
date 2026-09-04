@@ -2,6 +2,7 @@ import copy
 import json
 import os
 import secrets
+import shutil
 import threading
 import time
 import uuid
@@ -12,6 +13,10 @@ from urllib.parse import quote, urlparse
 import requests
 from flask import Flask, jsonify, render_template, request, send_file, send_from_directory
 from werkzeug.middleware.proxy_fix import ProxyFix
+try:
+    from PIL import Image
+except ImportError:  # 缩略图不可用时仍可返回原图
+    Image = None
 try:
     import websocket
 except ImportError:  # WebSocket 不可用时自动回退到轮询
@@ -124,6 +129,32 @@ def local_image_path(task_id, image):
             return archived
     legacy = DATA_DIR / f"{task_id}.png"
     return legacy if legacy.is_file() else None
+
+
+def local_thumbnail_path(task_id, image):
+    filename = Path(str(image.get("local_filename") or image.get("filename") or "")).name
+    if not filename:
+        return None
+    return ARCHIVE_DIR / task_id / ".thumb" / f"{filename}.webp"
+
+
+def create_thumbnail(task_id, image, source):
+    """Create and cache a half-resolution WebP for history cards."""
+    if Image is None:
+        return None
+    target = local_thumbnail_path(task_id, image)
+    if target is None:
+        return None
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.is_file() and target.stat().st_mtime >= source.stat().st_mtime:
+        return target
+    with Image.open(source) as original:
+        width = max(1, original.width // 2)
+        height = max(1, original.height // 2)
+        resized = original.convert("RGB")
+        resized = resized.resize((width, height), Image.Resampling.LANCZOS)
+        resized.save(target, "WEBP", quality=82, method=4)
+    return target
 
 
 def archive_images(task_id, images):
@@ -264,10 +295,10 @@ def run_task(task_id):
 def public_task(task):
     result = {k: v for k, v in task.items() if k != "workflow"}
     prefix = request.script_root.rstrip("/")
-    result["outputs"] = [
-        {**image, "url": f"{prefix}/api/tasks/{task['id']}/image?filename={image['filename']}"}
-        for image in task.get("outputs", [])
-    ]
+    result["outputs"] = []
+    for image in task.get("outputs", []):
+        url = f"{prefix}/api/tasks/{task['id']}/image?filename={image['filename']}"
+        result["outputs"].append({**image, "url": url, "thumb_url": f"{url}&size=thumb"})
     return result
 
 
@@ -287,6 +318,7 @@ def history_items():
                 item["outputs"] = [{
                     **image,
                     "url": f"{prefix}/api/tasks/{task['id']}/image?filename={image.get('filename', '')}",
+                    "thumb_url": f"{prefix}/api/tasks/{task['id']}/image?filename={image.get('filename', '')}&size=thumb",
                 }]
                 items.append(item)
         else:
@@ -591,6 +623,7 @@ def cancel_task(task_id):
 @app.get("/api/tasks/<task_id>/image")
 def task_image(task_id):
     filename = request.args.get("filename", "")
+    thumbnail = request.args.get("size") == "thumb"
     with lock:
         task = tasks.get(task_id)
         images = task.get("outputs", []) if task else []
@@ -599,6 +632,10 @@ def task_image(task_id):
         return jsonify({"error": "图片不存在"}), 404
     local = local_image_path(task_id, image)
     if local:
+        if thumbnail:
+            thumb = create_thumbnail(task_id, image, local)
+            if thumb:
+                return send_file(thumb, mimetype="image/webp", max_age=3600)
         return send_file(local, mimetype="image/png", max_age=0)
     try:
         archived = archive_images(task_id, [image])
@@ -608,6 +645,10 @@ def task_image(task_id):
             for item in images
         ])
         local = local_image_path(task_id, archived[0])
+        if thumbnail:
+            thumb = create_thumbnail(task_id, archived[0], local)
+            if thumb:
+                return send_file(thumb, mimetype="image/webp", max_age=3600)
         return send_file(local, mimetype="image/png", max_age=0)
     except requests.RequestException:
         return jsonify({"error": "图片未归档且 ComfyUI 当前不可达"}), 503
@@ -672,6 +713,9 @@ def delete_task_image(task_id, filename):
         archive = (ARCHIVE_DIR / task_id / output_filename).resolve()
         if ARCHIVE_DIR.resolve() in archive.parents and archive.is_file():
             archive.unlink()
+        thumbnail = local_thumbnail_path(task_id, {"filename": output_filename})
+        if thumbnail and thumbnail.is_file():
+            thumbnail.unlink()
         labels.pop(f"task:{task_id}:{output_filename}", None)
         if remaining:
             task["outputs"] = remaining
@@ -682,8 +726,8 @@ def delete_task_image(task_id, filename):
             if legacy.is_file():
                 legacy.unlink()
             task_archive = ARCHIVE_DIR / task_id
-            if task_archive.is_dir() and not any(task_archive.iterdir()):
-                task_archive.rmdir()
+            if ARCHIVE_DIR.resolve() in task_archive.resolve().parents and task_archive.is_dir():
+                shutil.rmtree(task_archive)
         save_tasks()
         save_labels()
     return jsonify({"task_id": task_id, "filename": output_filename, "deleted": True})

@@ -31,6 +31,11 @@ function statusLabel(status) {
   return ({ queued: 'QUEUED', running: 'RUNNING', success: 'DONE', error: 'ERROR' }[status] || status).toUpperCase();
 }
 
+function taskIdFromImage(image) {
+  const match = String(image?.url || '').match(/\/api\/tasks\/([^/]+)\/image(?:\?|$)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 function renderActive() {
   const active = state.items.filter((item) => ['queued', 'running'].includes(item.status));
   $('queueCount').textContent = `生成队列 ${active.length}`;
@@ -49,7 +54,10 @@ function renderHistory() {
   if (!finished.length) { $('history').innerHTML = '<div class="history-empty">完成的生成会保存在这里</div>'; return; }
   $('history').innerHTML = finished.map((item, index) => {
     const image = item.outputs?.[0];
-    const actions = image ? `<div class="history-card-actions"><button class="history-action-button" type="button" data-history-action="preview" data-history-index="${index}" title="放大图片" aria-label="放大图片"><i data-lucide="maximize-2"></i></button><button class="history-action-button" type="button" data-history-action="copy" data-history-index="${index}" title="复制提示词" aria-label="复制提示词"><i data-lucide="copy"></i></button><a class="history-action-button" href="${escapeHtml(image.url)}" download="${escapeHtml(image.filename || 'generated-image.png')}" title="下载图片" aria-label="下载图片"><i data-lucide="download"></i></a></div>` : '';
+    const replayLabel = item.seed === null || item.seed === undefined ? '复刻参数（未记录种子）' : `复刻参数（种子 ${item.seed}）`;
+    const taskId = taskIdFromImage(image);
+    const deleteButton = taskId ? `<button class="history-action-button" type="button" data-history-action="delete" data-history-index="${index}" title="删除这张历史图片" aria-label="删除这张历史图片"><i data-lucide="trash-2"></i></button>` : '';
+    const actions = image ? `<div class="history-card-actions"><button class="history-action-button" type="button" data-history-action="replay" data-history-index="${index}" title="${escapeHtml(replayLabel)}" aria-label="${escapeHtml(replayLabel)}"><i data-lucide="play"></i></button><button class="history-action-button" type="button" data-history-action="preview" data-history-index="${index}" title="放大图片" aria-label="放大图片"><i data-lucide="maximize-2"></i></button><button class="history-action-button" type="button" data-history-action="copy" data-history-index="${index}" title="复制提示词" aria-label="复制提示词"><i data-lucide="copy"></i></button><a class="history-action-button" href="${escapeHtml(image.url)}" download="${escapeHtml(image.filename || 'generated-image.png')}" title="下载图片" aria-label="下载图片"><i data-lucide="download"></i></a>${deleteButton}</div>` : '';
     return `<article class="history-card"><div class="history-image ${image ? '' : 'loading-shimmer'}">${image ? `<img src="${escapeHtml(image.url)}" alt="生成结果" loading="lazy">` : (item.status === 'error' ? '生成失败' : '无预览')}</div><div class="history-copy"><p>${escapeHtml(item.prompt)}</p><div class="history-meta"><time>${new Date(item.created_at).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })} · ${statusLabel(item.status)}</time>${actions}</div></div></article>`;
   }).join('');
   window.lucide?.createIcons();
@@ -65,6 +73,7 @@ async function refresh() {
   state.items = tasks.active_items || tasks.items || [];
   if (state.historyVisible) {
     state.history = tasks.history || { items: [], page: 1, total_pages: 1, total: 0 };
+    state.historyPage = state.history.page;
     renderHistory();
   }
   renderActive();
@@ -144,6 +153,38 @@ $('history').addEventListener('click', async (event) => {
   const item = state.history.items[Number(button.dataset.historyIndex)];
   const image = item?.outputs?.[0];
   if (!item || !image) return;
+  if (button.dataset.historyAction === 'delete') {
+    const taskId = taskIdFromImage(image);
+    if (!taskId || !window.confirm('删除这张历史图片？此操作不可恢复。')) return;
+    button.disabled = true;
+    try {
+      const response = await fetch(`api/tasks/${taskId}/images/${encodeURIComponent(image.filename)}`, { method: 'DELETE' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '删除失败');
+      $('formMessage').textContent = '已删除历史图片。';
+      await refresh();
+    } catch (error) {
+      button.disabled = false;
+      $('formMessage').textContent = error.message;
+    }
+    return;
+  }
+  if (button.dataset.historyAction === 'replay') {
+    state.generationMode = 'single';
+    $('prompt').value = item.prompt || '';
+    $('negativePrompt').value = item.negative_prompt || '';
+    $('width').value = item.width || 1024;
+    $('height').value = item.height || 1024;
+    $('batchSize').value = item.batch_size || 1;
+    $('seed').value = item.seed ?? '';
+    renderGenerationMode();
+    renderSizePresets();
+    $('formMessage').textContent = item.seed === null || item.seed === undefined
+      ? '已回填可用参数；该历史任务未记录种子。'
+      : '已复刻全部参数，可调整后加入队列。';
+    document.querySelector('.composer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
   if (button.dataset.historyAction === 'preview') {
     $('previewImage').src = image.url;
     $('previewPrompt').textContent = item.prompt || '未记录提示词';

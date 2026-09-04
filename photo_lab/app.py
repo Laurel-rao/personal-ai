@@ -1,6 +1,7 @@
 import copy
 import json
 import os
+import secrets
 import threading
 import time
 import uuid
@@ -106,7 +107,7 @@ def make_workflow(payload):
     workflow = copy.deepcopy(load_workflow())
     workflow["6"]["inputs"]["text"] = payload.get("prompt", "")
     workflow["7"]["inputs"]["text"] = payload.get("negative_prompt", "blurry ugly bad")
-    workflow["3"]["inputs"]["seed"] = int(payload.get("seed") or int(time.time() * 1000) % (2**32))
+    workflow["3"]["inputs"]["seed"] = int(payload["seed"])
     workflow["13"]["inputs"]["width"] = int(payload.get("width", 1024))
     workflow["13"]["inputs"]["height"] = int(payload.get("height", 1024))
     workflow["13"]["inputs"]["batch_size"] = int(payload.get("batch_size", 1))
@@ -282,6 +283,7 @@ def history_items():
             for image in outputs:
                 item = public_task(task)
                 item["id"] = f"task:{task['id']}:{image.get('filename', '')}"
+                item["task_id"] = task["id"]
                 item["outputs"] = [{
                     **image,
                     "url": f"{prefix}/api/tasks/{task['id']}/image?filename={image.get('filename', '')}",
@@ -500,7 +502,9 @@ def generation_parameters(payload):
 
 def create_generation_task(payload, prompt, width, height, batch_size):
     task_id = str(uuid.uuid4())
-    workflow_payload = {**payload, "prompt": prompt}
+    requested_seed = payload.get("seed")
+    seed = secrets.randbelow(2**32) if requested_seed in (None, "") else int(requested_seed)
+    workflow_payload = {**payload, "prompt": prompt, "seed": seed}
     task = {
         "id": task_id,
         "status": "queued",
@@ -511,7 +515,7 @@ def create_generation_task(payload, prompt, width, height, batch_size):
         "width": width,
         "height": height,
         "batch_size": batch_size,
-        "seed": payload.get("seed"),
+        "seed": seed,
         "filename_prefix": payload.get("filename_prefix", "result"),
         "metadata": payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {},
         "created_at": now(),
@@ -648,6 +652,41 @@ def set_review_label():
             labels[image_id] = {"value": value, "updated_at": now()}
         save_labels()
     return jsonify({"image_id": image_id, "value": value})
+
+
+@app.delete("/api/tasks/<task_id>/images/<path:filename>")
+def delete_task_image(task_id, filename):
+    with lock:
+        task = tasks.get(task_id)
+        if not task:
+            return jsonify({"error": "任务不存在"}), 404
+        if task.get("status") in {"queued", "running"}:
+            return jsonify({"error": "进行中的任务不能删除，请先取消"}), 409
+
+        output_filename = Path(filename).name
+        outputs = task.get("outputs", [])
+        if not any(item.get("filename") == output_filename for item in outputs):
+            return jsonify({"error": "图片不存在"}), 404
+        remaining = [item for item in outputs if item.get("filename") != output_filename]
+
+        archive = (ARCHIVE_DIR / task_id / output_filename).resolve()
+        if ARCHIVE_DIR.resolve() in archive.parents and archive.is_file():
+            archive.unlink()
+        labels.pop(f"task:{task_id}:{output_filename}", None)
+        if remaining:
+            task["outputs"] = remaining
+            task["updated_at"] = now()
+        else:
+            tasks.pop(task_id)
+            legacy = DATA_DIR / f"{task_id}.png"
+            if legacy.is_file():
+                legacy.unlink()
+            task_archive = ARCHIVE_DIR / task_id
+            if task_archive.is_dir() and not any(task_archive.iterdir()):
+                task_archive.rmdir()
+        save_tasks()
+        save_labels()
+    return jsonify({"task_id": task_id, "filename": output_filename, "deleted": True})
 
 
 @app.delete("/api/tasks/history")

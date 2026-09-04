@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const state = { items: [], history: { items: [], page: 1, total_pages: 1, total: 0 }, historyPage: 1, historyVisible: false, generationMode: 'single' };
+const state = { items: [], history: { items: [], page: 1, total_pages: 1, total: 0 }, historyPage: 1, historyVisible: false, generationMode: 'single', queueExpanded: false };
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
@@ -45,7 +45,10 @@ function renderActive() {
     return;
   }
   $('activeTasks').className = 'task-list';
-  $('activeTasks').innerHTML = active.map((item) => `<div class="task-card"><div class="task-top"><div class="task-name">${escapeHtml(item.prompt)}</div><span class="status">${statusLabel(item.status)}</span></div><div class="progress-track"><div class="progress-bar" style="width:${item.progress || 0}%"></div></div><div class="task-meta"><span>${escapeHtml(item.message || '等待中')}</span><span>${item.progress || 0}% <button class="cancel-button" data-task-id="${item.id}">取消</button></span></div></div>`).join('');
+  const visible = state.queueExpanded ? active : active.slice(0, 5);
+  const hiddenCount = active.length - visible.length;
+  const queueToggle = active.length > 5 ? `<button type="button" class="queue-toggle" data-queue-toggle="${state.queueExpanded ? 'collapse' : 'expand'}">${state.queueExpanded ? '收起队列' : `展开其余 ${hiddenCount} 条`}</button>` : '';
+  $('activeTasks').innerHTML = visible.map((item) => `<div class="task-card"><div class="task-top"><div class="task-name">${escapeHtml(item.prompt)}</div><span class="status">${statusLabel(item.status)}</span></div><div class="progress-track"><div class="progress-bar" style="width:${item.progress || 0}%"></div></div><div class="task-meta"><span>${escapeHtml(item.message || '等待中')}</span><span>${item.progress || 0}% <button class="cancel-button" data-task-id="${item.id}">取消</button></span></div></div>`).join('') + queueToggle;
 }
 
 function renderHistory() {
@@ -204,7 +207,7 @@ $('history').addEventListener('click', async (event) => {
 });
 $('closeImagePreview').addEventListener('click', () => $('imagePreviewDialog').close());
 $('imagePreviewDialog').addEventListener('click', (event) => { if (event.target === $('imagePreviewDialog')) $('imagePreviewDialog').close(); });
-$('activeTasks').addEventListener('click', async (event) => { const button = event.target.closest('.cancel-button'); if (!button) return; button.disabled = true; await fetch(`api/tasks/${button.dataset.taskId}/cancel`, { method: 'POST' }); poll(); });
+ $('activeTasks').addEventListener('click', async (event) => { const toggle = event.target.closest('[data-queue-toggle]'); if (toggle) { state.queueExpanded = toggle.dataset.queueToggle === 'expand'; renderActive(); return; } const button = event.target.closest('.cancel-button'); if (!button) return; button.disabled = true; await fetch(`api/tasks/${button.dataset.taskId}/cancel`, { method: 'POST' }); poll(); });
 $('clearHistory').addEventListener('click', async () => { await fetch('api/tasks/history', { method: 'DELETE' }); state.history = { items: [], page: 1, total_pages: 1, total: 0 }; if (state.historyVisible) await refresh(); });
 renderGenerationMode();
 renderSizePresets();

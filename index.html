@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light" />
     <title>视频生成 · 创作工作台</title>
-    <link rel="stylesheet" href="./styles.css?v=20260818-layout-fit" />
+    <link rel="stylesheet" href="./styles.css?v=history-picker" />
   </head>
   <body>
     <div class="app-shell">
@@ -23,6 +23,7 @@
             <a class="workspace-tab" href="/image">图片生成</a>
             <a class="workspace-tab" href="/photo/review">图片标注</a>
             <a class="workspace-tab" href="/chat">文本对话</a>
+            <a class="workspace-tab" href="/settings">设置</a>
           </nav>
           <div class="service-state" id="serviceState" data-state="idle">
             <span class="state-dot" aria-hidden="true"></span>
@@ -261,13 +262,37 @@
           <button class="remove-image" type="button" aria-label="移除图片" title="移除图片" hidden>×</button>
           <input class="file-input" type="file" accept="image/*" hidden />
         </div>
-        <label class="url-field">
-          <span class="sr-only">图片 URL</span>
-          <input type="url" placeholder="粘贴图片 URL" spellcheck="false" />
-        </label>
+        <div class="slot-url-row">
+          <label class="url-field">
+            <span class="sr-only">图片 URL</span>
+            <input type="url" placeholder="粘贴图片 URL" spellcheck="false" />
+          </label>
+          <button class="history-pick-button text-button" type="button">从历史选择</button>
+        </div>
       </article>
     </template>
 
-    <script src="./app.js?v=20260818-warring-storyboard"></script>
+    <dialog id="historyPicker" class="history-picker-dialog" aria-label="从历史生成选择">
+      <div class="history-picker-head">
+        <strong>从历史生成选择</strong>
+        <button id="historyPickerClose" class="text-button" type="button" title="关闭">×</button>
+      </div>
+      <div class="history-picker-tools">
+        <input
+          id="historyPickerSearch"
+          type="search"
+          placeholder="搜索提示词，如：双马尾 / 走廊…"
+          spellcheck="false"
+          autocomplete="off"
+          aria-label="搜索提示词"
+        />
+        <span class="history-picker-count" id="historyPickerCount"></span>
+      </div>
+      <p class="history-picker-status" id="historyPickerStatus">加载中…</p>
+      <div class="history-picker-grid" id="historyPickerGrid"></div>
+      <div class="history-picker-sentinel" id="historyPickerSentinel" aria-hidden="true"></div>
+    </dialog>
+
+    <script src="./app.js?v=history-picker-scroll"></script>
   </body>
 </html>

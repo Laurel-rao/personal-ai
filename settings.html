@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <title>设置 · 创作工作台</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      .settings-shell {
+        max-width: 860px;
+        margin: 0 auto;
+        padding: 20px 16px 48px;
+      }
+      .settings-card {
+        background: var(--ink);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 22px;
+      }
+      .settings-card + .settings-card {
+        margin-top: 16px;
+      }
+      .settings-card h2 {
+        margin: 0 0 4px;
+        font-size: 15px;
+        color: #f8faf9;
+      }
+      .settings-card .settings-desc {
+        margin: 0 0 18px;
+        font-size: 12px;
+        color: #aeb9b3;
+      }
+      .settings-row {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 14px;
+        align-items: center;
+        margin-bottom: 14px;
+      }
+      .settings-row > .field {
+        min-width: 0;
+      }
+      .settings-row label {
+        font-size: 13px;
+        color: #e6ece9;
+        line-height: 1.45;
+      }
+      .settings-row label small {
+        display: block;
+        color: #8fa099;
+        font-size: 11px;
+        margin-top: 2px;
+      }
+      .settings-hint {
+        font-size: 12px;
+        color: #8fa099;
+        margin-top: -8px;
+        margin-bottom: 16px;
+      }
+      .settings-hint code {
+        color: #b9c9c2;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .settings-actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: 18px;
+      }
+      .settings-status {
+        flex: 1;
+        min-width: 220px;
+        font-size: 12px;
+        color: #aeb9b3;
+      }
+      .settings-status.ok { color: #63bda6; }
+      .settings-status.err { color: #ff8a8a; }
+      .settings-secret-label {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        color: #8fa099;
+        margin-top: 6px;
+      }
+      .field input {
+        height: 40px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">AI</div>
+          <div>
+            <h1>创作工作台</h1>
+            <p>TEXT · IMAGE · VIDEO</p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <nav class="workspace-tabs" aria-label="工作台切换">
+            <a class="workspace-tab" href="/">视频生成</a>
+            <a class="workspace-tab" href="/image">图片生成</a>
+            <a class="workspace-tab" href="/photo/review">图片标注</a>
+            <a class="workspace-tab" href="/chat">文本对话</a>
+            <a class="workspace-tab active" href="/settings">设置</a>
+          </nav>
+        </div>
+      </header>
+
+      <main class="settings-shell">
+        <section class="settings-card">
+          <h2>生成引擎</h2>
+          <p class="settings-desc">图片生成走 Photo Lab → ComfyUI，视频生成走 AutoDL 的 MiniMax H3 工作流。</p>
+
+          <div class="settings-row">
+            <label>ComfyUI 地址<small>图片生成引擎，格式 https://host:port</small></label>
+            <div class="field">
+              <span id="comfyUrls">当前：读取中…</span>
+              <input id="comfyUrl" type="url" spellcheck="false" autocomplete="off" placeholder="https://u288331-….bjb1.seetacloud.com:8443" />
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <label>MiniMax 视频生成 Key<small>AutoDL 工作流令牌（AUTODL_ART_TOKEN）</small></label>
+            <div class="field">
+              <span id="autodlTokenState">尚未配置</span>
+              <input id="autodlToken" type="password" spellcheck="false" autocomplete="off" placeholder="粘贴 AutoDL Token" />
+            </div>
+          </div>
+
+          <div class="settings-row">
+            <label>Zero 首尾帧 Key<small>可选，AZT_API_KEY，「Zero 生成首尾帧」需要</small></label>
+            <div class="field">
+              <span id="aztKeyState">尚未配置</span>
+              <input id="aztKey" type="password" spellcheck="false" autocomplete="off" placeholder="粘贴 AZT API Key（可选）" />
+            </div>
+          </div>
+
+          <p class="settings-hint">
+            留空的输入框保持不变；保存后立即生效，无需重启。密钥只写入项目根目录
+            <code>.env</code> 文件（600 权限），已加入 .gitignore，不会回显完整内容。
+          </p>
+
+          <div class="settings-actions">
+            <button class="button button-primary" id="saveButton" type="button">保存设置</button>
+            <button class="button button-secondary" id="verifyComfyButton" type="button">测试 ComfyUI</button>
+            <button class="button button-secondary" id="verifyVideoButton" type="button">测试视频服务</button>
+            <span class="settings-status" id="settingsStatus" role="status"></span>
+          </div>
+        </section>
+
+        <section class="settings-card">
+          <h2>当前生效值</h2>
+          <p class="settings-desc">以下为服务进程实际使用的配置（环境变量优先于 .env）。</p>
+          <div class="settings-row">
+            <label>ComfyUI 地址</label>
+            <div class="field"><input id="effectiveComfyUrl" type="text" readonly /></div>
+          </div>
+          <div class="settings-row">
+            <label>视频生成 Key</label>
+            <div class="field"><input id="effectiveAutodlToken" type="text" readonly /></div>
+          </div>
+          <div class="settings-row">
+            <label>首尾帧 Key</label>
+            <div class="field"><input id="effectiveAztKey" type="text" readonly /></div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="/settings.js"></script>
+  </body>
+</html>

@@ -478,6 +478,7 @@ def chat_completions():
 @app.get("/api/tasks")
 def list_tasks():
     include_history = request.args.get("include_history") == "1"
+    keyword = request.args.get("q", "").strip().lower()
     try:
         history_page = max(1, int(request.args.get("history_page", 1)))
         history_page_size = min(50, max(1, int(request.args.get("history_page_size", 10))))
@@ -493,6 +494,12 @@ def list_tasks():
         if not include_history:
             return jsonify(response)
         completed_items = history_items()
+        if keyword:
+            completed_items = [
+                item
+                for item in completed_items
+                if keyword in str(item.get("prompt") or "").lower()
+            ]
         history_total = len(completed_items)
         history_pages = max(1, (history_total + history_page_size - 1) // history_page_size)
         history_page = min(history_page, history_pages)
@@ -748,4 +755,5 @@ load_labels()
 threading.Thread(target=worker, daemon=True, name="generation-worker").start()
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "4173")), debug=False)
+    # 独立运行默认 4174（与统一入口 app.py 的 4173 区分，PHOTO_LAB_URL 默认一致）
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "4174")), debug=False)

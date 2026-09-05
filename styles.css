@@ -1265,3 +1265,139 @@ button:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* 参考图：从历史生成选择 */
+.slot-url-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.slot-url-row .url-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-pick-button {
+  flex: none;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.history-picker-dialog {
+  width: min(760px, 92vw);
+  max-height: 80vh;
+  padding: 18px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.history-picker-dialog::backdrop {
+  background: rgba(10, 16, 14, 0.55);
+}
+
+.history-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.history-picker-tools {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.history-picker-tools input[type="search"] {
+  flex: 1;
+  height: 36px;
+  padding: 0 12px;
+  color: var(--ink);
+  background: var(--surface-muted);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  outline: none;
+  font-size: 12px;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.history-picker-tools input[type="search"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.history-picker-count {
+  flex: none;
+  font-size: 11px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.history-picker-status {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.history-picker-sentinel {
+  height: 20px;
+  margin-top: 6px;
+}
+
+.history-picker-sentinel.loading::after {
+  content: "加载更多…";
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.history-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  max-height: 58vh;
+  overflow-y: auto;
+}
+
+.history-picker-card {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+  background: var(--surface-muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+
+.history-picker-card:hover,
+.history-picker-card:focus-visible {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.history-picker-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.history-picker-card span {
+  display: block;
+  padding: 6px 8px;
+  overflow: hidden;
+  font-size: 11px;
+  color: var(--ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

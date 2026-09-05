@@ -53,6 +53,13 @@
     imageCount: document.querySelector("#imageCount"),
     slotCount: document.querySelector("#slotCount"),
     imageSlotTemplate: document.querySelector("#imageSlotTemplate"),
+    historyPicker: document.querySelector("#historyPicker"),
+    historyPickerGrid: document.querySelector("#historyPickerGrid"),
+    historyPickerStatus: document.querySelector("#historyPickerStatus"),
+    historyPickerClose: document.querySelector("#historyPickerClose"),
+    historyPickerSearch: document.querySelector("#historyPickerSearch"),
+    historyPickerCount: document.querySelector("#historyPickerCount"),
+    historyPickerSentinel: document.querySelector("#historyPickerSentinel"),
     workflowModeNote: document.querySelector("#workflowModeNote"),
     videoSettings: document.querySelector("#videoSettings"),
     stepsInput: document.querySelector("#stepsInput"),
@@ -349,7 +356,10 @@
     const fileInput = fragment.querySelector(".file-input");
     const urlInput = fragment.querySelector(".url-field input");
     const remove = fragment.querySelector(".remove-image");
+    const historyPick = fragment.querySelector(".history-pick-button");
     fragment.querySelector(".slot-number").textContent = String(index + 1).padStart(2, "0");
+
+    historyPick.addEventListener("click", () => openHistoryPicker(index));
 
     preview.addEventListener("click", (event) => {
       if (event.target.closest(".remove-image")) return;
@@ -431,6 +441,144 @@
 
   function initializeImageSlots() {
     rebuildImageSlots();
+  }
+
+  const picker = {
+    index: 0,
+    page: 0,
+    pageSize: 50,
+    query: "",
+    total: 0,
+    loaded: 0,
+    loading: false,
+    finished: false,
+  };
+  let pickerSearchTimer = null;
+  let pickerObserver = null;
+
+  function appendHistoryCards(images) {
+    images.forEach((image) => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "history-picker-card";
+      card.title = image.prompt;
+      const thumb = document.createElement("img");
+      thumb.src = image.thumb;
+      thumb.alt = "历史生成图片";
+      thumb.loading = "lazy";
+      const meta = document.createElement("span");
+      meta.textContent = image.prompt || "生成图片";
+      card.append(thumb, meta);
+      card.addEventListener("click", () => pickHistoryImage(picker.index, image));
+      elements.historyPickerGrid.append(card);
+    });
+  }
+
+  function updatePickerStatus() {
+    const status = elements.historyPickerStatus;
+    const count = elements.historyPickerCount;
+    if (picker.total > 0) {
+      count.textContent = `${elements.historyPickerGrid.children.length} 张可选 · 共 ${picker.total} 条`;
+      status.textContent = picker.finished
+        ? "已全部加载，点击图片即设为参考图"
+        : `已加载 ${picker.loaded} 张，继续下滚加载更多；点击图片即设为参考图 ${picker.index + 1}`;
+    } else if (picker.query) {
+      count.textContent = "";
+      status.textContent = `没有匹配「${picker.query}」的图片`;
+    } else {
+      count.textContent = "";
+      status.textContent = "还没有生成过的图片，先去「图片生成」生成几张吧";
+    }
+  }
+
+  async function loadHistoryPage(reset) {
+    if (picker.loading) return;
+    picker.loading = true;
+    elements.historyPickerSentinel.classList.add("loading");
+    const page = reset ? 1 : picker.page + 1;
+    try {
+      const params = new URLSearchParams({
+        include_history: "1",
+        history_page: String(page),
+        history_page_size: String(picker.pageSize),
+      });
+      if (picker.query) params.set("q", picker.query);
+      const response = await fetch(`/photo/api/tasks?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`历史接口返回 ${response.status}`);
+      const data = await response.json();
+      const history = data.history || {};
+      const items = history.items || [];
+      picker.page = history.page || page;
+      picker.total = history.total || 0;
+      picker.finished = items.length === 0 || picker.page >= (history.total_pages || 1);
+      if (reset) elements.historyPickerGrid.replaceChildren();
+      const images = [];
+      for (const item of items) {
+        const output = item.outputs && item.outputs[0];
+        if (output && output.url) {
+          images.push({
+            url: output.url,
+            thumb: output.thumb_url || output.url,
+            prompt: item.prompt || output.filename || "",
+          });
+        }
+      }
+      picker.loaded = reset ? images.length : picker.loaded + images.length;
+      appendHistoryCards(images);
+      updatePickerStatus();
+    } catch (error) {
+      elements.historyPickerStatus.textContent = "加载历史图片失败：" + error.message;
+    } finally {
+      picker.loading = false;
+      elements.historyPickerSentinel.classList.remove("loading");
+    }
+  }
+
+  function ensurePickerObserver() {
+    if (pickerObserver) return;
+    pickerObserver = new IntersectionObserver((entries) => {
+      if (!elements.historyPicker.open || picker.finished || picker.loading) return;
+      if (entries.some((entry) => entry.isIntersecting)) loadHistoryPage(false);
+    });
+    pickerObserver.observe(elements.historyPickerSentinel);
+  }
+
+  function openHistoryPicker(index) {
+    picker.index = index;
+    picker.page = 0;
+    picker.total = 0;
+    picker.loaded = 0;
+    picker.loading = false;
+    picker.finished = false;
+    picker.query = "";
+    pickerSearchTimer = null;
+    elements.historyPickerSearch.value = "";
+    elements.historyPickerGrid.replaceChildren();
+    elements.historyPickerCount.textContent = "";
+    elements.historyPickerStatus.textContent = "正在加载历史图片…";
+    elements.historyPicker.showModal();
+    ensurePickerObserver();
+    loadHistoryPage(true);
+  }
+
+  async function pickHistoryImage(index, image) {
+    try {
+      const response = await fetch(image.url, { cache: "no-store" });
+      if (!response.ok) throw new Error(`图片获取失败（${response.status}）`);
+      const blob = await response.blob();
+      const value = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("图片读取失败"));
+        reader.readAsDataURL(blob);
+      });
+      setImageSlot(index, { value, preview: value, uploading: false });
+      elements.historyPicker.close();
+      showToast(`第 ${index + 1} 张参考图已选用`);
+      saveDraft();
+    } catch (error) {
+      showToast(error.message, "error");
+    }
   }
 
   async function uploadImage(index, file) {
@@ -1221,6 +1369,26 @@
       input.addEventListener("change", saveDraft);
     });
     elements.testConnection.addEventListener("click", checkConnection);
+    elements.historyPickerClose.addEventListener("click", () => elements.historyPicker.close());
+    elements.historyPicker.addEventListener("click", (event) => {
+      if (event.target === elements.historyPicker) elements.historyPicker.close();
+    });
+    elements.historyPickerSearch.addEventListener("input", () => {
+      clearTimeout(pickerSearchTimer);
+      pickerSearchTimer = setTimeout(() => {
+        const query = elements.historyPickerSearch.value.trim();
+        if (query === picker.query) return;
+        picker.query = query;
+        picker.page = 0;
+        picker.total = 0;
+        picker.loaded = 0;
+        picker.finished = false;
+        elements.historyPickerGrid.replaceChildren();
+        elements.historyPickerCount.textContent = "";
+        elements.historyPickerStatus.textContent = query ? `搜索「${query}」…` : "正在加载历史图片…";
+        loadHistoryPage(true);
+      }, 300);
+    });
     elements.generateButton.addEventListener("click", generateVideo);
     elements.generateFramesButton.addEventListener("click", generateReferenceFrames);
     elements.stopPolling.addEventListener("click", () => stopPolling(true));

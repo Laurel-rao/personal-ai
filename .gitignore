@@ -31,3 +31,6 @@ prompts/
 h3-six-lives-prompts.md
 seedance-2.5-six-lives-prompts.md
 婚礼穿越视频/
+
+# Python virtualenv
+.venv/

@@ -1,0 +1,6 @@
+# Personal AI —— 统一入口依赖
+# 使用前：pip install -r requirements.txt
+Flask>=3.0
+requests>=2.31
+websocket-client>=1.8
+Pillow>=11.0

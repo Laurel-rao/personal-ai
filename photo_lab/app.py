@@ -6,6 +6,7 @@ import shutil
 import threading
 import time
 import uuid
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, urlparse
@@ -50,10 +51,63 @@ tasks = {}
 labels = {}
 queue = []
 worker_wakeup = threading.Event()
+rewrite_process = None
+rewrite_state = {"status": "idle", "logs": [], "started_at": None, "returncode": None}
+rewrite_lock = threading.Lock()
 
 
 def now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _run_rewrite(args):
+    global rewrite_process
+    with rewrite_lock:
+        rewrite_state.update(status="running", logs=[], started_at=now(), returncode=None)
+    try:
+        python = ROOT.parent / ".venv" / "bin" / "python"
+        rewrite_process = subprocess.Popen([str(python if python.exists() else "python3"), str(ROOT.parent / "rewrite_and_generate.py"), *args],
+                                           cwd=str(ROOT.parent), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                           text=True, bufsize=1)
+        for line in rewrite_process.stdout:
+            with rewrite_lock:
+                rewrite_state["logs"] = (rewrite_state["logs"] + [line.rstrip()])[-200:]
+        code = rewrite_process.wait()
+        with rewrite_lock:
+            rewrite_state.update(status="done" if code in {0, -15} else "error", returncode=code)
+    except Exception as exc:
+        with rewrite_lock:
+            rewrite_state.update(status="error", returncode=-1, logs=(rewrite_state["logs"] + [str(exc)])[-200:])
+    finally:
+        rewrite_process = None
+
+
+@app.get("/api/rewrite/status")
+def rewrite_status():
+    with rewrite_lock:
+        return jsonify(rewrite_state)
+
+
+@app.post("/api/rewrite/start")
+def rewrite_start():
+    payload = request.get_json(silent=True) or {}
+    with rewrite_lock:
+        if rewrite_state["status"] == "running":
+            return jsonify({"error": "任务正在运行"}), 409
+        rewrite_state.update(status="running", logs=["正在启动常驻任务…"], started_at=now(), returncode=None)
+    args = ["--ctx", str(max(1024, int(payload.get("ctx", 32768)))), "--daemon"]
+    threading.Thread(target=_run_rewrite, args=(args,), daemon=True).start()
+    return jsonify({"ok": True})
+
+
+@app.post("/api/rewrite/stop")
+def rewrite_stop():
+    with rewrite_lock:
+        process = rewrite_process
+    if process and process.poll() is None:
+        process.terminate()
+        return jsonify({"ok": True})
+    return jsonify({"error": "当前没有运行中的任务"}), 409
 
 
 def load_tasks():

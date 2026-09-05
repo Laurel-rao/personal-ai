@@ -57,6 +57,11 @@
         </form>
       </section>
       <section class="queue-column">
+        <section class="panel rewrite-panel">
+          <div class="section-heading"><div><div class="eyebrow">REWRITE / 04</div><h2>记忆仿写任务</h2></div><span id="rewriteStatus" class="status">空闲</span></div>
+          <div class="field-row"><div><label>模型上下文 <span>TOKEN</span></label><input id="rewriteCtx" type="number" min="1024" step="1024" value="32768"></div><div class="rewrite-actions"><button id="rewriteStart" class="primary-button" type="button">启动任务</button><button id="rewriteStop" class="text-button" type="button" disabled>停止</button></div></div>
+          <pre id="rewriteLogs" class="rewrite-logs">暂无日志</pre>
+        </section>
         <div class="section-heading"><div><div class="eyebrow">QUEUE / 02</div><h2>任务进度</h2></div><span id="queueCount" class="counter" aria-live="polite">生成队列 0</span></div>
         <div id="activeTasks" class="task-list empty-state"><div class="empty-icon">◌</div><strong>还没有进行中的任务</strong><span>提交一条提示词，进度会显示在这里</span></div>
         <div class="section-heading history-heading"><div><div class="eyebrow">ARCHIVE / 03</div><h2>历史生成</h2></div><div class="history-actions"><button id="toggleHistory" class="text-button" type="button" aria-expanded="false">展示</button><button id="clearHistory" class="text-button" type="button" hidden>清理记录</button></div></div>

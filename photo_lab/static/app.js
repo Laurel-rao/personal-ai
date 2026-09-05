@@ -89,6 +89,25 @@ async function poll() {
   if (state.items.some((item) => ['queued', 'running'].includes(item.status))) setTimeout(poll, 1200);
 }
 
+async function refreshRewrite() {
+  const result = await fetch('api/rewrite/status').then((r) => r.json()).catch(() => null);
+  if (!result) return;
+  const labels = { idle: '空闲', running: '运行中', done: '已完成', error: '失败' };
+  $('rewriteStatus').textContent = labels[result.status] || result.status;
+  $('rewriteStart').disabled = result.status === 'running';
+  $('rewriteStop').disabled = result.status !== 'running';
+  $('rewriteLogs').textContent = result.logs?.length ? result.logs.join('\n') : '暂无日志';
+  $('rewriteLogs').scrollTop = $('rewriteLogs').scrollHeight;
+  if (result.status === 'running') setTimeout(refreshRewrite, 1200);
+}
+
+$('rewriteStart').addEventListener('click', async () => {
+  const response = await fetch('api/rewrite/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ctx: Number($('rewriteCtx').value) }) });
+  if (!response.ok) { const result = await response.json(); $('rewriteLogs').textContent = result.error || '启动失败'; return; }
+  refreshRewrite();
+});
+$('rewriteStop').addEventListener('click', async () => { await fetch('api/rewrite/stop', { method: 'POST' }); refreshRewrite(); });
+
 function batchPrompts() {
   return $('batchPrompts').value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
 }
@@ -138,6 +157,7 @@ document.querySelectorAll('.size-preset').forEach((button) => button.addEventLis
 $('width').addEventListener('input', renderSizePresets);
 $('height').addEventListener('input', renderSizePresets);
 $('refreshBtn').addEventListener('click', poll);
+refreshRewrite();
 $('toggleHistory').addEventListener('click', async () => {
   state.historyVisible = !state.historyVisible;
   $('historyContent').hidden = !state.historyVisible;

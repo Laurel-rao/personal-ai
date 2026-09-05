@@ -55,9 +55,9 @@ AUTODL_WORKFLOW = "minimax_h3_lightx2v_v5_15s"
 ZERO_IMAGE_BASE_URL = "https://ai.reeko.net.cn/v1"
 QWEN_API_URL = os.environ.get(
     "QWEN_API_URL",
-    "https://uu288331-788499bfeab.bjb1.seetacloud.com:8443/v1",
+    "https://uu288331-78852a40cf8c.westd.seetacloud.com:8443/v1",
 ).rstrip("/")
-QWEN_MODEL = os.environ.get("QWEN_MODEL", "qwen3:4b")
+QWEN_MODEL = os.environ.get("QWEN_MODEL", "qwen3.8-27b-uncensored")
 PHOTO_LAB_URL = os.environ.get("PHOTO_LAB_URL", "http://127.0.0.1:4174").rstrip("/")
 
 
@@ -792,6 +792,7 @@ def build_chat_request(stream: bool) -> bytes:
         "temperature": temperature,
         "max_tokens": max_tokens,
         "stream": stream,
+        "chat_template_kwargs": {"enable_thinking": bool(payload.get("enable_thinking", False))},
     }).encode("utf-8")
 
 
@@ -869,6 +870,16 @@ def main() -> None:
     parser.add_argument("--port", default=4173, type=int)
     args = parser.parse_args()
     app = create_console_app()
+    # 单独运行 server.py 时也挂载 Photo Lab（与 app.py 统一入口一致），
+    # 避免只起 console 导致 /photo 图片生成页 404。
+    try:
+        from werkzeug.middleware.dispatcher import DispatcherMiddleware
+        from photo_lab.app import app as photo_lab_app
+
+        app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {"/photo": photo_lab_app.wsgi_app})
+    except ImportError:
+        # photo_lab 依赖缺失时退化为纯 console
+        pass
     print(f"H3 video console: http://{args.host}:{args.port}")
     app.run(host=args.host, port=args.port, threaded=True)
 

@@ -58,6 +58,24 @@ QWEN_API_URL = os.environ.get(
     "https://uu288331-78852a40cf8c.westd.seetacloud.com:8443/v1",
 ).rstrip("/")
 QWEN_MODEL = os.environ.get("QWEN_MODEL", "qwen3.8-27b-uncensored")
+
+IMAGE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "generate_image",
+        "description": "根据用户描述生成一张图片。只有用户明确要求画图、生成图片、出图时才调用。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "prompt": {"type": "string", "description": "详细的图片描述，包含主体、风格、构图和光线"},
+                "size": {"type": "string", "enum": ["1024x1024", "1024x1536", "1536x1024"]},
+                "quality": {"type": "string", "enum": ["low", "medium", "high"]},
+            },
+            "required": ["prompt"],
+            "additionalProperties": False,
+        },
+    },
+}
 PHOTO_LAB_URL = os.environ.get("PHOTO_LAB_URL", "http://127.0.0.1:4174").rstrip("/")
 
 
@@ -196,6 +214,12 @@ def decode_json(payload: bytes) -> Any:
         return json.loads(payload.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
         return {"message": payload.decode("utf-8", errors="replace")}
+
+
+class UpstreamError(Exception):
+    def __init__(self, status: int, message: str):
+        super().__init__(message)
+        self.status = status
 
 
 def derive_status(result: Any) -> str:
@@ -757,7 +781,10 @@ def api_assets() -> Response:
 
 # ---------------------------------------------------------------- 对话
 
-def build_chat_request(stream: bool) -> bytes:
+CHAT_IMAGE_DIR = ROOT / "outputs" / "chat-images"
+
+
+def parse_chat_payload() -> dict[str, Any]:
     payload = request.get_json(force=True, silent=True) or {}
     if not isinstance(payload, dict):
         raise ValueError("请求内容必须是 JSON 对象")
@@ -774,31 +801,174 @@ def build_chat_request(stream: bool) -> bytes:
         if role not in {"system", "user", "assistant"} or not isinstance(content, str):
             raise ValueError("消息角色或内容无效")
         content = content.strip()
-        if not content or len(content) > 12000:
-            raise ValueError("单条消息须为 1 到 12000 个字符")
+        if not content or len(content) > 200000:
+            raise ValueError("单条消息须为 1 到 200000 个字符")
         total_characters += len(content)
         cleaned_messages.append({"role": role, "content": content})
-    if total_characters > 36000:
-        raise ValueError("对话总长度不能超过 36000 个字符")
+    if total_characters > 400000:
+        raise ValueError("对话总长度不能超过 400000 个字符")
     temperature = float(payload.get("temperature", 0.7))
     max_tokens = int(payload.get("max_tokens", 1024))
     if not 0 <= temperature <= 2:
         raise ValueError("temperature 必须在 0 到 2 之间")
-    if not 64 <= max_tokens <= 2048:
-        raise ValueError("max_tokens 必须在 64 到 2048 之间")
-    return json.dumps({
-        "model": QWEN_MODEL,
+    if not 64 <= max_tokens <= 10240:
+        raise ValueError("max_tokens 必须在 64 到 10240 之间")
+    return {
         "messages": cleaned_messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
+        "enable_thinking": bool(payload.get("enable_thinking", False)),
+        "use_tools": bool(payload.get("tools", False)),
+    }
+
+
+def build_chat_request(stream: bool) -> bytes:
+    parsed = parse_chat_payload()
+    body = {
+        "model": QWEN_MODEL,
+        "messages": parsed["messages"],
+        "temperature": parsed["temperature"],
+        "max_tokens": parsed["max_tokens"],
         "stream": stream,
-        "chat_template_kwargs": {"enable_thinking": bool(payload.get("enable_thinking", False))},
-    }).encode("utf-8")
+        "chat_template_kwargs": {"enable_thinking": parsed["enable_thinking"]},
+    }
+    if parsed["use_tools"]:
+        body["tools"] = [IMAGE_TOOL]
+    return json.dumps(body, ensure_ascii=False).encode("utf-8")
+
+
+def call_qwen(
+    messages: list[dict[str, Any]],
+    enable_thinking: bool,
+    max_tokens: int,
+    temperature: float,
+    tools: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "model": QWEN_MODEL,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": False,
+        "chat_template_kwargs": {"enable_thinking": enable_thinking},
+    }
+    if tools:
+        body["tools"] = tools
+    status, raw, _ = request_remote(
+        "POST",
+        f"{QWEN_API_URL}/chat/completions",
+        body=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        timeout=180,
+    )
+    result = decode_json(raw)
+    if status >= 400:
+        message = str(result.get("error") or "Qwen 请求失败") if isinstance(result, dict) else "Qwen 请求失败"
+        raise UpstreamError(status, "请求太多，请稍后重试" if status == 429 else message)
+    return result
+
+
+def generate_chat_image(prompt: str, size: str = "1024x1024", quality: str = "medium") -> dict[str, Any]:
+    token = effective_setting("AZT_API_KEY")
+    if not token:
+        raise ValueError("服务端未配置 AZT_API_KEY，无法生图")
+    payload = {
+        "model": "gpt-image-2",
+        "prompt": prompt,
+        "n": 1,
+        "size": size,
+        "quality": quality,
+        "background": "opaque",
+        "output_format": "png",
+        "response_format": "b64_json",
+    }
+    status, raw, _ = request_remote(
+        "POST",
+        f"{ZERO_IMAGE_BASE_URL}/images/generations",
+        body=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        timeout=900,
+    )
+    result = decode_json(raw)
+    if status >= 400:
+        raise ValueError(str(result.get("error") or "生图失败") if isinstance(result, dict) else "生图失败")
+    items = result.get("data") if isinstance(result, dict) else None
+    if not isinstance(items, list) or not items or not items[0].get("b64_json"):
+        raise ValueError("生图接口未返回图片")
+    encoded = items[0]["b64_json"]
+    CHAT_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    name = f"{stamp}.png"
+    (CHAT_IMAGE_DIR / name).write_bytes(base64.b64decode(encoded))
+    return {"prompt": prompt, "data_url": f"data:image/png;base64,{encoded}", "url": f"/api/chat-image/{name}"}
+
+
+def resolve_chat_turn(parsed: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    """返回 (回答文本, 生成的图片列表)。含工具时执行 generate_image 工具闭环。"""
+    messages = [dict(message) for message in parsed["messages"]]
+    first = call_qwen(
+        messages,
+        enable_thinking=parsed["enable_thinking"],
+        max_tokens=parsed["max_tokens"],
+        temperature=parsed["temperature"],
+        tools=[IMAGE_TOOL] if parsed["use_tools"] else None,
+    )
+    message = (first.get("choices") or [{}])[0].get("message") or {}
+    tool_calls = message.get("tool_calls") or []
+    if not tool_calls:
+        return (message.get("content") or "").strip(), []
+
+    images: list[dict[str, Any]] = []
+    messages.append({"role": "assistant", "content": message.get("content") or "", "tool_calls": tool_calls})
+    for index, call in enumerate(tool_calls):
+        function = call.get("function") or {}
+        name = function.get("name", "")
+        try:
+            arguments = json.loads(function.get("arguments") or "{}")
+        except json.JSONDecodeError:
+            arguments = {}
+        if name == "generate_image":
+            try:
+                image = generate_chat_image(
+                    str(arguments.get("prompt") or "").strip(),
+                    str(arguments.get("size") or "1024x1024"),
+                    str(arguments.get("quality") or "medium"),
+                )
+                images.append(image)
+                tool_content = json.dumps({"success": True, "image_url": image["url"], "prompt": image["prompt"]}, ensure_ascii=False)
+            except Exception as exc:  # 生图失败不中断对话
+                tool_content = json.dumps({"success": False, "error": str(exc)}, ensure_ascii=False)
+        else:
+            tool_content = json.dumps({"success": False, "error": f"未知工具: {name}"}, ensure_ascii=False)
+        messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": str(call.get("id") or f"call_{index}"),
+                "content": tool_content,
+            }
+        )
+    final = call_qwen(
+        messages,
+        enable_thinking=False,
+        max_tokens=parsed["max_tokens"],
+        temperature=parsed["temperature"],
+        tools=None,
+    )
+    final_message = (final.get("choices") or [{}])[0].get("message") or {}
+    return (final_message.get("content") or "").strip(), images
+
+
+def sse_event(payload: dict[str, Any]) -> str:
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 @console_bp.post("/api/chat/completions")
 def api_chat_completions() -> Response:
     try:
+        parsed = parse_chat_payload()
+        if parsed["use_tools"]:
+            text, images = resolve_chat_turn(parsed)
+            return jsonify({"choices": [{"message": {"role": "assistant", "content": text}}], "images": images})
         request_payload = build_chat_request(False)
         status, response_payload, _ = request_remote(
             "POST",
@@ -809,36 +979,53 @@ def api_chat_completions() -> Response:
         )
         result = decode_json(response_payload)
         if not 200 <= status < 300:
+            if status == 429:
+                return error_response(429, "请求太多，请稍后重试")
             return error_response(502, "Qwen 请求失败")
         return jsonify(result)
     except ValueError as exc:
         return error_response(400, str(exc))
-    except Exception:
-        return error_response(502, "Qwen 服务不可用")
+    except UpstreamError as exc:
+        return error_response(exc.status if exc.status == 429 else 502, str(exc))
+    except Exception as exc:
+        return error_response(502, str(exc) or "Qwen 服务不可用")
 
 
 @console_bp.post("/api/chat/stream")
 def api_chat_stream() -> Response:
     try:
-        request_payload = build_chat_request(True)
+        parsed = parse_chat_payload()
     except ValueError as exc:
         return error_response(400, str(exc))
-    upstream_request = urllib.request.Request(
-        f"{QWEN_API_URL}/chat/completions",
-        data=request_payload,
-        headers={"Content-Type": "application/json", "Accept": "text/event-stream"},
-        method="POST",
-    )
-    try:
-        upstream = urllib.request.urlopen(upstream_request, timeout=180, context=ssl.create_default_context())
-    except urllib.error.HTTPError as error:
-        result = decode_json(error.read())
-        message = result.get("error", "Qwen 流式请求失败") if isinstance(result, dict) else "Qwen 流式请求失败"
-        return error_response(502, message)
-    except Exception:
-        return error_response(502, "Qwen 流式请求失败")
 
-    def generate() -> Any:
+    def tool_turn() -> Any:
+        try:
+            text, images = resolve_chat_turn(parsed)
+        except Exception as exc:
+            yield sse_event({"error": str(exc)})
+            return
+        if images:
+            yield sse_event({"images": [{"data_url": image["data_url"], "url": image["url"], "prompt": image["prompt"]} for image in images]})
+        yield sse_event({"choices": [{"delta": {"content": text}}]})
+        yield "data: [DONE]\n\n"
+
+    def passthrough() -> Any:
+        upstream_request = urllib.request.Request(
+            f"{QWEN_API_URL}/chat/completions",
+            data=build_chat_request(True),
+            headers={"Content-Type": "application/json", "Accept": "text/event-stream"},
+            method="POST",
+        )
+        try:
+            upstream = urllib.request.urlopen(upstream_request, timeout=180, context=ssl.create_default_context())
+        except urllib.error.HTTPError as error:
+            result = decode_json(error.read())
+            message = "请求太多，请稍后重试" if error.code == 429 else (result.get("error", "Qwen 流式请求失败") if isinstance(result, dict) else "Qwen 流式请求失败")
+            yield sse_event({"error": message})
+            return
+        except Exception as exc:
+            yield sse_event({"error": str(exc)})
+            return
         try:
             for line in upstream:
                 yield line
@@ -846,7 +1033,7 @@ def api_chat_stream() -> Response:
             upstream.close()
 
     return Response(
-        stream_with_context(generate()),
+        stream_with_context(tool_turn() if parsed["use_tools"] else passthrough()),
         mimetype="text/event-stream; charset=utf-8",
         headers={
             "Cache-Control": "no-cache, no-transform",
@@ -854,6 +1041,15 @@ def api_chat_stream() -> Response:
             "Connection": "keep-alive",
         },
     )
+
+
+@console_bp.get("/api/chat-image/<path:name>")
+def api_chat_image(name: str) -> Response:
+    safe = Path(name).name
+    target = CHAT_IMAGE_DIR / safe
+    if not target.exists() or not target.is_file():
+        return error_response(404, "图片不存在")
+    return send_file(target, mimetype="image/png", max_age=86400)
 
 
 # ---------------------------------------------------------------- 应用工厂

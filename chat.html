@@ -27,15 +27,15 @@
       </header>
       <main class="chat-main">
         <aside class="conversation-sidebar" aria-label="对话列表">
-          <button class="new-chat-button" id="newChatButton" type="button">新对话</button>
+          <div class="sidebar-heading"><div><span class="eyebrow">CONVERSATIONS</span><h2>你的对话</h2></div><span class="sidebar-count" id="conversationCount">0</span></div>
+          <button class="new-chat-button" id="newChatButton" type="button"><span aria-hidden="true">+</span> 新对话</button>
           <nav class="conversation-list" id="conversationList" aria-label="对话列表"></nav>
+          <div class="sidebar-note"><span class="status-dot" aria-hidden="true"></span><span>本地保存 · 私密工作区</span></div>
         </aside>
         <section class="conversation-panel" aria-label="文本对话">
+          <header class="conversation-header"><div class="conversation-title"><div class="assistant-avatar" aria-hidden="true">✦</div><div><h1>Qwen 对话</h1><p><span class="online-dot" aria-hidden="true"></span>在线 · 创作助手</p></div></div><div class="conversation-tools" aria-label="对话信息"><span class="model-chip">QWEN 3.8</span><span class="header-hint">Enter 发送 · Shift + Enter 换行</span></div></header>
           <div class="message-list" id="messageList" aria-live="polite"></div>
-          <form class="composer" id="chatForm">
-            <textarea id="chatInput" rows="1" placeholder="输入消息" aria-label="输入消息"></textarea>
-            <button id="sendButton" type="submit">发送</button>
-          </form>
+          <form class="composer" id="chatForm"><div class="composer-wrap"><textarea id="chatInput" rows="1" placeholder="写下你的想法，开始一段新对话…" aria-label="输入消息"></textarea><div class="composer-footer"><label class="thinking-toggle" title="勾选后模型先输出推理过程再回答"><input type="checkbox" id="thinkingToggle"> <span aria-hidden="true">✧</span> 深度思考</label><span class="composer-tip">AI 可能会出错，请核对重要信息</span><button id="sendButton" type="submit"><span>发送</span><span class="send-icon" aria-hidden="true">↗</span></button></div></div></form>
         </section>
       </main>
     </div>

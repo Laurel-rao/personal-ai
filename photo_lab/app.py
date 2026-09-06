@@ -30,6 +30,7 @@ DATA_DIR.mkdir(exist_ok=True)
 TASKS_FILE = DATA_DIR / "tasks.json"
 LABELS_FILE = DATA_DIR / "labels.json"
 WORKFLOW_FILE = ROOT / "workflow.json"
+MEMORY_FILE = ROOT.parent / "qwen_preference_memory.json"
 OUTPUTS_DIR = ROOT / "outputs"
 ARCHIVE_DIR = DATA_DIR / "images"
 ARCHIVE_DIR.mkdir(exist_ok=True)
@@ -51,8 +52,12 @@ tasks = {}
 labels = {}
 queue = []
 worker_wakeup = threading.Event()
-rewrite_process = None
-rewrite_state = {"status": "idle", "logs": [], "started_at": None, "returncode": None}
+REWRITE_CATEGORIES = {"sexy", "closeup"}
+rewrite_processes = {category: None for category in REWRITE_CATEGORIES}
+rewrite_states = {
+    category: {"status": "idle", "logs": [], "started_at": None, "returncode": None}
+    for category in REWRITE_CATEGORIES
+}
 rewrite_lock = threading.Lock()
 
 
@@ -60,54 +65,99 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _run_rewrite(args):
-    global rewrite_process
+def _run_rewrite(category, args):
     with rewrite_lock:
-        rewrite_state.update(status="running", logs=[], started_at=now(), returncode=None)
+        rewrite_states[category].update(status="running", logs=[], started_at=now(), returncode=None)
     try:
         python = ROOT.parent / ".venv" / "bin" / "python"
-        rewrite_process = subprocess.Popen([str(python if python.exists() else "python3"), str(ROOT.parent / "rewrite_and_generate.py"), *args],
-                                           cwd=str(ROOT.parent), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                           text=True, bufsize=1)
-        for line in rewrite_process.stdout:
-            with rewrite_lock:
-                rewrite_state["logs"] = (rewrite_state["logs"] + [line.rstrip()])[-200:]
-        code = rewrite_process.wait()
+        process = subprocess.Popen([str(python if python.exists() else "python3"), str(ROOT.parent / "rewrite_and_generate.py"), *args],
+                                    cwd=str(ROOT.parent), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    text=True, bufsize=1)
         with rewrite_lock:
-            rewrite_state.update(status="done" if code in {0, -15} else "error", returncode=code)
+            rewrite_processes[category] = process
+        for line in process.stdout:
+            with rewrite_lock:
+                rewrite_states[category]["logs"] = (rewrite_states[category]["logs"] + [line.rstrip()])[-200:]
+        code = process.wait()
+        with rewrite_lock:
+            if code == 0:
+                status = "done"
+            elif code == -15:
+                status = "stopped"
+                rewrite_states[category]["logs"] = (rewrite_states[category]["logs"] + ["任务已停止（收到终止信号）"])[-200:]
+            else:
+                status = "error"
+            rewrite_states[category].update(status=status, returncode=code)
     except Exception as exc:
         with rewrite_lock:
-            rewrite_state.update(status="error", returncode=-1, logs=(rewrite_state["logs"] + [str(exc)])[-200:])
+            rewrite_states[category].update(status="error", returncode=-1,
+                                            logs=(rewrite_states[category]["logs"] + [str(exc)])[-200:])
     finally:
-        rewrite_process = None
+        with rewrite_lock:
+            rewrite_processes[category] = None
 
 
 @app.get("/api/rewrite/status")
 def rewrite_status():
+    category = request.args.get("category")
     with rewrite_lock:
-        return jsonify(rewrite_state)
+        def memory_text(key):
+            try:
+                state = json.loads(MEMORY_FILE.read_text(encoding="utf-8"))
+                memories = state.get("memories") or {}
+                return memories.get(key, state.get("memory", ""))
+            except (OSError, json.JSONDecodeError):
+                return ""
+
+        def snapshot(key):
+            state = dict(rewrite_states[key])
+            process = rewrite_processes[key]
+            state["pid"] = process.pid if process and process.poll() is None else None
+            state["category"] = key
+            state["memory"] = memory_text(key)
+            state["memory_chars"] = len(state["memory"])
+            return state
+        if category in REWRITE_CATEGORIES:
+            return jsonify(snapshot(category))
+        return jsonify({"categories": {key: snapshot(key) for key in sorted(REWRITE_CATEGORIES)}})
+
+
+@app.get("/rewrite")
+def rewrite_page():
+    return render_template("rewrite.html", embedded=request.args.get("embedded") == "1")
 
 
 @app.post("/api/rewrite/start")
 def rewrite_start():
     payload = request.get_json(silent=True) or {}
+    category = payload.get("category", "sexy")
+    if category not in REWRITE_CATEGORIES:
+        return jsonify({"error": "请选择独立任务类别"}), 400
     with rewrite_lock:
-        if rewrite_state["status"] == "running":
-            return jsonify({"error": "任务正在运行"}), 409
-        rewrite_state.update(status="running", logs=["正在启动常驻任务…"], started_at=now(), returncode=None)
-    args = ["--ctx", str(max(1024, int(payload.get("ctx", 32768)))), "--daemon"]
-    threading.Thread(target=_run_rewrite, args=(args,), daemon=True).start()
-    return jsonify({"ok": True})
+        if rewrite_states[category]["status"] == "running":
+            return jsonify({"error": "该类别任务正在运行"}), 409
+        rewrite_states[category].update(status="running", logs=["正在启动常驻任务…"], started_at=now(), returncode=None)
+    args = ["--ctx", str(max(1024, int(payload.get("ctx", 32768)))), "--daemon",
+            "--memory-every", str(max(1, int(payload.get("memory_every", 40)))),
+            "--batch-size", str(max(1, int(payload.get("batch_size", 5)))),
+            "--prompt-extra", str(payload.get("prompt_extra", "")),
+            "--image-batch-size", str(max(1, min(8, int(payload.get("image_batch_size", payload.get("batch_size", 2))))))]
+    args += ["--category", category]
+    threading.Thread(target=_run_rewrite, args=(category, args), daemon=True).start()
+    return jsonify({"ok": True, "status": "running", "category": category})
 
 
 @app.post("/api/rewrite/stop")
 def rewrite_stop():
+    category = (request.get_json(silent=True) or {}).get("category") or request.args.get("category", "sexy")
+    if category not in REWRITE_CATEGORIES:
+        return jsonify({"error": "请选择独立任务类别"}), 400
     with rewrite_lock:
-        process = rewrite_process
+        process = rewrite_processes[category]
     if process and process.poll() is None:
         process.terminate()
-        return jsonify({"ok": True})
-    return jsonify({"error": "当前没有运行中的任务"}), 409
+        return jsonify({"ok": True, "category": category})
+    return jsonify({"error": "该类别当前没有运行中的任务"}), 409
 
 
 def load_tasks():
@@ -169,7 +219,7 @@ def make_workflow(payload):
     workflow["3"]["inputs"]["seed"] = int(payload["seed"])
     workflow["13"]["inputs"]["width"] = int(payload.get("width", 1024))
     workflow["13"]["inputs"]["height"] = int(payload.get("height", 1024))
-    workflow["13"]["inputs"]["batch_size"] = int(payload.get("batch_size", 1))
+    workflow["13"]["inputs"]["batch_size"] = int(payload.get("batch_size", 2))
     workflow["9"]["inputs"]["filename_prefix"] = f"PhotoLab/{payload.get('filename_prefix', 'result')}"
     return workflow
 
@@ -405,12 +455,16 @@ def review_items():
             continue
         for image in task.get("outputs", []):
             image_id = f"task:{task['id']}:{image.get('filename')}"
+            image_url = f"{prefix}/api/tasks/{task['id']}/image?filename={quote(str(image.get('filename', '')))}"
             items.append({
                 "id": image_id,
-                "url": f"{prefix}/api/tasks/{task['id']}/image?filename={image.get('filename')}",
+                "filename": image.get("filename", ""),
+                "url": image_url,
+                "thumb_url": f"{image_url}&size=thumb",
                 "prompt": task.get("prompt", ""),
                 "created_at": task.get("created_at"),
                 "source": "Photo Lab",
+                "category": (task.get("metadata") or {}).get("rewrite_category", "sexy"),
                 "label": labels.get(image_id, {}).get("value"),
             })
     if OUTPUTS_DIR.exists():
@@ -421,10 +475,12 @@ def review_items():
             image_id = f"file:{relative}"
             items.append({
                 "id": image_id,
+                "filename": image_path.name,
                 "url": f"{prefix}/api/library-image/{relative}",
                 "prompt": image_path.parent.name,
                 "created_at": datetime.fromtimestamp(image_path.stat().st_mtime, timezone.utc).isoformat(),
                 "source": "Skill 输出",
+                "category": "sexy",
                 "label": labels.get(image_id, {}).get("value"),
             })
     return sorted(items, key=lambda item: item.get("created_at") or "")
@@ -438,6 +494,11 @@ def index():
 @app.get("/review")
 def review():
     return render_template("review.html", embedded=request.args.get("embedded") == "1")
+
+
+@app.get("/library")
+def library():
+    return render_template("library.html")
 
 
 @app.get("/chat")
@@ -581,7 +642,7 @@ def generation_parameters(payload):
     try:
         width = int(payload.get("width", 1024))
         height = int(payload.get("height", 1024))
-        batch_size = int(payload.get("batch_size", 1))
+        batch_size = int(payload.get("batch_size", 2))
     except (TypeError, ValueError):
         raise ValueError("宽度、高度和批量大小必须是数字")
     if width < 64 or width > 2048 or height < 64 or height > 2048:
@@ -679,6 +740,20 @@ def cancel_task(task_id):
         save_tasks()
     worker_wakeup.set()
     return jsonify(public_task(task))
+
+
+@app.post("/api/tasks/clear-queue")
+def clear_queue():
+    cleared = 0
+    with lock:
+        for task_id in list(queue):
+            task = tasks.get(task_id)
+            if task and task.get("status") == "queued":
+                task.update(status="cancelled", progress=0, message="任务已取消", cancel_requested=True, updated_at=now())
+                cleared += 1
+        queue[:] = [task_id for task_id in queue if tasks.get(task_id, {}).get("status") != "cancelled"]
+        save_tasks()
+    return jsonify({"cleared": cleared})
 
 
 @app.get("/api/tasks/<task_id>/image")

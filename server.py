@@ -44,6 +44,8 @@ STATIC_FILES = {
     "/settings.html": ROOT / "settings.html",
     "/settings.js": ROOT / "settings.js",
     "/image.css": ROOT / "image.css",
+    "/ui-framework.css": ROOT / "ui-framework.css",
+    "/ui-framework.js": ROOT / "ui-framework.js",
     "/templates/warring-states-ref2va.txt": ROOT / "templates" / "warring-states-ref2va.txt",
     "/templates/warring-states-ref2va-15.txt": ROOT / "templates" / "warring-states-ref2va-15.txt",
     "/templates/warring-states-01-meeting-chase-ref2va.txt": ROOT / "templates" / "warring-states-01-meeting-chase-ref2va.txt",

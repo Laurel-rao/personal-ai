@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>记忆仿写任务 · Photo Lab</title>
+  <base href="{{ request.script_root or '' }}/">
+  <link rel="stylesheet" href="static/app.css">
+  <link rel="stylesheet" href="../ui-framework.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body{padding:5vh 6vw}
+    .rewrite-page{max-width:1120px;margin:auto}
+    .rewrite-nav{display:flex;flex-wrap:wrap;gap:18px;margin-bottom:24px;font:12px var(--mono)}
+    .rewrite-nav a{color:var(--muted);text-decoration:none}
+    .rewrite-nav a[aria-current="page"]{color:var(--accent);font-weight:700}
+    .rewrite-task-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:22px}
+    .rewrite-task-card{border:1px solid var(--line);background:#fff;padding:18px;min-width:0}
+    .rewrite-task-card .rewrite-header{padding-bottom:13px}
+    .rewrite-task-card h3{margin:0;font-size:18px}
+    .rewrite-task-card .rewrite-toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;padding:15px 0 12px}
+    .rewrite-task-card .rewrite-toolbar label{min-width:0}
+    .rewrite-task-card .rewrite-actions{grid-column:1/-1;height:40px}
+    .rewrite-task-card .rewrite-start{width:100%;justify-content:space-between}
+    .rewrite-task-card .rewrite-extra-label{display:block}
+    .rewrite-memory{margin:10px 0 0;color:var(--muted);font:10px var(--mono)}
+    .rewrite-memory-details{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;color:var(--muted);font:11px var(--mono)}
+    .rewrite-memory-details summary{cursor:pointer;color:var(--accent);user-select:none}
+    .rewrite-memory-details p{margin:9px 0 0;max-height:180px;overflow:auto;line-height:1.65;white-space:pre-wrap;color:var(--ink);font:12px/1.65 var(--sans)}
+    .rewrite-task-card .rewrite-logs{min-height:150px;max-height:220px}
+    @media(max-width:800px){body{padding:24px 16px}.rewrite-task-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main class="rewrite-page">
+    <nav class="rewrite-nav" aria-label="工作区导航">
+      <a href="../" target="_top">视频生成</a>
+      <a href="../image" target="_top">图片生成</a>
+      <a href="../chat" target="_top">文本对话</a>
+      <a href="review">图片标注</a>
+      <a href="library">图片库</a>
+      <a href="rewrite" aria-current="page">记忆仿写</a>
+      <a href="../settings" target="_top">设置</a>
+    </nav>
+    <section class="panel rewrite-panel">
+      <div class="rewrite-header">
+        <div><div class="eyebrow">REWRITE / 04</div><h2>记忆仿写任务</h2></div>
+        <span class="rewrite-state"><i></i><b>独立任务控制</b></span>
+      </div>
+      <div class="rewrite-task-grid">
+        <article class="rewrite-task-card" data-category="sexy">
+          <div class="rewrite-header"><div><div class="eyebrow">CATEGORY / 01</div><h3>性感女性</h3></div><span class="rewrite-state"><i></i><b data-status>空闲</b></span></div>
+          <p class="rewrite-memory" data-memory>类别记忆：加载中</p>
+          <div class="rewrite-toolbar">
+            <label>上下文窗口 <span>TOKEN</span><input data-field="ctx" type="number" min="1024" step="1024" value="32768"></label>
+            <label>每批生成 <span>条</span><input data-field="batch" type="number" min="1" max="30" value="5"></label>
+            <label>记忆触发 <span>张</span><input data-field="every" type="number" min="1" value="40"></label>
+            <label>每条出图 <span>张</span><input data-field="image-batch" type="number" min="1" max="8" value="2"></label>
+            <div class="rewrite-actions"><button data-action class="rewrite-start" type="button"><span>启动任务</span><b>→</b></button></div>
+          </div>
+          <label class="rewrite-extra-label">提示词补充 <span>可选</span><textarea data-field="extra" rows="2" placeholder="补充性感女性的创作方向"></textarea></label>
+          <div class="rewrite-log-head"><span>性感女性 · 运行日志</span><small>实时</small></div>
+          <pre data-logs class="rewrite-logs">暂无日志</pre>
+          <details class="rewrite-memory-details"><summary>展开查看类别记忆</summary><p data-memory-text>加载中</p></details>
+        </article>
+        <article class="rewrite-task-card" data-category="closeup">
+          <div class="rewrite-header"><div><div class="eyebrow">CATEGORY / 02</div><h3>女生特写（上半身）</h3></div><span class="rewrite-state"><i></i><b data-status>空闲</b></span></div>
+          <p class="rewrite-memory" data-memory>类别记忆：加载中</p>
+          <div class="rewrite-toolbar">
+            <label>上下文窗口 <span>TOKEN</span><input data-field="ctx" type="number" min="1024" step="1024" value="32768"></label>
+            <label>每批生成 <span>条</span><input data-field="batch" type="number" min="1" max="30" value="5"></label>
+            <label>记忆触发 <span>张</span><input data-field="every" type="number" min="1" value="40"></label>
+            <label>每条出图 <span>张</span><input data-field="image-batch" type="number" min="1" max="8" value="2"></label>
+            <div class="rewrite-actions"><button data-action class="rewrite-start" type="button"><span>启动任务</span><b>→</b></button></div>
+          </div>
+          <label class="rewrite-extra-label">提示词补充 <span>可选</span><textarea data-field="extra" rows="2" placeholder="补充美女人脸和上半身构图方向"></textarea></label>
+          <div class="rewrite-log-head"><span>女生特写 · 运行日志</span><small>实时</small></div>
+          <pre data-logs class="rewrite-logs">暂无日志</pre>
+          <details class="rewrite-memory-details"><summary>展开查看类别记忆</summary><p data-memory-text>加载中</p></details>
+        </article>
+      </div>
+    </section>
+  </main>
+  <script src="static/rewrite.js"></script>
+  <script src="../ui-framework.js"></script>
+</body>
+</html>

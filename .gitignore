@@ -1,4 +1,6 @@
 __pycache__/
+qwen_preference_memory.lock
+.playwright-mcp/
 *.pyc
 .DS_Store
 .env

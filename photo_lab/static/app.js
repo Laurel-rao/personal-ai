@@ -94,19 +94,30 @@ async function refreshRewrite() {
   if (!result) return;
   const labels = { idle: '空闲', running: '运行中', done: '已完成', error: '失败' };
   $('rewriteStatus').textContent = labels[result.status] || result.status;
-  $('rewriteStart').disabled = result.status === 'running';
-  $('rewriteStop').disabled = result.status !== 'running';
+  $('rewriteToggle').disabled = false;
+  $('rewriteToggle').querySelector('span').textContent = result.status === 'running' ? '停止任务' : '启动任务';
+  $('rewriteToggle').classList.toggle('is-running', result.status === 'running');
   $('rewriteLogs').textContent = result.logs?.length ? result.logs.join('\n') : '暂无日志';
   $('rewriteLogs').scrollTop = $('rewriteLogs').scrollHeight;
   if (result.status === 'running') setTimeout(refreshRewrite, 1200);
 }
 
-$('rewriteStart').addEventListener('click', async () => {
-  const response = await fetch('api/rewrite/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ctx: Number($('rewriteCtx').value) }) });
-  if (!response.ok) { const result = await response.json(); $('rewriteLogs').textContent = result.error || '启动失败'; return; }
-  refreshRewrite();
+$('rewriteToggle')?.addEventListener('click', async () => {
+  const button = $('rewriteToggle');
+  const current = await fetch('api/rewrite/status').then((r) => r.json()).catch(() => ({}));
+  if (current.status === 'running') { await fetch('api/rewrite/stop', { method: 'POST' }); refreshRewrite(); return; }
+  button.disabled = true;
+  try {
+    const response = await fetch('api/rewrite/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ctx: Number($('rewriteCtx').value), batch_size: Number($('rewriteBatch').value), memory_every: Number($('rewriteEvery').value), prompt_extra: $('rewriteExtra').value }) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || `启动失败（HTTP ${response.status}）`);
+    $('rewriteLogs').textContent = '已提交启动请求，等待进程就绪…';
+    refreshRewrite();
+  } catch (error) {
+    button.disabled = false;
+    $('rewriteLogs').textContent = error.message || '启动失败';
+  }
 });
-$('rewriteStop').addEventListener('click', async () => { await fetch('api/rewrite/stop', { method: 'POST' }); refreshRewrite(); });
 
 function batchPrompts() {
   return $('batchPrompts').value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
@@ -157,7 +168,14 @@ document.querySelectorAll('.size-preset').forEach((button) => button.addEventLis
 $('width').addEventListener('input', renderSizePresets);
 $('height').addEventListener('input', renderSizePresets);
 $('refreshBtn').addEventListener('click', poll);
-refreshRewrite();
+$('clearQueue').addEventListener('click', async () => {
+  if (!window.confirm('清空所有等待中的任务？正在运行的任务不会停止。')) return;
+  const response = await fetch('api/tasks/clear-queue', { method: 'POST' });
+  const result = await response.json().catch(() => ({}));
+  $('formMessage').textContent = response.ok ? `已清空 ${result.cleared || 0} 个等待任务` : (result.error || '清空失败');
+  poll();
+});
+if ($('rewriteToggle')) refreshRewrite();
 $('toggleHistory').addEventListener('click', async () => {
   state.historyVisible = !state.historyVisible;
   $('historyContent').hidden = !state.historyVisible;
@@ -198,7 +216,7 @@ $('history').addEventListener('click', async (event) => {
     $('negativePrompt').value = item.negative_prompt || '';
     $('width').value = item.width || 1024;
     $('height').value = item.height || 1024;
-    $('batchSize').value = item.batch_size || 1;
+    $('batchSize').value = item.batch_size || 2;
     $('seed').value = item.seed ?? '';
     renderGenerationMode();
     renderSizePresets();

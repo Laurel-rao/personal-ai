@@ -8,6 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="static/app.css">
+  <link rel="stylesheet" href="../styles.css">
+  <link rel="stylesheet" href="../ui-framework.css">
+  <script src="https://cdn.tailwindcss.com"></script><script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="static/embed.css">
   <link rel="stylesheet" href="static/review.css">
 </head>
@@ -15,7 +18,7 @@
   <header class="topbar review-topbar">
     <a class="brand brand-link" href="{{ './?embedded=1' if embedded else './' }}"><span class="brand-mark">P</span><span>PHOTO LAB</span><small>IMAGE REVIEW</small></a>
     <div class="review-summary"><span id="reviewQueueCount" class="review-queue" aria-live="polite">生成队列 0</span><span id="reviewSummary">加载图片库...</span></div>
-    <div class="review-menu"><a class="menu-link" href="./">生成</a><a class="menu-link" href="../chat" target="_top">文本对话</a></div>
+    <div class="review-menu"><a class="menu-link" href="../" target="_top">视频生成</a><a class="menu-link" href="../image" target="_top">图片生成</a><a class="menu-link" href="../chat" target="_top">文本对话</a><a class="menu-link" href="rewrite">记忆仿写</a><a class="menu-link active" href="./">图片标注</a><a class="menu-link" href="library">图片库</a></div>
   </header>
   <main class="review-workspace">
     <section class="review-stage" id="reviewStage">
@@ -25,6 +28,11 @@
     </section>
     <aside class="review-controls">
       <div class="scope-switch" aria-label="图片范围"><button class="scope-button active" data-scope="pending">待标注</button><button class="scope-button" data-scope="all">全部记录</button></div>
+      <div class="category-filter" aria-label="类别筛选">
+        <div class="category-filter-head"><span>类别筛选</span><button id="categoryAll" type="button">全部类别</button></div>
+        <label><input type="checkbox" data-category-filter="sexy" checked><span>性感女性</span></label>
+        <label><input type="checkbox" data-category-filter="closeup" checked><span>女生特写（上半身）</span></label>
+      </div>
       <div class="mode-switch" aria-label="浏览模式"><button class="mode-button active" data-mode="sequential">顺序</button><button class="mode-button" data-mode="random">随机</button></div>
       <button id="playButton" class="play-button">开始自动浏览</button>
       <div class="label-actions">
@@ -33,12 +41,12 @@
       </div>
       <div class="nav-actions"><button id="previousButton" class="nav-button">↑ 上一张</button><button id="nextButton" class="nav-button">下一张 ↓</button></div>
       <div class="review-caption">
-        <div><span class="eyebrow" id="reviewSource">PHOTO LAB</span><p id="reviewPrompt">图片生成后会自动进入此处。</p></div>
+        <div class="review-caption-copy"><div class="review-caption-meta"><span class="eyebrow" id="reviewSource">PHOTO LAB</span><span class="review-image-number" id="reviewImageNumber">编号</span></div><p id="reviewPrompt">图片生成后会自动进入此处。</p><div class="review-caption-actions"><button id="reviewCopyPrompt" class="review-copy-button" type="button" disabled><i data-lucide="copy"></i><span>复制提示词</span></button><a id="reviewDownloadImage" class="review-copy-button review-download-button" href="#" download hidden><i data-lucide="download"></i><span>下载图片</span></a></div></div>
         <div class="review-position" id="reviewPosition">0 / 0</div>
       </div>
       <div class="shortcut-help"><span><kbd>←</kbd><kbd>→</kbd> 标注并下一张</span><span><kbd>↑</kbd><kbd>↓</kbd> 浏览</span><span><kbd>Space</kbd> 自动浏览</span><span class="mobile-help">手机：左右滑动标注，上下滑动浏览</span></div>
     </aside>
   </main>
-  <script src="static/review.js"></script>
+  <script src="static/review.js"></script><script src="../ui-framework.js"></script>
 </body>
 </html>

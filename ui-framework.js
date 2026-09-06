@@ -1,0 +1,1 @@
+(() => { const toggle = document.querySelector('[data-ui-nav-toggle]'); const nav = document.querySelector('[data-ui-nav]'); if (toggle && nav) toggle.addEventListener('click', () => { const open = nav.classList.toggle('is-open'); toggle.setAttribute('aria-expanded', String(open)); }); document.querySelectorAll('[data-lucide]').forEach(() => window.lucide?.createIcons?.()); })();

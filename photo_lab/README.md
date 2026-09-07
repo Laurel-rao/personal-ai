@@ -25,3 +25,6 @@ COMFY_URL='https://u288331-788499bf7eab.bjb1.seetacloud.com:8443' python app.py
 - `DELETE /api/tasks/history`：清理已完成和失败的历史记录。
 
 进度优先来自 ComfyUI WebSocket 的 `progress` 事件；若 WebSocket 不可用，会自动降级为历史轮询和时间估算。生产环境建议在应用前增加鉴权，并限制 `/interrupt` 的调用权限。
+# 统一后台访问说明
+
+Photo Lab 现作为 Personal AI 的 `/photo` 蓝图运行，共享 Flask-AppBuilder 登录、角色权限与用户数据隔离。请从项目根目录按 `../README.md` 启动；本文件中旧的独立启动、4174 端口和匿名 API 调用示例仅供历史参考，不再适用。调用写接口前需登录并携带 `X-CSRFToken`。

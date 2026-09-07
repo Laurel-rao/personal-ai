@@ -1,0 +1,4 @@
+{% extends 'appbuilder/base.html' %}
+{% block content %}
+<main class="workspace-login"><span class="workspace-eyebrow">PERSONAL AI / WORKSPACE</span><h1>欢迎回到创作空间</h1><p>登录你的账号，让今天的灵感继续发生。</p><form method="post" action="" name="login">{{ form.hidden_tag() }}<label for="username">用户名</label>{{ form.username(class="form-control", autocomplete="username", autofocus=true, placeholder="请输入用户名") }}<label for="password">密码</label>{{ form.password(class="form-control", autocomplete="current-password", placeholder="请输入密码") }}{% for field, errors in form.errors.items() %}{% for error in errors %}<p role="alert">{{ error }}</p>{% endfor %}{% endfor %}<button class="btn btn-primary btn-block" type="submit">登录工作台 →</button></form><p class="workspace-login-note">账号由管理员开通 · 不开放公开注册</p></main>
+{% endblock %}

@@ -22,15 +22,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from flask import Blueprint, Flask, Response, jsonify, request, send_file, stream_with_context
+from flask import Blueprint, Flask, Response, jsonify, render_template_string, request, send_file, stream_with_context
+from flask_login import current_user
+from admin import is_admin
 
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 HISTORY_FILE = DATA_DIR / "history.json"
-HISTORY_LOCK = threading.Lock()
+HISTORY_LOCK = threading.RLock()
 STATIC_FILES = {
-    "/": ROOT / "index.html",
+    "/video": ROOT / "index.html",
     "/index.html": ROOT / "index.html",
     "/chat": ROOT / "chat.html",
     "/chat.html": ROOT / "chat.html",
@@ -45,6 +47,8 @@ STATIC_FILES = {
     "/settings.js": ROOT / "settings.js",
     "/image.css": ROOT / "image.css",
     "/ui-framework.css": ROOT / "ui-framework.css",
+    "/admin.css": ROOT / "admin.css",
+    "/workspace-pages.css": ROOT / "workspace-pages.css",
     "/ui-framework.js": ROOT / "ui-framework.js",
     "/templates/warring-states-ref2va.txt": ROOT / "templates" / "warring-states-ref2va.txt",
     "/templates/warring-states-ref2va-15.txt": ROOT / "templates" / "warring-states-ref2va-15.txt",
@@ -85,11 +89,18 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def user_history_file() -> Path:
+    if is_admin():
+        return HISTORY_FILE
+    return DATA_DIR / "users" / str(current_user.id) / "history.json"
+
+
 def load_history() -> list[dict[str, Any]]:
-    if not HISTORY_FILE.exists():
+    history_file = user_history_file()
+    if not history_file.exists():
         return []
     try:
-        data = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+        data = json.loads(history_file.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return []
     return data if isinstance(data, list) else []
@@ -97,16 +108,22 @@ def load_history() -> list[dict[str, Any]]:
 
 def write_history(items: list[dict[str, Any]]) -> None:
     with HISTORY_LOCK:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        temporary = HISTORY_FILE.with_suffix(".json.tmp")
+        history_file = user_history_file()
+        history_file.parent.mkdir(parents=True, exist_ok=True)
+        temporary = history_file.with_suffix(".json.tmp")
         temporary.write_text(
             json.dumps(items[:200], ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-        os.replace(temporary, HISTORY_FILE)
+        os.replace(temporary, history_file)
 
 
 def upsert_history(item: dict[str, Any]) -> dict[str, Any]:
+    with HISTORY_LOCK:
+        return _upsert_history(item)
+
+
+def _upsert_history(item: dict[str, Any]) -> dict[str, Any]:
     items = load_history()
     key = str(item.get("promptId") or item.get("id") or "").strip()
     if not key:
@@ -129,6 +146,11 @@ def validate_base_url(value: Any) -> str:
         raise ValueError("服务地址必须是有效的 HTTP 或 HTTPS 地址")
     if parsed.username or parsed.password:
         raise ValueError("服务地址不能包含账号或密码")
+    if not is_admin():
+        allowed_urls = {"https://www.autodl.art", "https://autodl.art"}
+        allowed_urls.update(url.strip().rstrip("/") for url in os.getenv("PERSONAL_AI_WORKFLOW_BASE_URLS", "").split(",") if url.strip())
+        if base_url not in allowed_urls:
+            raise ValueError("此服务地址未获管理员授权")
     return base_url
 
 
@@ -297,10 +319,12 @@ def error_response(status: int, message: str) -> Response:
 def serve_static(path: Path) -> Response:
     if not path.is_file():
         return error_response(404, "页面文件不存在")
+    if path.suffix == ".html":
+        return Response(render_template_string(path.read_text(encoding="utf-8")), mimetype="text/html")
     content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     if content_type.startswith("text/") or path.suffix in {".js", ".css"}:
         content_type = f"{content_type}; charset=utf-8"
-    return send_file(path, mimetype=content_type)
+    return send_file(path, mimetype=content_type, conditional=path.suffix != ".html")
 
 
 console_bp = Blueprint("console", __name__)
@@ -326,7 +350,10 @@ _register_static_routes()
 
 @console_bp.get("/api/health")
 def api_health() -> Response:
-    return jsonify({"success": True, "history_count": len(load_history())})
+    result = {"success": True}
+    if current_user.is_authenticated and current_user.is_active:
+        result["history_count"] = len(load_history())
+    return jsonify(result)
 
 
 @console_bp.get("/api/chat/health")
@@ -431,7 +458,12 @@ def api_history_post() -> Response:
         item = request.get_json(force=True, silent=True) or {}
         if not isinstance(item, dict):
             raise ValueError("请求内容必须是 JSON 对象")
-        saved = upsert_history(item)
+        key = str(item.get("promptId") or item.get("id") or "")
+        with HISTORY_LOCK:
+            existing = next((entry for entry in load_history() if str(entry.get("promptId") or entry.get("id")) == key), None)
+            if not existing:
+                return error_response(404, "任务不存在")
+            saved = upsert_history({**existing, **{field: item[field] for field in ("status", "error", "updatedAt", "pollCount") if field in item}})
         return jsonify({"success": True, "item": saved})
     except Exception as exc:
         return error_response(400, str(exc))
@@ -443,8 +475,9 @@ def api_history_delete() -> Response:
     if not key:
         write_history([])
         return jsonify({"success": True, "deleted": "all"})
-    items = [entry for entry in load_history() if str(entry.get("promptId") or entry.get("id")) != key]
-    write_history(items)
+    with HISTORY_LOCK:
+        items = [entry for entry in load_history() if str(entry.get("promptId") or entry.get("id")) != key]
+        write_history(items)
     return jsonify({"success": True, "deleted": key})
 
 
@@ -642,6 +675,11 @@ def api_workflow_result() -> Response:
         base_url = validate_base_url(request.args.get("base_url", ""))
         if not prompt_id:
             raise ValueError("prompt_id 不能为空")
+        existing = next((item for item in load_history() if str(item.get("promptId")) == prompt_id), None)
+        if not existing:
+            return error_response(404, "任务不存在")
+        if str(existing.get("baseUrl", "")).rstrip("/") != base_url.rstrip("/"):
+            return error_response(400, "任务服务地址不匹配")
         if is_autodl_url(base_url):
             return handle_autodl_result(prompt_id)
         remote_url = f"{base_url}/api/workflow/result?{urllib.parse.urlencode({'prompt_id': prompt_id})}"
@@ -898,10 +936,11 @@ def generate_chat_image(prompt: str, size: str = "1024x1024", quality: str = "me
     if not isinstance(items, list) or not items or not items[0].get("b64_json"):
         raise ValueError("生图接口未返回图片")
     encoded = items[0]["b64_json"]
-    CHAT_IMAGE_DIR.mkdir(parents=True, exist_ok=True)
+    image_dir = CHAT_IMAGE_DIR / str(current_user.id)
+    image_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     name = f"{stamp}.png"
-    (CHAT_IMAGE_DIR / name).write_bytes(base64.b64decode(encoded))
+    (image_dir / name).write_bytes(base64.b64decode(encoded))
     return {"prompt": prompt, "data_url": f"data:image/png;base64,{encoded}", "url": f"/api/chat-image/{name}"}
 
 
@@ -1048,7 +1087,9 @@ def api_chat_stream() -> Response:
 @console_bp.get("/api/chat-image/<path:name>")
 def api_chat_image(name: str) -> Response:
     safe = Path(name).name
-    target = CHAT_IMAGE_DIR / safe
+    target = CHAT_IMAGE_DIR / str(current_user.id) / safe
+    if not target.exists() and is_admin():
+        target = CHAT_IMAGE_DIR / safe
     if not target.exists() or not target.is_file():
         return error_response(404, "图片不存在")
     return send_file(target, mimetype="image/png", max_age=86400)
@@ -1056,9 +1097,13 @@ def api_chat_image(name: str) -> Response:
 
 # ---------------------------------------------------------------- 应用工厂
 
-def create_console_app() -> Flask:
+def create_console_app(config=None) -> Flask:
     app = Flask(__name__, static_folder=None)
+    if config:
+        app.config.update(config)
     app.register_blueprint(console_bp)
+    from admin import init_admin
+    init_admin(app)
     return app
 
 
@@ -1067,17 +1112,8 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", default=4173, type=int)
     args = parser.parse_args()
-    app = create_console_app()
-    # 单独运行 server.py 时也挂载 Photo Lab（与 app.py 统一入口一致），
-    # 避免只起 console 导致 /photo 图片生成页 404。
-    try:
-        from werkzeug.middleware.dispatcher import DispatcherMiddleware
-        from photo_lab.app import app as photo_lab_app
-
-        app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {"/photo": photo_lab_app.wsgi_app})
-    except ImportError:
-        # photo_lab 依赖缺失时退化为纯 console
-        pass
+    from app import create_app
+    app = create_app()
     print(f"H3 video console: http://{args.host}:{args.port}")
     app.run(host=args.host, port=args.port, threaded=True)
 

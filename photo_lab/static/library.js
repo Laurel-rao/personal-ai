@@ -47,7 +47,12 @@
       const label = item.label || 'unlabeled';
       return `<article class="library-card"><div class="library-card-media" data-preview-url="${escape(item.url)}" data-preview-prompt="${escape(item.prompt || '')}"><img loading="lazy" src="${escape(item.thumb_url || item.url)}" alt="${escape(categoryNames[category] || '图片')}"/><span class="library-card-badge">${escape(categoryNames[category] || '其他类别')}</span></div><div class="library-card-body"><div class="library-card-meta"><span class="library-card-label ${label}">${label === 'like' ? 'LIKE' : label === 'unlike' ? 'UNLIKE' : '未标注'}</span><span class="library-card-number" title="${escape(item.filename || item.id)}">编号 ${escape(item.filename || item.id)}</span><time>${escape(formatDate(item.created_at))}</time></div><p class="library-card-prompt" title="${escape(item.prompt)}">${escape(item.prompt || '未附带提示词')}</p><div class="library-card-actions"><button class="library-label-button like${label === 'like' ? ' active' : ''}" data-label="like" data-image-id="${escape(item.id)}"><i data-lucide="thumbs-up"></i>Like</button><button class="library-label-button unlike${label === 'unlike' ? ' active' : ''}" data-label="unlike" data-image-id="${escape(item.id)}"><i data-lucide="thumbs-down"></i>Unlike</button><button class="library-label-button" data-copy-prompt data-prompt="${escape(item.prompt || '')}"><i data-lucide="copy"></i>复制</button><button class="library-label-button" data-preview-url="${escape(item.url)}" data-preview-prompt="${escape(item.prompt || '')}"><i data-lucide="maximize-2"></i>放大</button><a class="library-label-button" href="${escape(item.url)}" download="${escape(item.filename || 'image.png')}"><i data-lucide="download"></i>下载</a></div></div></article>`;
     }).join('');
-    if (window.lucide) window.lucide.createIcons();
+    $('libraryGrid').querySelectorAll('.library-label-button').forEach((button) => {
+      button.title = button.textContent.trim();
+      button.setAttribute('aria-label', button.title);
+      if (button.dataset.label) button.setAttribute('aria-pressed', String(button.classList.contains('active')));
+    });
+    window.personalAI?.renderIcons();
   }
   async function load() {
     try {
@@ -74,8 +79,8 @@
     } catch (_) {
       const helper = document.createElement('textarea'); helper.value = text; helper.style.position = 'fixed'; helper.style.opacity = '0'; document.body.appendChild(helper); helper.select(); document.execCommand('copy'); helper.remove();
     }
-    const original = button.innerHTML; button.innerHTML = '<i data-lucide="check"></i>已复制'; button.classList.add('copied'); if (window.lucide) window.lucide.createIcons();
-    window.setTimeout(() => { button.innerHTML = original; button.classList.remove('copied'); if (window.lucide) window.lucide.createIcons(); }, 1200);
+    const original = button.innerHTML; button.innerHTML = '<i data-lucide="check"></i>已复制'; button.classList.add('copied'); button.title = '已复制提示词'; button.setAttribute('aria-label', button.title); window.personalAI?.renderIcons();
+    window.setTimeout(() => { button.innerHTML = original; button.classList.remove('copied'); button.title = '复制'; button.setAttribute('aria-label', button.title); window.personalAI?.renderIcons(); }, 1200);
   }
   function openPreview(element) {
     $('libraryPreviewImage').src = element.dataset.previewUrl || '';

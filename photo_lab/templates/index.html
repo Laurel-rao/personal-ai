@@ -4,46 +4,39 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Photo Lab · ComfyUI 生成工作台</title>
-  <base href="{{ request.script_root or '' }}/">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <base href="/photo/">
   <link rel="stylesheet" href="static/app.css">
   <link rel="stylesheet" href="../styles.css">
   <link rel="stylesheet" href="../ui-framework.css">
-  <script src="https://cdn.tailwindcss.com"></script><script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="static/embed.css">
-  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body{% if embedded %} class="embedded"{% endif %}>
+<body data-page="image"{% if embedded %} class="embedded"{% endif %}>
   <div class="app-shell">
-    <header class="topbar">
-      <div class="brand"><span class="brand-mark">P</span><span>PHOTO LAB</span><small>COMFYUI CONSOLE</small></div>
-      <div class="top-actions"><a class="menu-link" href="../" target="_top">视频生成</a><a class="menu-link" href="../image" target="_top">图片生成</a><a class="menu-link" href="../chat" target="_top">文本对话</a><a class="menu-link" href="rewrite">记忆仿写</a><a class="menu-link" href="{{ 'review?embedded=1' if embedded else 'review' }}">图片标注</a><a class="menu-link" href="library">图片库</a><span id="healthDot" class="health-dot"></span><span id="healthText">正在连接生成引擎</span><button class="icon-button" id="refreshBtn" title="刷新数据">↻</button></div>
-    </header>
+    <header class="page-heading" data-page-heading><div class="page-heading-actions"><span class="page-service"><span id="healthDot" class="health-dot"></span><span id="healthText">正在连接生成引擎</span></span><button class="icon-button" id="refreshBtn" type="button" aria-label="刷新图片任务" title="刷新数据"><i class="fa fa-rotate-right" aria-hidden="true"></i></button></div></header>
     <main class="workspace">
       <section class="composer panel">
         <div class="eyebrow">CREATE / 01</div>
-        <h1>创意<em>大师</em></h1>
+        <h2>生成参数</h2><p class="panel-description">描述画面，选择尺寸，添加到生成队列。</p>
         <form id="generateForm">
           <div class="generate-mode" role="tablist" aria-label="生成方式">
             <button type="button" class="mode-tab active" data-mode="single">单张</button>
             <button type="button" class="mode-tab" data-mode="batch">批量</button>
           </div>
           <div id="singlePromptField">
-            <label>正向提示词 <span>必填</span></label>
+            <label for="prompt">正向提示词 <span>必填</span></label>
             <textarea id="prompt" rows="3" placeholder="描述主体、场景、光线和镜头语言…" required>一个身穿白色夏日连衣裙的女孩站在海边，金色夕阳，电影感摄影</textarea>
           </div>
           <div id="batchPromptField" hidden>
-            <label>批量提示词 <span>一行一条</span></label>
+            <label for="batchPrompts">批量提示词 <span>一行一条</span></label>
             <textarea id="batchPrompts" rows="5" placeholder="一行一条提示词&#10;海边夕阳下的电影感人像&#10;窗边自然光的半身写真"></textarea>
             <div id="batchPromptCount" class="batch-count">0 条待生成</div>
           </div>
-          <label>负向提示词</label>
+          <label for="negativePrompt">负向提示词</label>
           <input id="negativePrompt" value="blurry ugly bad, low quality">
           <div class="field-row dimensions-row">
-            <div><label>宽度 <span>PX</span></label><input id="width" type="number" min="64" max="2048" step="8" value="1024"></div>
-            <div><label>高度 <span>PX</span></label><input id="height" type="number" min="64" max="2048" step="8" value="1024"></div>
-            <div><label>每条生成 <span>张</span></label><input id="batchSize" type="number" min="1" max="8" step="1" value="2"></div>
+            <div><label for="width">宽度 <span>PX</span></label><input id="width" type="number" min="64" max="2048" step="8" value="1024"></div>
+            <div><label for="height">高度 <span>PX</span></label><input id="height" type="number" min="64" max="2048" step="8" value="1024"></div>
+            <div><label for="batchSize">每条生成 <span>张</span></label><input id="batchSize" type="number" min="1" max="8" step="1" value="2"></div>
           </div>
           <div class="size-presets" aria-label="尺寸比例预设">
             <button type="button" class="size-preset" data-width="1024" data-height="1024">方图 1:1</button>
@@ -53,7 +46,7 @@
             <button type="button" class="size-preset" data-width="720" data-height="1280">手机 9:16</button>
           </div>
           <div class="field-row">
-            <div><label>种子</label><input id="seed" type="number" placeholder="随机"></div>
+            <div><label for="seed">种子</label><input id="seed" type="number" placeholder="随机"></div>
           </div>
           <button id="submitButton" class="primary-button" type="submit"><span>加入生成队列</span><b>↗</b></button>
           <div id="formMessage" class="form-message"></div>

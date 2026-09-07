@@ -4,33 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>图片库 · Photo Lab</title>
-  <base href="{{ request.script_root or '' }}/">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <base href="/photo/">
   <link rel="stylesheet" href="static/app.css">
   <link rel="stylesheet" href="../styles.css">
   <link rel="stylesheet" href="../ui-framework.css">
   <link rel="stylesheet" href="static/library.css">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="library-body">
-  <header class="topbar library-topbar">
-    <a class="brand brand-link" href="./"><span class="brand-mark">P</span><span>PHOTO LAB</span><small>IMAGE LIBRARY</small></a>
-    <nav class="library-menu" aria-label="工作区导航">
-      <a class="menu-link" href="../" target="_top">视频生成</a>
-      <a class="menu-link" href="../image" target="_top">图片生成</a>
-      <a class="menu-link" href="../chat" target="_top">文本对话</a>
-      <a class="menu-link" href="rewrite">记忆仿写</a>
-      <a class="menu-link" href="review">图片标注</a>
-      <a class="menu-link active" href="library">图片库</a>
-    </nav>
-  </header>
+<body class="library-body" data-page="library">
   <main class="library-page">
-    <div class="library-heading">
-      <div><div class="eyebrow">LIBRARY / 05</div><h1>图片库</h1><p>按类别、标注、时间和提示词检索全部生成图片。</p></div>
-      <div class="library-total" id="libraryTotal">加载中</div>
-    </div>
+    <header class="page-heading" data-page-heading><div class="page-heading-actions"><span class="ui-badge" id="libraryTotal">加载中</span></div></header>
     <section class="library-filters" aria-label="图片筛选">
       <label class="library-search">提示词搜索<input id="librarySearch" type="search" placeholder="输入提示词关键词"></label>
       <div class="library-filter-row">

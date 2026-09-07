@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const state = { items: [], history: { items: [], page: 1, total_pages: 1, total: 0 }, historyPage: 1, historyVisible: false, generationMode: 'single', queueExpanded: false };
+const state = { items: [], history: { items: [], page: 1, total_pages: 1, total: 0 }, historyPage: 1, historyVisible: true, generationMode: 'single', queueExpanded: false };
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
@@ -63,7 +63,7 @@ function renderHistory() {
     const actions = image ? `<div class="history-card-actions"><button class="history-action-button" type="button" data-history-action="replay" data-history-index="${index}" title="${escapeHtml(replayLabel)}" aria-label="${escapeHtml(replayLabel)}"><i data-lucide="play"></i></button><button class="history-action-button" type="button" data-history-action="preview" data-history-index="${index}" title="放大图片" aria-label="放大图片"><i data-lucide="maximize-2"></i></button><button class="history-action-button" type="button" data-history-action="copy" data-history-index="${index}" title="复制提示词" aria-label="复制提示词"><i data-lucide="copy"></i></button><a class="history-action-button" href="${escapeHtml(image.url)}" download="${escapeHtml(image.filename || 'generated-image.png')}" title="下载图片" aria-label="下载图片"><i data-lucide="download"></i></a>${deleteButton}</div>` : '';
     return `<article class="history-card"><div class="history-image ${image ? '' : 'loading-shimmer'}">${image ? `<img src="${escapeHtml(image.thumb_url || image.url)}" data-full-src="${escapeHtml(image.url)}" alt="生成结果" loading="lazy" decoding="async">` : (item.status === 'error' ? '生成失败' : '无预览')}</div><div class="history-copy"><p>${escapeHtml(item.prompt)}</p><div class="history-meta"><time>${new Date(item.created_at).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })} · ${statusLabel(item.status)}</time>${actions}</div></div></article>`;
   }).join('');
-  window.lucide?.createIcons();
+  window.personalAI?.renderIcons();
   pager.hidden = state.history.total_pages <= 1;
   $('historyPageInfo').textContent = `${state.history.page} / ${state.history.total_pages} · ${state.history.total} 条`;
   pager.querySelector('[data-history-page="previous"]').disabled = state.history.page <= 1;
@@ -247,6 +247,10 @@ $('closeImagePreview').addEventListener('click', () => $('imagePreviewDialog').c
 $('imagePreviewDialog').addEventListener('click', (event) => { if (event.target === $('imagePreviewDialog')) $('imagePreviewDialog').close(); });
  $('activeTasks').addEventListener('click', async (event) => { const toggle = event.target.closest('[data-queue-toggle]'); if (toggle) { state.queueExpanded = toggle.dataset.queueToggle === 'expand'; renderActive(); return; } const button = event.target.closest('.cancel-button'); if (!button) return; button.disabled = true; await fetch(`api/tasks/${button.dataset.taskId}/cancel`, { method: 'POST' }); poll(); });
 $('clearHistory').addEventListener('click', async () => { await fetch('api/tasks/history', { method: 'DELETE' }); state.history = { items: [], page: 1, total_pages: 1, total: 0 }; if (state.historyVisible) await refresh(); });
+$('historyContent').hidden = false;
+$('clearHistory').hidden = false;
+$('toggleHistory').textContent = '收起';
+$('toggleHistory').setAttribute('aria-expanded', 'true');
 renderGenerationMode();
 renderSizePresets();
 poll();

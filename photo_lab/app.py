@@ -12,8 +12,9 @@ from pathlib import Path
 from urllib.parse import quote, urlparse
 
 import requests
-from flask import Flask, jsonify, render_template, request, send_file, send_from_directory
-from werkzeug.middleware.proxy_fix import ProxyFix
+from flask import Blueprint, jsonify, render_template, request, send_file, send_from_directory
+from flask_login import current_user
+from admin import is_admin, owns_record
 try:
     from PIL import Image
 except ImportError:  # 缩略图不可用时仍可返回原图
@@ -44,8 +45,7 @@ QWEN_API_URL = os.getenv(
 ).rstrip("/")
 QWEN_MODEL = os.getenv("QWEN_MODEL", "qwen3:4b")
 
-app = Flask(__name__)
-app.wsgi_app = ProxyFix(app.wsgi_app, x_prefix=1)
+app = Blueprint("photo", __name__, template_folder="templates", static_folder="static")
 http = requests.Session()
 lock = threading.RLock()
 tasks = {}
@@ -398,7 +398,7 @@ def run_task(task_id):
 
 def public_task(task):
     result = {k: v for k, v in task.items() if k != "workflow"}
-    prefix = request.script_root.rstrip("/")
+    prefix = "/photo"
     result["outputs"] = []
     for image in task.get("outputs", []):
         url = f"{prefix}/api/tasks/{task['id']}/image?filename={image['filename']}"
@@ -408,9 +408,11 @@ def public_task(task):
 
 def history_items():
     """Return persisted generated images, with one history row per image."""
-    prefix = request.script_root.rstrip("/")
+    prefix = "/photo"
     items = []
     for task in tasks.values():
+        if not owns_record(task):
+            continue
         if task.get("status") not in {"success", "error", "cancelled"}:
             continue
         outputs = task.get("outputs", [])
@@ -427,7 +429,7 @@ def history_items():
                 items.append(item)
         else:
             items.append(public_task(task))
-    if OUTPUTS_DIR.exists():
+    if is_admin() and OUTPUTS_DIR.exists():
         for image_path in OUTPUTS_DIR.rglob("*"):
             if not image_path.is_file() or image_path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
                 continue
@@ -448,9 +450,11 @@ def history_items():
 
 def review_items():
     """Return every local task result and Skill output with stable IDs for annotation."""
-    prefix = request.script_root.rstrip("/")
+    prefix = "/photo"
     items = []
     for task in tasks.values():
+        if not owns_record(task):
+            continue
         if task.get("status") != "success":
             continue
         for image in task.get("outputs", []):
@@ -467,7 +471,7 @@ def review_items():
                 "category": (task.get("metadata") or {}).get("rewrite_category", "sexy"),
                 "label": labels.get(image_id, {}).get("value"),
             })
-    if OUTPUTS_DIR.exists():
+    if is_admin() and OUTPUTS_DIR.exists():
         for image_path in OUTPUTS_DIR.rglob("*"):
             if not image_path.is_file() or image_path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
                 continue
@@ -600,7 +604,7 @@ def list_tasks():
     except ValueError:
         return jsonify({"error": "分页参数必须是数字"}), 400
     with lock:
-        items = sorted(tasks.values(), key=lambda item: item.get("created_at", ""), reverse=True)
+        items = sorted((item for item in tasks.values() if owns_record(item)), key=lambda item: item.get("created_at", ""), reverse=True)
         active_items = [item for item in items if item.get("status") in {"queued", "running"}]
         response = {
             "items": [public_task(item) for item in active_items],
@@ -633,7 +637,7 @@ def list_tasks():
 def get_task(task_id):
     with lock:
         task = tasks.get(task_id)
-        if not task:
+        if not task or not owns_record(task):
             return jsonify({"error": "任务不存在"}), 404
         return jsonify(public_task(task))
 
@@ -661,6 +665,7 @@ def create_generation_task(payload, prompt, width, height, batch_size):
     workflow_payload = {**payload, "prompt": prompt, "seed": seed}
     task = {
         "id": task_id,
+        "owner_id": current_user.id,
         "status": "queued",
         "progress": 0,
         "message": "等待执行",
@@ -729,7 +734,7 @@ def generate_batch():
 def cancel_task(task_id):
     with lock:
         task = tasks.get(task_id)
-        if not task:
+        if not task or not owns_record(task):
             return jsonify({"error": "任务不存在"}), 404
         if task.get("status") in {"success", "error", "cancelled"}:
             return jsonify(public_task(task))
@@ -748,7 +753,7 @@ def clear_queue():
     with lock:
         for task_id in list(queue):
             task = tasks.get(task_id)
-            if task and task.get("status") == "queued":
+            if task and owns_record(task) and task.get("status") == "queued":
                 task.update(status="cancelled", progress=0, message="任务已取消", cancel_requested=True, updated_at=now())
                 cleared += 1
         queue[:] = [task_id for task_id in queue if tasks.get(task_id, {}).get("status") != "cancelled"]
@@ -762,6 +767,8 @@ def task_image(task_id):
     thumbnail = request.args.get("size") == "thumb"
     with lock:
         task = tasks.get(task_id)
+        if not task or not owns_record(task):
+            return jsonify({"error": "图片不存在"}), 404
         images = task.get("outputs", []) if task else []
     image = next((item for item in images if item.get("filename") == filename), None)
     if not image:
@@ -792,6 +799,8 @@ def task_image(task_id):
 
 @app.get("/api/library-image/<path:relative_path>")
 def library_image(relative_path):
+    if not is_admin():
+        return jsonify({"error": "图片不存在"}), 404
     requested = (OUTPUTS_DIR / relative_path).resolve()
     if OUTPUTS_DIR.resolve() not in requested.parents or not requested.is_file():
         return jsonify({"error": "图片不存在"}), 404
@@ -807,7 +816,7 @@ def get_review_items():
         "liked": sum(item.get("label") == "like" for item in items),
         "unliked": sum(item.get("label") == "unlike" for item in items),
         "unlabeled": sum(not item.get("label") for item in items),
-        "queue_count": sum(task.get("status") in {"queued", "running"} for task in tasks.values()),
+        "queue_count": sum(task.get("status") in {"queued", "running"} for task in tasks.values() if owns_record(task)),
     }
     return jsonify({"items": items, "summary": summary})
 
@@ -835,7 +844,7 @@ def set_review_label():
 def delete_task_image(task_id, filename):
     with lock:
         task = tasks.get(task_id)
-        if not task:
+        if not task or not owns_record(task):
             return jsonify({"error": "任务不存在"}), 404
         if task.get("status") in {"queued", "running"}:
             return jsonify({"error": "进行中的任务不能删除，请先取消"}), 409
@@ -872,7 +881,7 @@ def delete_task_image(task_id, filename):
 @app.delete("/api/tasks/history")
 def clear_history():
     with lock:
-        finished = [task_id for task_id, item in tasks.items() if item.get("status") in {"success", "error", "cancelled"}]
+        finished = [task_id for task_id, item in tasks.items() if owns_record(item) and item.get("status") in {"success", "error", "cancelled"}]
         for task_id in finished:
             tasks.pop(task_id, None)
         save_tasks()
@@ -884,5 +893,4 @@ load_labels()
 threading.Thread(target=worker, daemon=True, name="generation-worker").start()
 
 if __name__ == "__main__":
-    # 独立运行默认 4174（与统一入口 app.py 的 4173 区分，PHOTO_LAB_URL 默认一致）
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "4174")), debug=False)
+    raise SystemExit("请使用项目根目录 app.py 启动，独立 Photo Lab 入口已关闭以防绕过登录。")

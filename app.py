@@ -3,7 +3,7 @@
 
 单进程、单端口同时提供：
 - 根路径 /       : H3 视频工作台（server.py 的 console 蓝图）
-- 前缀 /photo/*  : Photo Lab（photo_lab 独立 Flask 应用，WSGI 挂载）
+- 前缀 /photo/*  : Photo Lab（共享认证与授权的 Flask 蓝图）
 
 用法：
     python3 app.py [--host 127.0.0.1] [--port 4173]
@@ -38,18 +38,14 @@ def _load_env_file(path: Path) -> None:
 _load_env_file(Path(__file__).resolve().parent / ".env")
 
 from flask import Flask  # noqa: E402
-from werkzeug.middleware.dispatcher import DispatcherMiddleware  # noqa: E402
 
 from photo_lab.app import app as photo_lab_app  # noqa: E402  (导入即启动 worker 线程)
 from server import create_console_app  # noqa: E402
 
 
-def create_app() -> Flask:
-    app = create_console_app()
-    app.wsgi_app = DispatcherMiddleware(
-        app.wsgi_app,
-        {"/photo": photo_lab_app.wsgi_app},
-    )
+def create_app(config=None) -> Flask:
+    app = create_console_app(config)
+    app.register_blueprint(photo_lab_app, url_prefix="/photo")
     return app
 
 
@@ -60,7 +56,8 @@ def main() -> None:
     args = parser.parse_args()
     app = create_app()
     print(f"Personal AI unified console: http://{args.host}:{args.port}")
-    print(f"  /        -> H3 视频工作台")
+    print(f"  /        -> 工作台概览（需登录）")
+    print(f"  /video   -> H3 视频工作台")
     print(f"  /photo   -> Photo Lab")
     app.run(host=args.host, port=args.port, threaded=True)
 

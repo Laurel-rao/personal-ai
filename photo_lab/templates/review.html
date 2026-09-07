@@ -4,22 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>图片标注 · Photo Lab</title>
-  <base href="{{ request.script_root or '' }}/">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <base href="/photo/">
   <link rel="stylesheet" href="static/app.css">
   <link rel="stylesheet" href="../styles.css">
   <link rel="stylesheet" href="../ui-framework.css">
-  <script src="https://cdn.tailwindcss.com"></script><script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="static/embed.css">
   <link rel="stylesheet" href="static/review.css">
 </head>
-<body class="review-body{% if embedded %} embedded{% endif %}">
-  <header class="topbar review-topbar">
-    <a class="brand brand-link" href="{{ './?embedded=1' if embedded else './' }}"><span class="brand-mark">P</span><span>PHOTO LAB</span><small>IMAGE REVIEW</small></a>
-    <div class="review-summary"><span id="reviewQueueCount" class="review-queue" aria-live="polite">生成队列 0</span><span id="reviewSummary">加载图片库...</span></div>
-    <div class="review-menu"><a class="menu-link" href="../" target="_top">视频生成</a><a class="menu-link" href="../image" target="_top">图片生成</a><a class="menu-link" href="../chat" target="_top">文本对话</a><a class="menu-link" href="rewrite">记忆仿写</a><a class="menu-link active" href="./">图片标注</a><a class="menu-link" href="library">图片库</a></div>
-  </header>
+<body data-page="review" class="review-body{% if embedded %} embedded{% endif %}">
+  <header class="page-heading" data-page-heading><div class="page-heading-actions"><div class="review-summary"><span id="reviewQueueCount" class="ui-badge" aria-live="polite">生成队列 0</span><span id="reviewSummary">加载图片库…</span></div></div></header>
   <main class="review-workspace">
     <section class="review-stage" id="reviewStage">
       <div class="review-image-wrap" id="reviewImageWrap"><div class="review-empty">正在加载待标注图片...</div></div>

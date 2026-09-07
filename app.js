@@ -2,9 +2,9 @@
   "use strict";
 
   const STORAGE = {
-    settings: "h3-video-console.settings.v3",
-    draft: "h3-video-console.draft.v5",
-    legacyDraft: "h3-video-console.draft.v4",
+    settings: `h3-video-console.settings.v3.user.${window.personalAI.user.id}`,
+    draft: `h3-video-console.draft.v5.user.${window.personalAI.user.id}`,
+    legacyDraft: `h3-video-console.draft.v4.user.${window.personalAI.user.id}`,
   };
   const POLL_INTERVAL_MS = 3000;
   const MAX_HISTORY = 50;

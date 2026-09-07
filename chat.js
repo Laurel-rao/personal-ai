@@ -1,7 +1,7 @@
 (() => {
   "use strict";
 
-  const STORAGE_KEY = "media-creator.chat.sse.v1";
+  const STORAGE_KEY = `media-creator.chat.sse.v1.user.${window.personalAI.user.id}`;
   const list = document.querySelector("#conversationList");
   const messages = document.querySelector("#messageList");
   const form = document.querySelector("#chatForm");

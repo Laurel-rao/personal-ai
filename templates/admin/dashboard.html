@@ -1,0 +1,12 @@
+{% extends 'appbuilder/base.html' %}
+{% block content %}
+<main class="workspace-dashboard">
+  <div class="workspace-heading"><span class="workspace-eyebrow">YOUR CREATIVE WORKSPACE</span><h1>让灵感，成为作品。</h1><p>一个工作台，连接文本、图像与视频。选择工具，开始今天的创作。</p></div>
+  <section class="workspace-summary" aria-label="工作区概况"><div><span>可用工具</span><strong>{{ menus|length }}<small> 个</small></strong></div><div><span>访问方式</span><strong>角色授权</strong></div><div><span>数据保护</span><strong>用户隔离</strong></div></section>
+  <div class="workspace-section-title"><h2>创作工具</h2><span>按你的角色开放</span></div>
+  <section class="workspace-tools" aria-label="创作工具">
+    {% for item in menus %}<a class="workspace-tool" href="{{ item.url }}"><span class="workspace-tool-icon"><i class="fa fa-{{ item.icon }}" aria-hidden="true"></i></span><h3>{{ item.title }}<span aria-hidden="true">↗</span></h3><p>{{ item.description }}</p><span class="workspace-tool-action">进入工作区 →</span></a>{% else %}<div class="workspace-empty"><h3>账号已开通，等待授权</h3><p>请联系管理员，为你的角色分配工作台访问权限。</p></div>{% endfor %}
+  </section>
+  <section class="workspace-note"><span class="fa fa-lock" aria-hidden="true"></span><div><strong>你的创作，属于你的空间</strong><p>普通成员只访问自己的任务与作品。共享服务凭据由管理员统一维护。</p></div></section>
+</main>
+{% endblock %}

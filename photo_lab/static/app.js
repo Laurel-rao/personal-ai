@@ -1,5 +1,13 @@
 const $ = (id) => document.getElementById(id);
 const state = { items: [], history: { items: [], page: 1, total_pages: 1, total: 0 }, historyPage: 1, historyVisible: true, generationMode: 'single', queueExpanded: false };
+const mobileComposer = window.matchMedia('(max-width: 900px)');
+const generationOptions = $('generationOptions');
+function syncGenerationOptions() {
+  generationOptions.open = !mobileComposer.matches;
+}
+syncGenerationOptions();
+mobileComposer.addEventListener('change', syncGenerationOptions);
+generationOptions.addEventListener('invalid', () => { generationOptions.open = true; }, true);
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
@@ -48,7 +56,7 @@ function renderActive() {
   const visible = state.queueExpanded ? active : active.slice(0, 5);
   const hiddenCount = active.length - visible.length;
   const queueToggle = active.length > 5 ? `<button type="button" class="queue-toggle" data-queue-toggle="${state.queueExpanded ? 'collapse' : 'expand'}">${state.queueExpanded ? '收起队列' : `展开其余 ${hiddenCount} 条`}</button>` : '';
-  $('activeTasks').innerHTML = visible.map((item) => `<div class="task-card"><div class="task-top"><div class="task-name">${escapeHtml(item.prompt)}</div><span class="status">${statusLabel(item.status)}</span></div><div class="progress-track"><div class="progress-bar" style="width:${item.progress || 0}%"></div></div><div class="task-meta"><span>${escapeHtml(item.message || '等待中')}</span><span>${item.progress || 0}% <button class="cancel-button" data-task-id="${item.id}">取消</button></span></div></div>`).join('') + queueToggle;
+  $('activeTasks').innerHTML = visible.map((item) => `<div class="task-card"><div class="task-name" title="${escapeHtml(item.prompt)}">${escapeHtml(item.prompt)}</div><div class="progress-track" role="progressbar" aria-label="生成进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${item.progress || 0}"><div class="progress-bar" style="width:${item.progress || 0}%"></div></div><span class="task-percent">${item.progress || 0}%</span><span class="task-description" title="${escapeHtml(item.message || '等待中')}">${escapeHtml(item.message || '等待中')}</span><button type="button" class="cancel-button" data-task-id="${item.id}">取消</button></div>`).join('') + queueToggle;
 }
 
 function renderHistory() {

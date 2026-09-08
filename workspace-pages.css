@@ -414,7 +414,11 @@ body[data-page="image"] .workspace { grid-template-columns: 350px minmax(0, 1fr)
 body[data-page="image"] .composer.panel, body[data-page="image"] .queue-column { padding: 14px; }
 body[data-page="image"] .generate-mode { margin: 10px 0; padding: 3px; }
 body[data-page="image"] .composer label { margin: 10px 0 5px; }
-body[data-page="image"] .composer textarea { min-height: 95px; height: 110px; padding: 9px; }
+body[data-page="image"] .composer textarea { min-height: 180px; height: clamp(180px, calc(100dvh - 560px), 720px); padding: 9px; }
+body[data-page="image"] .generation-options > summary { display: none; }
+body[data-page="image"] .generation-options .options-collapse { display: none; }
+body[data-page="image"] .generation-options[open] .options-expand { display: none; }
+body[data-page="image"] .generation-options[open] .options-collapse { display: inline; }
 body[data-page="image"] .field-row { gap: 8px; }
 body[data-page="image"] .size-presets { gap: 5px; padding-top: 8px; }
 body[data-page="image"] .size-preset { padding: 4px 6px; }
@@ -511,6 +515,11 @@ body[data-page="legacy-chat"] #chatRoot { min-height: 0; }
   body[data-page="settings"] .settings-shell { grid-template-columns: 1fr; }
 }
 @media (max-width: 900px) {
+  body[data-page="image"] .composer textarea { min-height: 120px; height: 140px; }
+  body[data-page="image"] .generation-options { margin-top: 10px; border-top: 1px solid var(--page-line); }
+  body[data-page="image"] .generation-options > summary { display: flex; align-items: center; justify-content: space-between; min-height: 40px; color: var(--page-muted); cursor: pointer; font-size: 12px; list-style: none; }
+  body[data-page="image"] .generation-options > summary::-webkit-details-marker { display: none; }
+  body[data-page="image"] .generation-options > summary span { color: var(--accent); }
   body.workspace-authenticated, body.workspace-sidebar-collapsed { padding: 102px 12px 12px; }
   .workspace-header { left: 0; height: 90px; padding: 8px 12px; flex-wrap: wrap; align-content: center; gap: 4px; }
   .workspace-header > div:first-child { min-height: 34px; }

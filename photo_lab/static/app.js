@@ -62,7 +62,7 @@ function renderActive() {
 function renderHistory() {
   const finished = state.history.items;
   const pager = $('historyPager');
-  if (!finished.length) { $('history').innerHTML = '<div class="history-empty">完成的生成会保存在这里</div>'; return; }
+  if (!finished.length) { pager.hidden = true; $('history').innerHTML = '<div class="history-empty">完成的生成会保存在这里</div>'; return; }
   $('history').innerHTML = finished.map((item, index) => {
     const image = item.outputs?.[0];
     const replayLabel = item.seed === null || item.seed === undefined ? '复刻参数（未记录种子）' : `复刻参数（种子 ${item.seed}）`;
@@ -250,7 +250,58 @@ $('history').addEventListener('click', async (event) => {
   }
 });
  $('activeTasks').addEventListener('click', async (event) => { const toggle = event.target.closest('[data-queue-toggle]'); if (toggle) { state.queueExpanded = toggle.dataset.queueToggle === 'expand'; renderActive(); return; } const button = event.target.closest('.cancel-button'); if (!button) return; button.disabled = true; await fetch(`api/tasks/${button.dataset.taskId}/cancel`, { method: 'POST' }); poll(); });
-$('clearHistory').addEventListener('click', async () => { await fetch('api/tasks/history', { method: 'DELETE' }); state.history = { items: [], page: 1, total_pages: 1, total: 0 }; if (state.historyVisible) await refresh(); });
+let clearingHistory = false;
+const clearHistoryDialog = $('clearHistoryDialog');
+$('clearHistory').addEventListener('click', () => {
+  if (clearingHistory || clearHistoryDialog.open) return;
+  $('clearHistoryError').textContent = '';
+  clearHistoryDialog.showModal();
+  $('cancelClearHistory').focus();
+});
+$('cancelClearHistory').addEventListener('click', () => {
+  if (!clearingHistory) clearHistoryDialog.close();
+});
+clearHistoryDialog.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  if (!clearingHistory) clearHistoryDialog.close();
+});
+window.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || !clearHistoryDialog.open) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (!clearingHistory) clearHistoryDialog.close();
+}, true);
+$('confirmClearHistory').addEventListener('click', async () => {
+  if (clearingHistory || !clearHistoryDialog.open) return;
+  clearingHistory = true;
+  $('clearHistory').disabled = true;
+  $('cancelClearHistory').disabled = true;
+  $('confirmClearHistory').disabled = true;
+  $('confirmClearHistory').textContent = '正在清理…';
+  $('clearHistoryError').textContent = '';
+  try {
+    const response = await fetch('api/tasks/history', { method: 'DELETE' });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || `清理失败（HTTP ${response.status}）`);
+    state.history = { items: [], page: 1, total_pages: 1, total: 0 };
+    state.historyPage = 1;
+    renderHistory();
+    clearHistoryDialog.close();
+    $('historyClearMessage').textContent = `已清理 ${result.removed ?? 0} 条任务记录，原图文件未删除。`;
+    if (state.historyVisible) {
+      try { await refresh(); }
+      catch (_) { $('historyClearMessage').textContent += ' 列表刷新失败，请手动刷新页面。'; }
+    }
+  } catch (error) {
+    $('clearHistoryError').textContent = `${error.message || '网络请求失败'}。如请求已发送，请先刷新核对结果，避免重复清理。`;
+  } finally {
+    clearingHistory = false;
+    $('clearHistory').disabled = false;
+    $('cancelClearHistory').disabled = false;
+    $('confirmClearHistory').disabled = false;
+    $('confirmClearHistory').textContent = '确认清理全部记录';
+  }
+});
 $('historyContent').hidden = !state.historyVisible;
 $('clearHistory').hidden = !state.historyVisible;
 $('toggleHistory').textContent = state.historyVisible ? '收起' : '展示';

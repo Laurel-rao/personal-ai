@@ -58,7 +58,7 @@
       <section class="queue-column">
         <div class="section-heading"><div><div class="eyebrow">QUEUE / 02</div><h2>任务进度</h2></div><div class="queue-heading-actions"><span id="queueCount" class="counter" aria-live="polite">生成队列 0</span><button id="clearQueue" class="text-button" type="button">清空队列</button></div></div>
         <div id="activeTasks" class="task-list empty-state"><div class="empty-icon">◌</div><strong>还没有进行中的任务</strong><span>提交一条提示词，进度会显示在这里</span></div>
-        <div class="section-heading history-heading"><div><div class="eyebrow">ARCHIVE / 03</div><h2>历史生成</h2></div><div class="history-actions"><button id="toggleHistory" class="text-button" type="button" aria-expanded="false">展示</button><button id="clearHistory" class="text-button" type="button" hidden>清理记录</button></div></div>
+        <div class="section-heading history-heading"><div><div class="eyebrow">ARCHIVE / 03</div><h2>历史生成</h2></div><div class="history-actions"><button id="toggleHistory" class="text-button" type="button" aria-expanded="false" aria-controls="historyContent">展示</button></div></div>
         <div id="historyContent" hidden>
           <div id="history" class="history-list"></div>
           <div id="historyPager" class="history-pager" hidden>
@@ -66,10 +66,23 @@
             <span id="historyPageInfo"></span>
             <button type="button" class="pager-button" data-history-page="next" title="下一页">→</button>
           </div>
+          <div class="history-maintenance">
+            <button id="clearHistory" class="text-button history-danger-button" type="button" hidden>清理记录</button>
+            <span id="historyClearMessage" role="status">清理会影响历史、图库和标注展示，请谨慎操作。</span>
+          </div>
         </div>
       </section>
     </main>
   </div>
+  <dialog id="clearHistoryDialog" class="history-clear-dialog" aria-labelledby="clearHistoryTitle" aria-describedby="clearHistoryDescription">
+    <h2 id="clearHistoryTitle">确认清理全部历史记录？</h2>
+    <p id="clearHistoryDescription">这会移除当前账号有权管理的全部已完成、失败和取消的任务记录，不仅是当前页。相关图片将不再显示在历史、图库和标注页中；原图文件保留，但页面无法一键恢复。进行中的任务不受影响。</p>
+    <p id="clearHistoryError" class="history-clear-error" role="alert"></p>
+    <div class="history-clear-dialog-actions">
+      <button id="cancelClearHistory" class="text-button" type="button" autofocus>取消，保留记录</button>
+      <button id="confirmClearHistory" class="text-button history-danger-button" type="button">确认清理全部记录</button>
+    </div>
+  </dialog>
   <script src="static/app.js"></script><script src="../ui-framework.js"></script>
 </body>
 </html>

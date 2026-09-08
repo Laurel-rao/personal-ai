@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const state = { items: [], history: { items: [], page: 1, total_pages: 1, total: 0 }, historyPage: 1, historyVisible: true, generationMode: 'single', queueExpanded: false };
+const state = { items: [], history: { items: [], page: 1, total_pages: 1, total: 0 }, historyPage: 1, historyVisible: false, generationMode: 'single', queueExpanded: false };
 const mobileComposer = window.matchMedia('(max-width: 900px)');
 const generationOptions = $('generationOptions');
 function syncGenerationOptions() {
@@ -251,10 +251,10 @@ $('history').addEventListener('click', async (event) => {
 });
  $('activeTasks').addEventListener('click', async (event) => { const toggle = event.target.closest('[data-queue-toggle]'); if (toggle) { state.queueExpanded = toggle.dataset.queueToggle === 'expand'; renderActive(); return; } const button = event.target.closest('.cancel-button'); if (!button) return; button.disabled = true; await fetch(`api/tasks/${button.dataset.taskId}/cancel`, { method: 'POST' }); poll(); });
 $('clearHistory').addEventListener('click', async () => { await fetch('api/tasks/history', { method: 'DELETE' }); state.history = { items: [], page: 1, total_pages: 1, total: 0 }; if (state.historyVisible) await refresh(); });
-$('historyContent').hidden = false;
-$('clearHistory').hidden = false;
-$('toggleHistory').textContent = '收起';
-$('toggleHistory').setAttribute('aria-expanded', 'true');
+$('historyContent').hidden = !state.historyVisible;
+$('clearHistory').hidden = !state.historyVisible;
+$('toggleHistory').textContent = state.historyVisible ? '收起' : '展示';
+$('toggleHistory').setAttribute('aria-expanded', String(state.historyVisible));
 renderGenerationMode();
 renderSizePresets();
 poll();

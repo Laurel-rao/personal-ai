@@ -227,9 +227,7 @@ $('history').addEventListener('click', async (event) => {
     return;
   }
   if (button.dataset.historyAction === 'preview') {
-    $('previewImage').src = image.url;
-    $('previewPrompt').textContent = item.prompt || '未记录提示词';
-    if (!$('imagePreviewDialog').open) $('imagePreviewDialog').showModal();
+    window.personalAI.previewImage({ url: image.url, prompt: item.prompt, filename: image.filename });
     return;
   }
   if (button.dataset.historyAction !== 'copy') return;
@@ -243,8 +241,6 @@ $('history').addEventListener('click', async (event) => {
     button.title = '复制失败';
   }
 });
-$('closeImagePreview').addEventListener('click', () => $('imagePreviewDialog').close());
-$('imagePreviewDialog').addEventListener('click', (event) => { if (event.target === $('imagePreviewDialog')) $('imagePreviewDialog').close(); });
  $('activeTasks').addEventListener('click', async (event) => { const toggle = event.target.closest('[data-queue-toggle]'); if (toggle) { state.queueExpanded = toggle.dataset.queueToggle === 'expand'; renderActive(); return; } const button = event.target.closest('.cancel-button'); if (!button) return; button.disabled = true; await fetch(`api/tasks/${button.dataset.taskId}/cancel`, { method: 'POST' }); poll(); });
 $('clearHistory').addEventListener('click', async () => { await fetch('api/tasks/history', { method: 'DELETE' }); state.history = { items: [], page: 1, total_pages: 1, total: 0 }; if (state.historyVisible) await refresh(); });
 $('historyContent').hidden = false;

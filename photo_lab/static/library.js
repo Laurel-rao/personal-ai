@@ -83,11 +83,7 @@
     window.setTimeout(() => { button.innerHTML = original; button.classList.remove('copied'); button.title = '复制'; button.setAttribute('aria-label', button.title); window.personalAI?.renderIcons(); }, 1200);
   }
   function openPreview(element) {
-    $('libraryPreviewImage').src = element.dataset.previewUrl || '';
-    $('libraryPreviewPrompt').textContent = element.dataset.previewPrompt || '未附带提示词';
-    $('libraryPreviewDownload').href = element.dataset.previewUrl || '#';
-    $('libraryPreviewDownload').download = (element.dataset.previewUrl || '').split('/').pop().split('?')[0] || 'image.png';
-    const dialog = $('libraryPreview'); if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+    window.personalAI.previewImage({ url: element.dataset.previewUrl, prompt: element.dataset.previewPrompt });
   }
   document.querySelectorAll('[data-library-category], #libraryLabel, #libraryFrom, #libraryTo, #librarySort').forEach((input) => input.addEventListener('change', applyFilters));
   $('librarySearch').addEventListener('input', applyFilters);
@@ -100,7 +96,5 @@
     const copyButton = event.target.closest('[data-copy-prompt]'); if (copyButton) return copyPrompt(copyButton);
     const preview = event.target.closest('[data-preview-url]'); if (preview) openPreview(preview);
   });
-  $('libraryPreviewClose').addEventListener('click', () => $('libraryPreview').close());
-  $('libraryPreview').addEventListener('click', (event) => { if (event.target === $('libraryPreview')) $('libraryPreview').close(); });
   load();
 })();

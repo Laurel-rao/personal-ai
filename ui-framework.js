@@ -2,6 +2,28 @@
   "use strict";
   const context = JSON.parse(document.getElementById("workspace-context")?.textContent || "{}");
   window.personalAI = context;
+  let previewLoader;
+  context.previewImage = async (options) => {
+    if (!previewLoader) {
+      previewLoader = new Promise((resolve, reject) => {
+        const stylesheet = document.createElement('link');
+        stylesheet.rel = 'stylesheet';
+        stylesheet.href = '/photo/static/image-preview.css';
+        const script = document.createElement('script');
+        script.src = '/photo/static/image-preview.js';
+        let pending = 2;
+        script.onload = stylesheet.onload = () => { if (--pending === 0) resolve(); };
+        script.onerror = stylesheet.onerror = () => { script.remove(); stylesheet.remove(); previewLoader = null; reject(new Error('预览组件加载失败，请重试')); };
+        document.head.append(stylesheet, script);
+      });
+    }
+    try {
+      await previewLoader;
+      await window.WorkspaceImagePreview.open(options);
+    } catch (error) {
+      window.alert(error.message);
+    }
+  };
   context.renderIcons = () => {
     const icons = {copy:"copy",download:"download","maximize-2":"expand",play:"play","trash-2":"trash",check:"check","thumbs-up":"thumbs-up","thumbs-down":"thumbs-down",x:"xmark"};
     document.querySelectorAll("[data-lucide]").forEach((element) => {

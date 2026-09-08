@@ -25,7 +25,7 @@ function renderReview() {
   byId('reviewSummary').textContent = `剩余标注 ${summary.unlabeled} / ${summary.total} · Like ${summary.liked} · Unlike ${summary.unliked}`;
   if (!item) {
     byId('reviewImageWrap').innerHTML = '<div class="review-empty">还没有可标注的图片<br><small>完成生成后会自动显示在这里</small></div>';
-    byId('reviewPrompt').textContent = '等待图片进入图库'; byId('reviewPosition').textContent = '0 / 0'; byId('reviewImageNumber').textContent = '编号'; byId('reviewCopyPrompt').disabled = true; byId('reviewDownloadImage').hidden = true; return;
+    byId('reviewPrompt').textContent = '等待图片进入图库'; byId('reviewPosition').textContent = '0 / 0'; byId('reviewImageNumber').textContent = '编号'; byId('reviewCopyPrompt').disabled = true; byId('reviewDownloadImage').hidden = true; byId('reviewPreviewButton').disabled = true; return;
   }
   byId('reviewImageWrap').innerHTML = `<img class="review-image" src="${item.url}" alt="待标注生成图片">`;
   const categoryLabel = item.category === 'closeup' ? '女生特写' : '性感女性';
@@ -38,6 +38,7 @@ function renderReview() {
   byId('reviewDownloadImage').href = item.url;
   byId('reviewDownloadImage').download = item.filename || 'image.png';
   byId('reviewDownloadImage').hidden = false;
+  byId('reviewPreviewButton').disabled = false;
   byId('reviewPosition').textContent = `${reviewState.index + 1} / ${reviewState.order.length}`;
 }
 
@@ -96,6 +97,7 @@ function isEditableTarget(target) {
 }
 
 function handleReviewKeydown(event) {
+  if (document.querySelector('dialog[open]')) return;
   if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.repeat || isEditableTarget(event.target)) return;
   const actions = {
     ArrowLeft: () => label('unlike'),
@@ -113,4 +115,19 @@ function handleReviewKeydown(event) {
 window.addEventListener('keydown', handleReviewKeydown, { capture: true });
 byId('reviewStage').addEventListener('touchstart', (event) => { const touch = event.changedTouches[0]; reviewState.touchStart = { x: touch.clientX, y: touch.clientY }; }, { passive: true });
 byId('reviewStage').addEventListener('touchend', (event) => { if (!reviewState.touchStart) return; const touch = event.changedTouches[0]; const dx = touch.clientX - reviewState.touchStart.x; const dy = touch.clientY - reviewState.touchStart.y; reviewState.touchStart = null; if (Math.max(Math.abs(dx), Math.abs(dy)) < 48) return; if (Math.abs(dx) > Math.abs(dy)) label(dx > 0 ? 'like' : 'unlike'); else browseHistory(dy < 0 ? 1 : -1); }, { passive: true });
-renderCategoryFilter(); loadReview(); setInterval(() => loadReview(currentItem()?.id), 5000);
+const previewButton = document.createElement('button');
+previewButton.id = 'reviewPreviewButton';
+previewButton.type = 'button';
+previewButton.className = 'review-copy-button';
+previewButton.disabled = true;
+previewButton.innerHTML = '<i class="fa fa-expand" aria-hidden="true"></i><span>放大预览</span>';
+byId('reviewDownloadImage').after(previewButton);
+function previewReviewImage() {
+  const item = currentItem();
+  if (!item) return;
+  if (reviewState.playing) togglePlay();
+  window.personalAI.previewImage({ url: item.url, prompt: item.prompt, filename: item.filename });
+}
+previewButton.addEventListener('click', previewReviewImage);
+byId('reviewImageWrap').addEventListener('dblclick', previewReviewImage);
+renderCategoryFilter(); loadReview(); setInterval(() => { if (!document.querySelector('dialog[open]')) loadReview(currentItem()?.id); }, 5000);

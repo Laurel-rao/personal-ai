@@ -31,6 +31,8 @@ python3 -m venv .venv
 
 全页面 UI 重构范围、维护约定与实际验收边界见 [UI 重构说明](docs/UI_REFACTOR.md)。
 
+图片历史、图库和标注页共用支持缩放、旋转、复制、下载及提示词展示的 [图片预览组件](docs/IMAGE_PREVIEW.md)。
+
 视频配置与草稿、文本会话按用户 ID 分开保存在当前浏览器。视频历史按用户隔离，普通用户位于 `data/users/<用户ID>/history.json`，管理员保留原有 `data/history.json` 档案；Photo Lab 的 `photo_lab/data/tasks.json` 新记录具有服务端写入的 `owner_id`。没有归属的旧图片任务及 Skill 输出仅管理员可见，不自动分配给新用户。管理员可管理 Photo Lab 全量记录。
 
 ## 用户、权限和菜单

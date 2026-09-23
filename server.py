@@ -25,6 +25,8 @@ from typing import Any
 from flask import Blueprint, Flask, Response, jsonify, render_template_string, request, send_file, stream_with_context
 from flask_login import current_user
 from admin import is_admin
+from media_catalog import approved_cover, catalog_summary, item_metadata, read_records
+from media_startup import startup_bp
 
 
 ROOT = Path(__file__).resolve().parent
@@ -50,11 +52,17 @@ STATIC_FILES = {
     "/admin.css": ROOT / "admin.css",
     "/workspace-pages.css": ROOT / "workspace-pages.css",
     "/ui-framework.js": ROOT / "ui-framework.js",
+    "/player": ROOT / "video_player.html",
+    "/video_player.html": ROOT / "video_player.html",
+    "/video_player.css": ROOT / "video_player.css",
+    "/video_player.js": ROOT / "video_player.js",
     "/templates/warring-states-ref2va.txt": ROOT / "templates" / "warring-states-ref2va.txt",
     "/templates/warring-states-ref2va-15.txt": ROOT / "templates" / "warring-states-ref2va-15.txt",
     "/templates/warring-states-01-meeting-chase-ref2va.txt": ROOT / "templates" / "warring-states-01-meeting-chase-ref2va.txt",
     "/templates/warring-states-02-command-transition-ref2va.txt": ROOT / "templates" / "warring-states-02-command-transition-ref2va.txt",
 }
+MOVIES_DIR = Path(os.environ.get("MOVIES_DIR", str(Path.home() / "Movies"))).expanduser().resolve()
+PLAYER_EXTENSIONS = {".mp4", ".mov", ".webm", ".m4v", ".mkv", ".avi"}
 REMOTE_TIMEOUT_SECONDS = 30
 AUTODL_HOSTS = {"autodl.art", "www.autodl.art"}
 AUTODL_WORKFLOW = "minimax_h3_lightx2v_v5_15s"
@@ -354,6 +362,59 @@ def api_health() -> Response:
     if current_user.is_authenticated and current_user.is_active:
         result["history_count"] = len(load_history())
     return jsonify(result)
+
+
+@console_bp.get("/api/player/videos")
+def player_videos() -> Response:
+    """列出配置的 Movies 目录下可播放的视频及其资料。"""
+    if not MOVIES_DIR.is_dir():
+        return jsonify({"items": [], "directory": str(MOVIES_DIR), "error": "Movies 目录不存在"})
+    items = []
+    records, catalog_warning = read_records("catalog.json")
+    technical, technical_warning = read_records("technical.json")
+    for path in MOVIES_DIR.rglob("*"):
+        if not path.is_file() or path.name.startswith(".") or path.suffix.lower() not in PLAYER_EXTENSIONS:
+            continue
+        relative = path.relative_to(MOVIES_DIR).as_posix()
+        file_stat = path.stat()
+        item = {
+            "id": relative,
+            "title": path.stem,
+            "filename": path.name,
+            "extension": path.suffix.lower().lstrip("."),
+            "size": file_stat.st_size,
+            "modified_at": datetime.fromtimestamp(file_stat.st_mtime, timezone.utc).isoformat(),
+            "url": f"/api/player/video?path={urllib.parse.quote(relative, safe='')}",
+        }
+        item["metadata"] = item_metadata(item, records, technical, file_stat)
+        items.append(item)
+    items.sort(key=lambda item: item["modified_at"], reverse=True)
+    return jsonify({
+        "items": items,
+        "directory": str(MOVIES_DIR),
+        "catalog": catalog_summary(items),
+        "catalog_warning": catalog_warning or technical_warning,
+    })
+
+
+@console_bp.get("/api/player/cover")
+def player_cover() -> Response:
+    records, _ = read_records("catalog.json")
+    record = records.get(request.args.get("code", ""), {})
+    target = approved_cover(record) if isinstance(record, dict) else None
+    if target is None:
+        return jsonify({"error": "没有已审核的封面"}), 404
+    return send_file(target, conditional=True, max_age=300)
+
+
+@console_bp.get("/api/player/video")
+def player_video() -> Response:
+    relative = request.args.get("path", "")
+    target = (MOVIES_DIR / relative).resolve()
+    if MOVIES_DIR not in target.parents or not target.is_file() or target.suffix.lower() not in PLAYER_EXTENSIONS:
+        return error_response(404, "视频不存在")
+    content_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+    return send_file(target, mimetype=content_type, conditional=True, etag=True, max_age=0)
 
 
 @console_bp.get("/api/chat/health")
@@ -1102,6 +1163,7 @@ def create_console_app(config=None) -> Flask:
     if config:
         app.config.update(config)
     app.register_blueprint(console_bp)
+    app.register_blueprint(startup_bp)
     from admin import init_admin
     init_admin(app)
     return app

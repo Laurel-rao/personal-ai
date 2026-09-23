@@ -4,6 +4,42 @@
 
   const $ = (id) => document.getElementById(id);
   const statusEl = $("settingsStatus");
+  const startupToggle = $("startupEnabled");
+  const startupStatus = $("startupStatus");
+  const reloadStartupButton = $("reloadStartupButton");
+  let startupEnabled = false;
+
+  function setStartupStatus(text, tone) {
+    startupStatus.textContent = text;
+    startupStatus.className = "settings-status" + (tone ? " " + tone : "");
+  }
+
+  async function updateStartup(save) {
+    const enabled = startupToggle.checked;
+    startupToggle.disabled = true;
+    reloadStartupButton.disabled = true;
+    setStartupStatus(save ? "正在保存…" : "正在读取…");
+    try {
+      const response = await fetch("/api/settings/startup", save ? {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      } : { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || "请求失败");
+      startupEnabled = data.enabled;
+      startupToggle.checked = startupEnabled;
+      startupToggle.disabled = !data.supported;
+      setStartupStatus(data.supported
+        ? (startupEnabled ? "已开启：下次登录后自动启动 4173 后端。" : "已关闭：下次登录后不自动启动，当前服务不受影响。")
+        : "开机启动设置仅支持 macOS。", data.supported ? "ok" : "");
+    } catch (error) {
+      startupToggle.checked = startupEnabled;
+      setStartupStatus("操作失败：" + error.message + "；请刷新状态后重试。", "err");
+    } finally {
+      reloadStartupButton.disabled = false;
+    }
+  }
 
   function setStatus(text, tone) {
     statusEl.textContent = text;
@@ -98,5 +134,8 @@
   $("saveButton").addEventListener("click", saveSettings);
   $("verifyComfyButton").addEventListener("click", verifyComfy);
   $("verifyVideoButton").addEventListener("click", verifyVideo);
+  startupToggle.addEventListener("change", () => updateStartup(true));
+  reloadStartupButton.addEventListener("click", () => updateStartup(false));
+  updateStartup(false);
   loadSettings();
 })();

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b0d12">
+  <title>视频播放 · 影像档案</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./ui-framework.css">
+  <link rel="stylesheet" href="./video_player.css?v=20260912-7">
+</head>
+<body class="player-body">
+  <header class="player-topbar">
+    <a class="player-brand" href="/" aria-label="返回创作工作台"><span class="player-brand-mark">P</span><span><strong>影像档案</strong><small>LOCAL VIDEO PLAYER</small></span></a>
+    <nav class="player-nav" aria-label="工作台导航">
+      <a href="/">视频生成</a><a href="/image">图片生成</a><a href="/chat">文本对话</a><a href="/photo/review">图片标注</a><a href="/photo/library">图片库</a><a class="active" href="/player">视频播放</a><a href="/settings">设置</a>
+    </nav>
+    <div class="player-status"><span class="status-dot"></span><span id="playerStatus">读取本地片库</span></div>
+  </header>
+
+  <main class="player-layout">
+    <section class="player-main" aria-label="视频播放器">
+      <div class="stage-shell">
+        <div class="video-stage" id="videoStage" tabindex="0" aria-label="视频画面，按空格播放或暂停">
+          <video id="mainVideo" playsinline preload="metadata"></video>
+          <div class="stage-empty" id="stageEmpty"><div class="stage-empty-icon">▶</div><strong>选择一部视频开始播放</strong><span>本地片库 · Movies</span></div>
+          <div class="stage-error" id="stageError" role="alert" hidden><strong id="errorTitle">视频加载失败</strong><span id="errorMessage">请重试或下载原文件</span><div><button id="retryButton" type="button">重新加载</button><a id="stageErrorDownload" href="#" download>下载原文件</a></div></div>
+          <button class="center-play" id="centerPlay" type="button" aria-label="播放">▶</button>
+          <div class="stage-loading" id="stageLoading" role="status" hidden>正在加载…</div>
+          <div class="operation-toast" id="operationToast" role="status" hidden></div>
+          <div class="resume-notice" id="resumeNotice" hidden><span id="resumeText"></span><button id="restartButton" type="button">从头播放</button><button id="dismissResume" type="button" aria-label="关闭续播提示">×</button></div>
+          <div class="video-gradient"></div>
+          <div class="video-controls" id="videoControls">
+            <div class="seek-track" id="seekTrack"><div class="seek-buffer" id="seekBuffer"></div><div class="seek-played" id="seekPlayed"></div><output class="seek-preview" id="seekPreview" hidden></output><input id="seekBar" class="seek-bar" type="range" min="0" max="1000" step="1" value="0" aria-label="播放进度"></div>
+            <div class="controls-row">
+              <div class="controls-left"><button id="playButton" class="control-button" type="button" aria-label="播放">▶</button><button id="prevButton" class="control-button" type="button" aria-label="上一集">|◀</button><button id="nextButton" class="control-button" type="button" aria-label="下一集">▶|</button><button id="rewindButton" class="control-button seek-button" type="button" aria-label="后退10秒">−10</button><button id="forwardButton" class="control-button seek-button" type="button" aria-label="前进10秒">+10</button><span class="time-readout"><span id="currentTime">00:00</span><i>/</i><span id="duration">00:00</span></span></div>
+              <div class="controls-right">
+                <button id="muteButton" class="control-button" type="button" aria-label="静音">🔊</button><input id="volumeBar" class="volume-bar" type="range" min="0" max="1" step="0.05" value="0.8" aria-label="音量">
+                <details class="control-menu" id="speedMenu"><summary id="speedLabel" aria-label="播放速度">1.0x</summary><div class="control-menu-options" role="group" aria-label="选择倍速"><button type="button" data-rate="0.5">0.5x</button><button type="button" data-rate="0.75">0.75x</button><button type="button" data-rate="1">1.0x</button><button type="button" data-rate="1.25">1.25x</button><button type="button" data-rate="1.5">1.5x</button><button type="button" data-rate="2">2.0x</button></div></details>
+                <details class="control-menu" id="modeMenu"><summary id="modeLabel" aria-label="播放模式">顺序播放</summary><div class="control-menu-options" role="group" aria-label="选择播放模式"><button type="button" data-mode="sequence">顺序播放</button><button type="button" data-mode="single">单集循环</button><button type="button" data-mode="list">列表循环</button></div></details>
+                <button id="pipButton" class="control-button" type="button" aria-label="画中画">▣</button><button id="fullscreenButton" class="control-button" type="button" aria-label="全屏">⛶</button>
+                <details class="control-menu shortcut-menu" id="shortcutMenu"><summary aria-label="更多播放选项">⋯</summary><div class="shortcut-help"><button id="stageFit" class="fit-button" type="button">切换为裁剪填充</button><strong>快捷键</strong><p>空格 / K：播放暂停<br>← / →：后退 / 前进 5 秒<br>↑ / ↓：音量增减 5%<br>M：静音 · F：全屏<br>Shift+P / N：上一集 / 下一集<br>0—9：跳至 0%—90%</p></div></details>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="player-info">
+        <div class="player-info-heading"><div><p class="player-kicker">NOW PLAYING / <span id="currentIndex">0 / 0</span></p><h1 id="videoTitle">未选择视频</h1><p id="videoMeta">从右侧片库选择视频，播放器会记住上次播放位置。</p></div><div class="player-actions"><button id="favoriteButton" type="button">♡ 收藏</button><button id="copyPathButton" type="button">复制路径</button><a id="downloadButton" href="#" download>下载</a></div></div>
+        <div class="player-tags"><span id="videoTypeTag">LOCAL FILE</span><span id="videoResolutionTag">原生播放</span><span id="videoSizeTag">--</span></div>
+        <section class="film-details" id="filmDetails" aria-label="影片资料" hidden>
+          <div class="film-cover" id="filmCover"></div>
+          <div class="film-details-body">
+            <div class="film-details-heading"><h2>影片资料</h2><span class="metadata-status" id="metadataStatus"></span></div>
+            <dl class="film-facts">
+              <div class="film-fact-wide"><dt>完整片名</dt><dd id="filmFullTitle">待补充</dd></div>
+              <div><dt>演员</dt><dd id="filmActors">待补充</dd></div>
+              <div><dt>发行商</dt><dd id="filmPublisher">待补充</dd></div>
+              <div><dt>类型</dt><dd id="filmGenres">待补充</dd></div>
+              <div><dt>发行日期</dt><dd id="filmReleaseDate">待补充</dd></div>
+              <div class="film-fact-wide"><dt>本地文件</dt><dd id="filmTechnical">尚未采集</dd></div>
+            </dl>
+            <p class="metadata-note" id="metadataNote"></p>
+            <p class="metadata-source" id="metadataSource"></p>
+          </div>
+        </section>
+      </div>
+      <div class="next-strip"><div><span class="strip-label">UP NEXT</span><strong id="nextTitle">选择视频后显示下一集</strong></div><button id="nextStripButton" type="button">播放下一集 →</button></div>
+    </section>
+
+    <aside class="playlist-panel" aria-label="本地视频列表">
+      <div class="playlist-heading"><div><p class="player-kicker">PLAYLIST / <span id="playlistCount">0</span></p><h2>本地片库</h2></div><button id="refreshButton" class="refresh-button" type="button" title="刷新片库" aria-label="刷新片库">↻</button></div>
+      <p class="catalog-progress" id="catalogProgress" role="status">正在读取资料状态…</p>
+      <label class="playlist-search"><span aria-hidden="true">⌕</span><input id="searchInput" type="search" aria-label="搜索片名、演员或编号" placeholder="搜索片名、演员或编号" autocomplete="off"></label>
+      <div class="format-tabs" role="tablist" aria-label="视频格式"><button class="format-tab active" data-format="all" role="tab" aria-selected="true">全部</button><button class="format-tab" data-format="mp4" role="tab" aria-selected="false">MP4</button><button class="format-tab" data-format="mov" role="tab" aria-selected="false">MOV</button><button class="format-tab" data-format="mkv" role="tab" aria-selected="false">MKV</button><button class="format-tab" data-format="avi" role="tab" aria-selected="false">AVI</button></div>
+      <div class="playlist-list" id="playlistList" aria-live="polite"><div class="playlist-empty">正在读取片库…</div></div>
+      <div class="playlist-footer"><span id="playlistFooterText">0 部视频</span><span class="keyboard-hint"><kbd>Shift+P/N</kbd> 选集</span></div>
+    </aside>
+  </main>
+  <script src="./video_player.js?v=20260912-7"></script>
+</body>
+</html>

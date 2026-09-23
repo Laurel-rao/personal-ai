@@ -1,6 +1,6 @@
 # Photo Lab
 
-Flask + ComfyUI 异步图片生成工作台。默认调用用户提供的 SeetaCloud ComfyUI 地址，也可以通过 `COMFY_URL` 覆盖。
+Flask 图片生成工作台。默认调用用户提供的 SeetaCloud ComfyUI 地址，也可以通过 `COMFY_URL` 覆盖；设置 `IMAGE_GENERATION_BACKEND=seetacloud` 后改用本地 SSH 隧道转发的直出接口。
 
 ## 启动
 
@@ -20,6 +20,19 @@ COMFY_URL='https://u288331-788499bf7eab.bjb1.seetacloud.com:8443' python app.py
 - `GET /api/health`：检查 ComfyUI 连接与 GPU。
 - `GET /api/tasks`：最近 50 条任务。
 - `POST /api/generate`：提交 `{prompt, negative_prompt, width, height, seed}`，返回 `202` 和任务 ID。
+
+直出服务配置：
+
+```bash
+IMAGE_GENERATION_BACKEND=seetacloud
+SEETACLOUD_IMAGE_URL=http://127.0.0.1:6006/generate
+SEETACLOUD_IMAGE_API_KEY=...
+SEETACLOUD_IMAGE_STEPS=28
+SEETACLOUD_IMAGE_TRUE_CFG_SCALE=2.5
+SEETACLOUD_IMAGE_TIMEOUT=900
+```
+
+该服务接收 `prompt`、`steps` 和尺寸参数，生成结果会沿用 Photo Lab 的任务、历史、缩略图和标注接口；当前远端使用 Qwen-Image-2.1 Transformer 的 NF4 量化，宽高不相等时按 32 像素对齐。SSH 隧道需要在启动工作台前保持运行。
 - `GET /api/tasks/<id>`：查看队列、进度和输出。
 - `POST /api/tasks/<id>/cancel`：取消排队或正在执行的任务。
 - `DELETE /api/tasks/history`：清理已完成和失败的历史记录。

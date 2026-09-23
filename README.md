@@ -115,7 +115,12 @@ Photo Lab（`/photo` 前缀）：`/photo/api/health`、`/photo/api/generate`、`
 - `AUTODL_ART_TOKEN`：AutoDL H3 视频工作流
 - `AZT_API_KEY`：Zero 首尾帧生成
 - `COMFY_URL`：Photo Lab 的 ComfyUI 地址（默认 SeetaCloud）
+- `IMAGE_GENERATION_BACKEND`：图片后端，`comfy` 或 `seetacloud`
+- `SEETACLOUD_IMAGE_URL` / `SEETACLOUD_IMAGE_API_KEY`：SSH 隧道后的直出图片接口及 Key
+- `SEETACLOUD_IMAGE_STEPS` / `SEETACLOUD_IMAGE_TRUE_CFG_SCALE` / `SEETACLOUD_IMAGE_TIMEOUT`：直出服务步数、CFG 和请求超时秒数
 - `QWEN_API_URL` / `QWEN_MODEL`：文本对话后端
+
+直出图片服务使用 `ssh -CNg -L 6006:127.0.0.1:6006 ...` 将远端接口映射到本机；远端 `QWEN_QUANTIZATION=nf4` 启用 Qwen-Image-2.1 Transformer 的 NF4 量化，工作台启动前需保持该隧道运行。Photo Lab 会把 `POST /generate` 返回的图片归档到现有任务历史、图库和标注流程。
 
 AutoDL H3 模式使用 `https://www.autodl.art` 作为服务地址，Workflow ID 为
 `minimax_h3_lightx2v_v5_15s`；首尾帧分别映射到 `ref_image_0` 和 `ref_image_1`，

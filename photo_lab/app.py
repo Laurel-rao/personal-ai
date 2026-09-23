@@ -44,6 +44,24 @@ QWEN_API_URL = os.getenv(
     "https://uu288331-788499bf7eab.bjb1.seetacloud.com:8443/v1",
 ).rstrip("/")
 QWEN_MODEL = os.getenv("QWEN_MODEL", "qwen3:4b")
+IMAGE_GENERATION_BACKEND = os.getenv("IMAGE_GENERATION_BACKEND", "comfy").strip().lower()
+SEETACLOUD_IMAGE_URL = os.getenv(
+    "SEETACLOUD_IMAGE_URL",
+    "http://127.0.0.1:6006/generate",
+).strip().rstrip("/")
+SEETACLOUD_IMAGE_API_KEY = os.getenv("SEETACLOUD_IMAGE_API_KEY", "").strip()
+try:
+    SEETACLOUD_IMAGE_STEPS = max(1, int(os.getenv("SEETACLOUD_IMAGE_STEPS", "28")))
+except ValueError:
+    SEETACLOUD_IMAGE_STEPS = 40
+try:
+    SEETACLOUD_IMAGE_TIMEOUT = max(30, int(os.getenv("SEETACLOUD_IMAGE_TIMEOUT", "900")))
+except ValueError:
+    SEETACLOUD_IMAGE_TIMEOUT = 900
+try:
+    SEETACLOUD_IMAGE_TRUE_CFG_SCALE = float(os.getenv("SEETACLOUD_IMAGE_TRUE_CFG_SCALE", "2.5"))
+except ValueError:
+    SEETACLOUD_IMAGE_TRUE_CFG_SCALE = 2.5
 
 app = Blueprint("photo", __name__, template_folder="templates", static_folder="static")
 http = requests.Session()
@@ -283,6 +301,73 @@ def archive_images(task_id, images):
     return archived_images
 
 
+def archive_seetacloud_image(task_id, image_bytes, position):
+    """Store a direct image response using the same archive contract as ComfyUI."""
+    destination = ARCHIVE_DIR / task_id
+    destination.mkdir(parents=True, exist_ok=True)
+    filename = f"seetacloud-{position:03d}.png"
+    target = destination / filename
+    temporary = target.with_suffix(".png.tmp")
+    temporary.write_bytes(image_bytes)
+    temporary.replace(target)
+    return {"filename": filename, "local_filename": filename, "type": "output"}
+
+
+def run_seetacloud_task(task_id, task):
+    """Generate and archive one or more images through the tunneled HTTP service."""
+    if not SEETACLOUD_IMAGE_API_KEY:
+        raise RuntimeError("未配置 SEETACLOUD_IMAGE_API_KEY")
+    width = max(256, min(2048, (int(task["width"]) + 16) // 32 * 32))
+    height = max(256, min(2048, (int(task["height"]) + 16) // 32 * 32))
+    outputs = []
+    total = max(1, int(task.get("batch_size", 1)))
+    for position in range(1, total + 1):
+        if tasks.get(task_id, {}).get("cancel_requested"):
+            update_task(task_id, status="cancelled", progress=0, message="任务已取消")
+            return
+        update_task(
+            task_id,
+            status="running",
+            progress=8 + int((position - 1) / total * 84),
+            message=f"SeetaCloud 生成中 · {position}/{total}",
+        )
+        request_payload = {
+            "prompt": task["prompt"],
+            "steps": SEETACLOUD_IMAGE_STEPS,
+            "negative_prompt": task.get("negative_prompt") or None,
+            "true_cfg_scale": SEETACLOUD_IMAGE_TRUE_CFG_SCALE,
+        }
+        if width == height:
+            request_payload["resolution"] = width
+        else:
+            request_payload["width"] = width
+            request_payload["height"] = height
+        response = http.post(
+            SEETACLOUD_IMAGE_URL,
+            json=request_payload,
+            headers={
+                "Content-Type": "application/json",
+                "X-API-Key": SEETACLOUD_IMAGE_API_KEY,
+            },
+            timeout=SEETACLOUD_IMAGE_TIMEOUT,
+        )
+        content_type = response.headers.get("Content-Type", "")
+        if response.status_code >= 400 or "image/" not in content_type.lower():
+            detail = response.text[:500].strip()
+            raise RuntimeError(detail or f"SeetaCloud 返回 HTTP {response.status_code}")
+        outputs.append(archive_seetacloud_image(task_id, response.content, position))
+
+    update_task(
+        task_id,
+        status="success",
+        progress=100,
+        message="生成完成，已归档到本地",
+        outputs=outputs,
+        archived_at=now(),
+        completed_at=now(),
+    )
+
+
 def worker():
     while True:
         with lock:
@@ -300,6 +385,12 @@ def run_task(task_id):
     try:
         if task.get("cancel_requested"):
             update_task(task_id, status="cancelled", progress=0, message="任务已取消")
+            return
+        if task.get("backend", IMAGE_GENERATION_BACKEND) == "seetacloud":
+            started = time.monotonic()
+            run_seetacloud_task(task_id, task)
+            if tasks.get(task_id, {}).get("status") == "success":
+                update_task(task_id, duration=round(time.monotonic() - started, 1))
             return
         comfy_id = task.get("comfy_prompt_id")
         if comfy_id:
@@ -512,6 +603,22 @@ def chat():
 
 @app.get("/api/health")
 def health():
+    if IMAGE_GENERATION_BACKEND == "seetacloud":
+        try:
+            response = http.get(SEETACLOUD_IMAGE_URL, timeout=8)
+            return jsonify({
+                "ok": response.status_code < 500,
+                "backend": "seetacloud",
+                "service_url": SEETACLOUD_IMAGE_URL,
+                "status": response.status_code,
+            })
+        except requests.RequestException as exc:
+            return jsonify({
+                "ok": False,
+                "backend": "seetacloud",
+                "service_url": SEETACLOUD_IMAGE_URL,
+                "error": str(exc),
+            }), 502
     try:
         result = http.get(f"{COMFY_URL}/system_stats", timeout=8).json()
         device = (result.get("devices") or [{}])[0]
@@ -674,6 +781,7 @@ def create_generation_task(payload, prompt, width, height, batch_size):
         "width": width,
         "height": height,
         "batch_size": batch_size,
+        "backend": IMAGE_GENERATION_BACKEND,
         "seed": seed,
         "filename_prefix": payload.get("filename_prefix", "result"),
         "metadata": payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {},

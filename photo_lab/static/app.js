@@ -89,7 +89,9 @@ async function refresh() {
   }
   renderActive();
   $('healthDot').className = `health-dot ${health.ok ? 'online' : 'offline'}`;
-  $('healthText').textContent = health.ok ? `${health.version || 'ComfyUI'} · ${String(health.device || 'GPU').split(' : ')[0]}` : '生成引擎不可达';
+  $('healthText').textContent = health.backend === 'seetacloud'
+    ? (health.ok ? 'SeetaCloud 直出 · 隧道已连接' : 'SeetaCloud 隧道不可达')
+    : (health.ok ? `${health.version || 'ComfyUI'} · ${String(health.device || 'GPU').split(' : ')[0]}` : '生成引擎不可达');
 }
 
 async function poll() {

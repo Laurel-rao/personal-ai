@@ -19,6 +19,7 @@ vendor/.npmcache/
 
 # Generated media and prompt experiments are intentionally local-only.
 *.png
+tools/qwen-image-q4/models/
 *.jpg
 *.jpeg
 *.gif

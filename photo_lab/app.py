@@ -1,5 +1,7 @@
 import copy
+import base64
 import json
+import logging
 import os
 import secrets
 import shutil
@@ -28,6 +30,13 @@ except ImportError:  # WebSocket 不可用时自动回退到轮询
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
+GENERATION_LOG_FILE = DATA_DIR / "generation.log"
+generation_logger = logging.getLogger("photo_lab.generation")
+generation_logger.setLevel(logging.INFO)
+if not generation_logger.handlers:
+    generation_handler = logging.FileHandler(GENERATION_LOG_FILE, encoding="utf-8")
+    generation_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    generation_logger.addHandler(generation_handler)
 TASKS_FILE = DATA_DIR / "tasks.json"
 LABELS_FILE = DATA_DIR / "labels.json"
 WORKFLOW_FILE = ROOT / "workflow.json"
@@ -45,6 +54,12 @@ QWEN_API_URL = os.getenv(
 ).rstrip("/")
 QWEN_MODEL = os.getenv("QWEN_MODEL", "qwen3:4b")
 IMAGE_GENERATION_BACKEND = os.getenv("IMAGE_GENERATION_BACKEND", "comfy").strip().lower()
+LOCAL_IMAGE_API_URL = os.getenv(
+    "LOCAL_IMAGE_API_URL",
+    "http://127.0.0.1:6009/v1/images/generations",
+).strip().rstrip("/")
+LOCAL_IMAGE_API_KEY = os.getenv("LOCAL_IMAGE_API_KEY", "").strip()
+LOCAL_IMAGE_MODEL = os.getenv("LOCAL_IMAGE_MODEL", "qwen-image-2.1-q4").strip()
 SEETACLOUD_IMAGE_URL = os.getenv(
     "SEETACLOUD_IMAGE_URL",
     "http://127.0.0.1:6006/generate",
@@ -53,7 +68,7 @@ SEETACLOUD_IMAGE_API_KEY = os.getenv("SEETACLOUD_IMAGE_API_KEY", "").strip()
 try:
     SEETACLOUD_IMAGE_STEPS = max(1, int(os.getenv("SEETACLOUD_IMAGE_STEPS", "28")))
 except ValueError:
-    SEETACLOUD_IMAGE_STEPS = 40
+    SEETACLOUD_IMAGE_STEPS = 28
 try:
     SEETACLOUD_IMAGE_TIMEOUT = max(30, int(os.getenv("SEETACLOUD_IMAGE_TIMEOUT", "900")))
 except ValueError:
@@ -368,6 +383,71 @@ def run_seetacloud_task(task_id, task):
     )
 
 
+def run_local_image_task(task_id, task):
+    """Generate through the local OpenAI-compatible Q4 service and archive b64_json."""
+    if not LOCAL_IMAGE_API_KEY:
+        raise RuntimeError("未配置 LOCAL_IMAGE_API_KEY")
+    width = max(256, min(1536, (int(task["width"]) + 16) // 32 * 32))
+    height = max(256, min(1536, (int(task["height"]) + 16) // 32 * 32))
+    total = max(1, int(task.get("batch_size", 1)))
+    outputs = []
+    for position in range(1, total + 1):
+        if tasks.get(task_id, {}).get("cancel_requested"):
+            update_task(task_id, status="cancelled", progress=0, message="任务已取消")
+            return
+        update_task(
+            task_id,
+            status="running",
+            progress=8 + int((position - 1) / total * 84),
+            message=f"本地 Q4 生成中 · {position}/{total}",
+        )
+        payload = {
+            "model": LOCAL_IMAGE_MODEL,
+            "prompt": task["prompt"],
+            "n": 1,
+            "size": f"{width}x{height}",
+            "quality": "medium",
+            "steps": SEETACLOUD_IMAGE_STEPS,
+            "cfg_scale": SEETACLOUD_IMAGE_TRUE_CFG_SCALE,
+            "seed": int(task.get("seed") or 0) % 2147483648,
+            "response_format": "b64_json",
+        }
+        response = http.post(
+            LOCAL_IMAGE_API_URL,
+            json=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {LOCAL_IMAGE_API_KEY}",
+            },
+            timeout=3600,
+        )
+        try:
+            result = response.json()
+        except ValueError:
+            result = {}
+        if response.status_code >= 400:
+            detail = str((result.get("error") or {}).get("message") or response.text[:500]).strip()
+            raise RuntimeError(detail or f"本地 Q4 服务返回 HTTP {response.status_code}")
+        encoded = ((result.get("data") or [{}])[0]).get("b64_json")
+        if not encoded:
+            raise RuntimeError("本地 Q4 服务未返回 b64_json 图片")
+        try:
+            image_bytes = base64.b64decode(encoded, validate=True)
+        except (ValueError, TypeError) as exc:
+            raise RuntimeError(f"本地 Q4 图片数据无效: {exc}")
+        outputs.append(archive_seetacloud_image(task_id, image_bytes, position))
+
+    update_task(
+        task_id,
+        status="success",
+        progress=100,
+        message="生成完成，已归档到本地",
+        outputs=outputs,
+        archived_at=now(),
+        completed_at=now(),
+    )
+
+
 def worker():
     while True:
         with lock:
@@ -386,7 +466,14 @@ def run_task(task_id):
         if task.get("cancel_requested"):
             update_task(task_id, status="cancelled", progress=0, message="任务已取消")
             return
-        if task.get("backend", IMAGE_GENERATION_BACKEND) == "seetacloud":
+        backend = task.get("backend", IMAGE_GENERATION_BACKEND)
+        if backend == "local":
+            started = time.monotonic()
+            run_local_image_task(task_id, task)
+            if tasks.get(task_id, {}).get("status") == "success":
+                update_task(task_id, duration=round(time.monotonic() - started, 1))
+            return
+        if backend == "seetacloud":
             started = time.monotonic()
             run_seetacloud_task(task_id, task)
             if tasks.get(task_id, {}).get("status") == "success":
@@ -481,6 +568,12 @@ def run_task(task_id):
             update_task(task_id, progress=max(current, estimated), message="模型生成中" if current <= estimated else tasks.get(task_id, {}).get("message", "模型生成中"))
             time.sleep(1)
     except Exception as exc:
+        generation_logger.exception(
+            "生成任务失败 task_id=%s backend=%s prompt=%s",
+            task_id,
+            task.get("backend", IMAGE_GENERATION_BACKEND),
+            task.get("prompt", ""),
+        )
         update_task(task_id, status="error", progress=0, message=str(exc), completed_at=now())
     finally:
         if ws:
@@ -603,6 +696,25 @@ def chat():
 
 @app.get("/api/health")
 def health():
+    if IMAGE_GENERATION_BACKEND == "local":
+        health_url = LOCAL_IMAGE_API_URL.split("/v1/", 1)[0] + "/health"
+        try:
+            response = http.get(health_url, timeout=8)
+            result = response.json()
+            return jsonify({
+                "ok": response.ok and bool(result.get("ok")),
+                "backend": "local",
+                "service_url": LOCAL_IMAGE_API_URL,
+                "model": result.get("model"),
+                "busy": result.get("busy"),
+            })
+        except (requests.RequestException, ValueError) as exc:
+            return jsonify({
+                "ok": False,
+                "backend": "local",
+                "service_url": LOCAL_IMAGE_API_URL,
+                "error": str(exc),
+            }), 502
     if IMAGE_GENERATION_BACKEND == "seetacloud":
         try:
             response = http.get(SEETACLOUD_IMAGE_URL, timeout=8)
@@ -768,7 +880,9 @@ def generation_parameters(payload):
 def create_generation_task(payload, prompt, width, height, batch_size):
     task_id = str(uuid.uuid4())
     requested_seed = payload.get("seed")
-    seed = secrets.randbelow(2**32) if requested_seed in (None, "") else int(requested_seed)
+    seed = secrets.randbelow(2**31) if requested_seed in (None, "") else int(requested_seed)
+    if not 0 <= seed <= 2147483647:
+        raise ValueError("种子必须在 0 到 2147483647 之间")
     workflow_payload = {**payload, "prompt": prompt, "seed": seed}
     task = {
         "id": task_id,

@@ -69,7 +69,8 @@ function renderHistory() {
     const taskId = taskIdFromImage(image);
     const deleteButton = taskId ? `<button class="history-action-button" type="button" data-history-action="delete" data-history-index="${index}" title="删除这张历史图片" aria-label="删除这张历史图片"><i data-lucide="trash-2"></i></button>` : '';
     const actions = image ? `<div class="history-card-actions"><button class="history-action-button" type="button" data-history-action="replay" data-history-index="${index}" title="${escapeHtml(replayLabel)}" aria-label="${escapeHtml(replayLabel)}"><i data-lucide="play"></i></button><button class="history-action-button" type="button" data-history-action="preview" data-history-index="${index}" title="放大图片" aria-label="放大图片"><i data-lucide="maximize-2"></i></button><button class="history-action-button" type="button" data-history-action="copy" data-history-index="${index}" title="复制提示词" aria-label="复制提示词"><i data-lucide="copy"></i></button><a class="history-action-button" href="${escapeHtml(image.url)}" download="${escapeHtml(image.filename || 'generated-image.png')}" title="下载图片" aria-label="下载图片"><i data-lucide="download"></i></a>${deleteButton}</div>` : '';
-    return `<article class="history-card"><div class="history-image ${image ? '' : 'loading-shimmer'}">${image ? `<img src="${escapeHtml(image.thumb_url || image.url)}" data-full-src="${escapeHtml(image.url)}" alt="生成结果" loading="lazy" decoding="async">` : (item.status === 'error' ? '生成失败' : '无预览')}</div><div class="history-copy"><p>${escapeHtml(item.prompt)}</p><div class="history-meta"><time>${new Date(item.created_at).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })} · ${statusLabel(item.status)}</time>${actions}</div></div></article>`;
+    const errorDetail = item.status === 'error' && item.message ? `<div class="history-error" title="${escapeHtml(item.message)}" style="margin:6px 0 8px;padding:7px 8px;border-left:2px solid var(--accent);background:#fff3ef;color:var(--accent-dark);font:10px var(--mono);line-height:1.45;max-height:58px;overflow:auto;word-break:break-word">${escapeHtml(item.message)}</div>` : '';
+    return `<article class="history-card"><div class="history-image ${image ? '' : 'loading-shimmer'}">${image ? `<img src="${escapeHtml(image.thumb_url || image.url)}" data-full-src="${escapeHtml(image.url)}" alt="生成结果" loading="lazy" decoding="async">` : (item.status === 'error' ? '生成失败' : '无预览')}</div><div class="history-copy"><p>${escapeHtml(item.prompt)}</p>${errorDetail}<div class="history-meta"><time>${new Date(item.created_at).toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' })} · ${statusLabel(item.status)}</time>${actions}</div></div></article>`;
   }).join('');
   window.personalAI?.renderIcons();
   pager.hidden = state.history.total_pages <= 1;
@@ -89,8 +90,10 @@ async function refresh() {
   }
   renderActive();
   $('healthDot').className = `health-dot ${health.ok ? 'online' : 'offline'}`;
-  $('healthText').textContent = health.backend === 'seetacloud'
-    ? (health.ok ? 'SeetaCloud 直出 · 隧道已连接' : 'SeetaCloud 隧道不可达')
+  $('healthText').textContent = health.backend === 'local'
+    ? (health.ok ? '本地 Q4 · Metal 已连接' : '本地 Q4 服务不可达')
+    : health.backend === 'seetacloud'
+      ? (health.ok ? 'SeetaCloud 直出 · 隧道已连接' : 'SeetaCloud 隧道不可达')
     : (health.ok ? `${health.version || 'ComfyUI'} · ${String(health.device || 'GPU').split(' : ')[0]}` : '生成引擎不可达');
 }
 

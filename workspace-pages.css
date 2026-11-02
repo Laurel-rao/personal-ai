@@ -22,6 +22,7 @@
 }
 body.workspace-authenticated { font-family: var(--sans); font-size: 13px; line-height: 1.55; }
 .workspace-authenticated [hidden] { display: none !important; }
+.workspace-authenticated .player-topbar { display: none; }
 .workspace-authenticated main, .workspace-authenticated section, .workspace-authenticated aside { min-width: 0; }
 .workspace-authenticated main.workspace { background: transparent; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
 .workspace-authenticated .app-shell, .workspace-authenticated .chat-shell,
@@ -50,8 +51,8 @@ body.workspace-authenticated { font-family: var(--sans); font-size: 13px; line-h
 .workspace-authenticated :is(.section-heading h2, .panel h2, .settings-card h2, .conversation-header h2) { color: var(--page-text); font: 650 16px/1.4 var(--sans); margin: 0; letter-spacing: -.2px; }
 .workspace-authenticated .panel-description, .workspace-authenticated .settings-desc { color: var(--page-muted); font-size: 12px; line-height: 1.8; margin: 8px 0 22px; }
 .workspace-authenticated .quiet-meta, .workspace-authenticated .counter { color: #82938e; background: var(--page-primary-soft); padding: 5px 9px; border-radius: 6px; font: 11px/1.5 var(--sans); white-space: nowrap; }
-.workspace-authenticated :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=submit]), select, textarea) { color: var(--page-text); background: white; border: 1px solid #dce4e9; border-radius: 7px; box-shadow: none; font: 12px/1.5 var(--sans); min-width: 0; max-width: 100%; outline: none; }
-.workspace-authenticated :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=submit]), select) { height: 34px; padding: 6px 9px; }
+.workspace-authenticated :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not([type=submit]), select, textarea) { color: var(--page-text); background: white; border: 1px solid #dce4e9; border-radius: 7px; box-shadow: none; font: 12px/1.5 var(--sans); min-width: 0; max-width: 100%; outline: none; }
+.workspace-authenticated :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not([type=submit]), select) { height: 34px; padding: 6px 9px; }
 .workspace-authenticated textarea { padding: 12px; resize: vertical; }
 .workspace-authenticated :is(input, select, textarea):focus { border-color: #69aa93; box-shadow: 0 0 0 3px #087f650b; }
 .workspace-authenticated input[readonly] { background: #f7f9fb; color: #6d7d8a; }
@@ -373,7 +374,7 @@ body.workspace-sidebar-collapsed { padding-left: 14px; }
 .workspace-authenticated :is(.composer-panel, .progress-panel, .history-section, .settings-card, .review-controls, .rewrite-task-card) { padding: 14px; }
 .workspace-authenticated .section-heading { padding-bottom: 10px; margin-bottom: 10px; }
 .workspace-authenticated .section-heading h2, .workspace-authenticated .composer h2 { font-size: 14px; margin: 0; }
-.workspace-authenticated input:not([type=checkbox]):not([type=radio]):not([type=file]),
+.workspace-authenticated input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]),
 .workspace-authenticated select { min-height: 34px; padding: 6px 9px; }
 .workspace-authenticated :is(.button, .primary-button, .text-button, .mode-tab, .pager-button) { min-height: 32px; }
 .workspace-authenticated .workspace-connection { margin-bottom: 8px; }

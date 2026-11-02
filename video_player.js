@@ -4,6 +4,23 @@
   const stage = $('videoStage');
   const controls = $('videoControls');
   const menus = [...controls.querySelectorAll('details')];
+  const popovers = [...menus, $('fileMenu')];
+  const icons = {
+    play: '<path d="m9 5 11 7-11 7Z"/>',
+    pause: '<path d="M8 5v14M16 5v14"/>',
+    previous: '<path d="M5 5v14m14-14L8 12l11 7Z"/>',
+    next: '<path d="M19 5v14M5 5l11 7-11 7Z"/>',
+    volume: '<path d="m11 4-6 5H2v6h3l6 5Zm4 4a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>',
+    muted: '<path d="m11 4-6 5H2v6h3l6 5Zm5 5 6 6m0-6-6 6"/>',
+    pip: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 12h7v6h-7Z"/>',
+    fullscreen: '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
+    refresh: '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M6 6a8 8 0 0 1 14 6M4 12a8 8 0 0 0 14 6"/>',
+  };
+  function setIcon(id, name) {
+    $(id).innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${icons[name]}</svg>`;
+  }
+  for (const [id, name] of Object.entries({ centerPlay: 'play', prevButton: 'previous', nextButton: 'next', pipButton: 'pip', fullscreenButton: 'fullscreen', refreshButton: 'refresh' })) setIcon(id, name);
+  controls.querySelectorAll('[aria-label]').forEach((element) => { if (!element.title) element.title = element.getAttribute('aria-label'); });
   const rates = [0.5, 0.75, 1, 1.25, 1.5, 2];
   const modeNames = { sequence: '顺序播放', single: '单集循环', list: '列表循环' };
   const settings = { volume: 0.8, muted: false, rate: 1, fit: 'contain', mode: 'sequence' };
@@ -18,6 +35,18 @@
       try { localStorage.removeItem(key); } catch (_) {}
     },
   };
+  function setPlaylistCollapsed(collapsed) {
+    $('playlistPanel').hidden = collapsed;
+    $('playerLayout').classList.toggle('playlist-collapsed', collapsed);
+    $('playlistToggle').textContent = collapsed ? '展开列表' : '收起列表';
+    $('playlistToggle').setAttribute('aria-expanded', String(!collapsed));
+  }
+  setPlaylistCollapsed(storage.read('player-playlist-collapsed', false) === true);
+  $('playlistToggle').addEventListener('click', () => {
+    const collapsed = !$('playlistPanel').hidden;
+    setPlaylistCollapsed(collapsed);
+    storage.write('player-playlist-collapsed', collapsed);
+  });
   const savedSettings = storage.read('player-settings', {});
   if (savedSettings && typeof savedSettings === 'object') {
     if (Number.isFinite(savedSettings.volume) && savedSettings.volume >= 0 && savedSettings.volume <= 1) settings.volume = savedSettings.volume;
@@ -95,7 +124,8 @@
     controls.querySelectorAll('[data-mode]').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.mode === settings.mode)));
     $('volumeBar').value = String(video.volume);
     const silent = video.muted || video.volume === 0;
-    $('muteButton').textContent = silent ? '🔇' : '🔊';
+    setIcon('muteButton', silent ? 'muted' : 'volume');
+    $('muteButton').title = silent ? '取消静音（M）' : '静音（M）';
     $('muteButton').setAttribute('aria-label', silent ? '取消静音' : '静音');
     $('muteButton').setAttribute('aria-pressed', String(silent));
     storage.write('player-settings', settings);
@@ -126,7 +156,7 @@
       const metadata = item.metadata || {};
       const details = [metadata.code, ...(metadata.actors || [])].filter(Boolean).join(' · ');
       const cover = metadata.cover_url ? `<img src="${escape(metadata.cover_url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : '';
-      return `<button class="playlist-item${item.id === state.activeItem?.id ? ' active' : ''}" type="button" data-index="${index}" aria-current="${item.id === state.activeItem?.id}" aria-label="播放 ${escape(item.title)}"><span class="playlist-thumb">${cover}<span>${escape(metadata.code || '▶')}</span></span><span class="playlist-item-body"><strong class="playlist-item-title">${escape(item.title)}</strong>${details ? `<span class="playlist-catalog-line">${escape(details)}</span>` : ''}<span class="playlist-item-meta"><span>${escape(item.extension.toUpperCase())}</span><span>${escape(formatSize(item.size))}</span></span></span></button>`;
+      return `<button class="playlist-item${item.id === state.activeItem?.id ? ' active' : ''}" type="button" data-index="${index}" title="${escape(item.filename || item.title)}" aria-current="${item.id === state.activeItem?.id}" aria-label="播放 ${escape(item.title)}"><span class="playlist-thumb">${cover}<span>${escape(metadata.code || '▶')}</span></span><span class="playlist-item-body"><strong class="playlist-item-title">${escape(item.title)}</strong>${details ? `<span class="playlist-catalog-line">${escape(details)}</span>` : ''}<span class="playlist-item-meta"><span>${escape(item.extension.toUpperCase())}</span><span>${escape(formatSize(item.size))}</span></span></span></button>`;
     }).join('') : '<div class="playlist-empty">没有符合条件的视频</div>';
     renderNavigation();
   }
@@ -161,6 +191,7 @@
   }
 
   function renderMetadata(item) {
+    $('filmDisclosure').hidden = !item;
     $('filmDetails').hidden = !item;
     if (!item) return;
     const metadata = item.metadata || {};
@@ -200,7 +231,8 @@
     $('playButton').disabled = !available;
     $('centerPlay').hidden = !available || !video.paused || !$('stageError').hidden;
     const label = video.paused ? '播放' : '暂停';
-    $('playButton').textContent = video.paused ? '▶' : '❚❚';
+    setIcon('playButton', video.paused ? 'play' : 'pause');
+    $('playButton').title = `${label}（空格 / K）`;
     $('playButton').setAttribute('aria-label', label);
     $('centerPlay').setAttribute('aria-label', label);
     ['seekBar', 'rewindButton', 'forwardButton'].forEach((id) => { $(id).disabled = !playable(); });
@@ -383,7 +415,7 @@
     state.format = tab.dataset.format;
     document.querySelectorAll('.format-tab').forEach((item) => {
       item.classList.toggle('active', item === tab);
-      item.setAttribute('aria-selected', String(item === tab));
+      item.setAttribute('aria-pressed', String(item === tab));
     });
     applyFilter();
   }));
@@ -540,7 +572,7 @@
   document.addEventListener('pointerdown', (event) => {
     state.keyboard = false;
     state.wakeOnly = event.pointerType === 'touch' && stage.contains(event.target) && stage.classList.contains('controls-hidden');
-    menus.forEach((menu) => { if (!menu.contains(event.target)) menu.open = false; });
+    popovers.forEach((menu) => { if (!menu.contains(event.target)) menu.open = false; });
     showControls();
   }, true);
   stage.addEventListener('pointerdown', showControls, true);
@@ -561,7 +593,7 @@
     state.keyboard = true;
     showControls();
     if (event.key === 'Escape') {
-      menus.forEach((menu) => {
+      popovers.forEach((menu) => {
         if (menu.open) { menu.querySelector('summary').focus(); menu.open = false; event.preventDefault(); }
       });
       return;

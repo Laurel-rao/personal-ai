@@ -47,6 +47,7 @@
   const escape = (text) => String(text).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
   const pages = {
     video: ["视频生成", "连接参考图与视频提示词，追踪从创意到成片的每一步。", "film"],
+    player: ["本地视频", "浏览本地片库、播放视频与查看影片资料。", "play-circle"],
     image: ["图片生成", "描述画面、调整参数，单张创作与批量生成在这里完成。", "image"],
     chat: ["文本对话", "讨论灵感、拆解思路与打磨文案，保留每一次创作对话。", "comment"],
     review: ["图片标注", "筛选作品、记录偏好，让每一次标注成为下一次创作的参考。", "check-square"],

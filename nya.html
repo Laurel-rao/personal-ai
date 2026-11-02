@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>番号下载 · 创作工作台</title>
+  <link rel="stylesheet" href="/ui-framework.css" />
+  <link rel="stylesheet" href="/admin.css" />
+  <link rel="stylesheet" href="/workspace-pages.css" />
+  <style>
+    .nya-wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 64px; }
+    .nya-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; }
+    .nya-eyebrow { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted, #8b93a7); }
+    .nya-title { margin: 4px 0 6px; font-size: 26px; }
+    .nya-sub { margin: 0; color: var(--muted, #8b93a7); font-size: 13px; }
+    .nya-form { display: flex; gap: 10px; flex: 1 1 420px; }
+    .nya-form input { flex: 1; min-width: 0; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); color: inherit; border-radius: 10px; padding: 12px 14px; font-size: 15px; outline: none; }
+    .nya-form input:focus { border-color: rgba(120,170,255,.6); box-shadow: 0 0 0 3px rgba(120,170,255,.15); }
+    .nya-form button { border: 0; border-radius: 10px; padding: 12px 20px; font-weight: 600; cursor: pointer; background: linear-gradient(135deg,#4f7cff,#7a5cff); color: #fff; }
+    .nya-form button:disabled { opacity: .55; cursor: wait; }
+    .nya-status { min-height: 20px; margin: 6px 0 14px; font-size: 13px; color: var(--muted, #8b93a7); }
+    .nya-status.error { color: #ff7b7b; }
+    .nya-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; font-size: 12.5px; }
+    .nya-toolbar label { color: var(--muted, #8b93a7); }
+    .nya-toolbar select { background: rgba(255,255,255,.05); color: inherit; border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 6px 8px; font-size: 12.5px; }
+    .nya-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .nya-chips button { border: 1px solid rgba(255,255,255,.14); background: transparent; color: var(--muted, #8b93a7); border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+    .nya-chips button.active { border-color: rgba(120,170,255,.6); color: #cfe0ff; background: rgba(120,170,255,.12); }
+    .nya-badges { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
+    .nya-badges span { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: rgba(255,255,255,.07); color: #c7cede; }
+    .nya-badges .sub { background: rgba(110,231,168,.14); color: #8ff0be; }
+    .nya-badges .unc { background: rgba(255,155,155,.16); color: #ffb3b3; }
+    .nya-badges .kind { background: rgba(120,170,255,.16); color: #a9c6ff; }
+    .nya-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(186px, 1fr)); gap: 16px; }
+    .nya-card { display: flex; flex-direction: column; gap: 9px; padding: 10px; border-radius: 12px; background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08); transition: transform .15s ease, border-color .15s ease; }
+    .nya-card:hover { border-color: rgba(120,170,255,.45); transform: translateY(-2px); }
+    .nya-cover { width: 100%; aspect-ratio: 3 / 2; border-radius: 8px; overflow: hidden; background: rgba(255,255,255,.06); position: relative; display: block; }
+    .nya-cover img { width: 100%; height: 100%; object-fit: contain; display: block; background: #0b0d12; cursor: zoom-in; }
+    .nya-cover .nya-noimg { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 11px; color: rgba(255,255,255,.45); text-align: center; padding: 8px; }
+    .nya-cover.empty img { display: none; }
+    .nya-cover.empty .nya-noimg { display: flex; }
+    .nya-name { font-size: 13px; line-height: 1.4; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 36px; }
+    .nya-meta { display: flex; gap: 8px 12px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted, #8b93a7); }
+    .nya-meta .seed { color: #6ee7a8; }
+    .nya-meta .leech { color: #ff9b9b; }
+    .nya-meta .src { color: #9bb0ff; }
+    .nya-meta .rel { color: #ffd08a; }
+    .nya-meta .actor { color: #b7f0d0; }
+    .nya-badges .actor { background: rgba(255,208,138,.14); color: #ffd08a; }
+    .nya-actions { display: flex; gap: 6px; margin-top: 2px; }
+    .nya-actions button { flex: 1; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05); color: inherit; border-radius: 8px; padding: 7px 6px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+    .nya-actions button.primary { background: linear-gradient(135deg,#3f9eff,#6a6bff); border: 0; color: #fff; font-weight: 600; }
+    .nya-actions button:disabled { opacity: .5; cursor: wait; }
+    .nya-empty { grid-column: 1 / -1; padding: 40px 0; text-align: center; color: var(--muted, #8b93a7); font-size: 14px; }
+    .nya-empty { padding: 40px 0; text-align: center; color: var(--muted, #8b93a7); font-size: 14px; }
+    .nya-lightbox { position: fixed; inset: 0; z-index: 999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.88); backdrop-filter: blur(4px); }
+    .nya-lightbox[hidden] { display: none; }
+    .nya-lb-img { max-width: min(92vw, 1400px); max-height: 82vh; object-fit: contain; border-radius: 8px; box-shadow: 0 20px 60px rgba(0,0,0,.6); background: #0b0d12; }
+    .nya-lb-close, .nya-lb-prev, .nya-lb-next { position: absolute; border: 0; background: rgba(255,255,255,.08); color: #fff; cursor: pointer; border-radius: 50%; width: 46px; height: 46px; font-size: 24px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+    .nya-lb-close { top: 18px; right: 18px; }
+    .nya-lb-prev { left: 18px; top: 50%; transform: translateY(-50%); }
+    .nya-lb-next { right: 18px; top: 50%; transform: translateY(-50%); }
+    .nya-lb-close:hover, .nya-lb-prev:hover, .nya-lb-next:hover { background: rgba(255,255,255,.2); }
+    .nya-lb-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 14px; padding: 12px 18px; background: linear-gradient(transparent, rgba(0,0,0,.85)); color: #dfe6f3; font-size: 13px; }
+    .nya-lb-bar .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nya-lb-bar .counter { color: #8b93a7; }
+    .nya-lb-bar a { color: #8fd0ff; text-decoration: none; border: 1px solid rgba(143,208,255,.4); padding: 6px 12px; border-radius: 8px; }
+    .nya-lb-bar a:hover { background: rgba(143,208,255,.12); }
+    .nya-hint { margin-top: 22px; font-size: 12px; color: var(--muted, #8b93a7); line-height: 1.7; }
+    .nya-hint code { background: rgba(255,255,255,.08); padding: 1px 6px; border-radius: 5px; }
+  </style>
+</head>
+<body data-page="nya">
+  <div class="nya-wrap">
+    <header class="nya-head">
+      <div>
+        <div class="nya-eyebrow">NYAA SEARCH · THUNDER</div>
+        <h1 class="nya-title">番号下载</h1>
+        <p class="nya-sub">输入番号搜索资源，选一个结果一键送入迅雷下载。</p>
+      </div>
+    </header>
+
+    <form class="nya-form" id="nyaForm" autocomplete="off">
+      <input id="nyaQuery" name="q" placeholder="输入番号，如 HMN-914 / SSIS-1017" aria-label="搜索番号" required />
+      <button id="nyaSearch" type="submit">搜索</button>
+    </form>
+    <div class="nya-status" id="nyaStatus" role="status"></div>
+    <div class="nya-toolbar" id="nyaToolbar" hidden>
+      <label for="nyaSort">排序</label>
+      <select id="nyaSort">
+        <option value="default">默认（来源顺序）</option>
+        <option value="seed">做种多优先</option>
+        <option value="date">最新上传优先</option>
+        <option value="size">体积大优先</option>
+      </select>
+      <div class="nya-chips" id="nyaFilters">
+        <button type="button" data-filter="all" class="active">全部</button>
+        <button type="button" data-filter="sub">中文字幕</button>
+        <button type="button" data-filter="unc">无码</button>
+        <button type="button" data-filter="multi">多人</button>
+        <button type="button" data-filter="collection">合集</button>
+      </div>
+    </div>
+
+    <div class="nya-grid" id="nyaList">
+      <div class="nya-empty">还没有结果，先输入番号搜索。</div>
+    </div>
+
+    <p class="nya-hint">
+      结果来自 sukebei（BT 站，带做种数）+ btdig（DHT 索引，磁力直送），均经本机代理 <code id="proxyHint">127.0.0.1:7897</code> 访问。<br />
+      下载会把种子保存到 <code>~/Movies/Videos/&lt;番号&gt;/</code> 并自动调用迅雷；迅雷里确认后开始下载。
+    </p>
+  </div>
+
+  <div class="nya-lightbox" id="nyaLightbox" hidden role="dialog" aria-modal="true" aria-label="封面预览">
+    <button class="nya-lb-close" id="nyaLbClose" type="button" aria-label="关闭">×</button>
+    <button class="nya-lb-prev" id="nyaLbPrev" type="button" aria-label="上一张">‹</button>
+    <img class="nya-lb-img" id="nyaLbImg" alt="" />
+    <button class="nya-lb-next" id="nyaLbNext" type="button" aria-label="下一张">›</button>
+    <div class="nya-lb-bar">
+      <span class="title" id="nyaLbTitle"></span>
+      <span class="counter" id="nyaLbCounter"></span>
+      <a id="nyaLbDownload" download>下载原图</a>
+    </div>
+  </div>
+  <script src="/ui-framework.js"></script>
+  <script>
+    (function () {
+      const form = document.getElementById('nyaForm');
+      const input = document.getElementById('nyaQuery');
+      const searchBtn = document.getElementById('nyaSearch');
+      const list = document.getElementById('nyaList');
+      const status = document.getElementById('nyaStatus');
+      const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const extractCode = (title) => {
+        const match = String(title || '').match(/(FC2[-_ ]?PPV[-_ ]?\d+|(?:FC2PPV?)[-_ ]?\d+|\d{3}GANA[-_ ]?\d+|[A-Za-z]{2,6}[-_ ]?\d{2,5}(?:[-_ ]?[A-Z](?![A-Za-z]))?)/i);
+        return match ? match[1].replace(/[_ ]/g, '-').toUpperCase() : '';
+      };
+
+      function setStatus(text, isError) {
+        status.textContent = text || '';
+        status.classList.toggle('error', !!isError);
+      }
+
+      const toolbar = document.getElementById('nyaToolbar');
+      const sortSelect = document.getElementById('nyaSort');
+      const filterWrap = document.getElementById('nyaFilters');
+      let currentResults = [];
+      let activeFilter = 'all';
+      let activeSort = 'default';
+
+      const FILTERS = {
+        all: () => true,
+        sub: (item) => !!item.subtitle,
+        unc: (item) => !!item.uncensored,
+        multi: (item) => item.type === '多人',
+        collection: (item) => item.type === '合集',
+      };
+
+      const parseSize = (text) => {
+        const match = String(text || '').match(/([\d.]+)\s*(TB|GB|GiB|MB|MiB|KiB|KB)/i);
+        if (!match) return 0;
+        const unit = match[2].toUpperCase();
+        const mult = unit.startsWith('T') ? 1e12 : unit.startsWith('G') ? 1e9 : unit.startsWith('M') ? 1e6 : 1e3;
+        return parseFloat(match[1]) * mult;
+      };
+
+      function render(results) {
+        currentResults = results || [];
+        toolbar.hidden = currentResults.length === 0;
+        renderList();
+      }
+
+      function renderList() {
+        const filtered = currentResults.filter(FILTERS[activeFilter] || FILTERS.all);
+        const sorted = filtered.slice();
+        if (activeSort === 'seed') sorted.sort((a, b) => (b.seeders || 0) - (a.seeders || 0));
+        else if (activeSort === 'date') sorted.sort((a, b) => String(b.uploaded_at || '').localeCompare(String(a.uploaded_at || '')));
+        else if (activeSort === 'size') sorted.sort((a, b) => parseSize(b.size) - parseSize(a.size));
+
+        if (!sorted.length) {
+          list.innerHTML = '<div class="nya-empty">当前筛选下没有资源。</div>';
+          return;
+        }
+
+        list.innerHTML = sorted.map((item, index) => {
+          const code = extractCode(item.title);
+          const badges = [];
+          if (item.type) badges.push(`<span class="kind">${esc(item.type)}</span>`);
+          if (item.quality) badges.push(`<span>${esc(item.quality)}</span>`);
+          if (item.subtitle) badges.push('<span class="sub">中文字幕</span>');
+          if (item.uncensored) badges.push('<span class="unc">无码</span>');
+          if (item.duration) badges.push(`<span>${esc(item.duration)}</span>`);
+          const date = item.uploaded_at ? esc(item.uploaded_at.slice(0, 10)) : '';
+          return `
+          <article class="nya-card">
+            <div class="nya-cover${code ? '' : ' empty'}">
+              ${code ? `<img src="/api/nya/cover?code=${encodeURIComponent(code)}" alt="" loading="lazy" onerror="this.parentNode.classList.add('empty')">` : ''}
+              <span class="nya-noimg">无封面</span>
+            </div>
+            <div class="nya-name" title="${esc(item.title || item.view_id)}">${esc(item.title || item.view_id)}</div>
+            <div class="nya-badges">${badges.join('')}</div>
+            <div class="nya-meta">
+              <span>${code ? esc(code) + ' · ' : ''}${esc(item.size || '未知大小')}</span>
+              ${item.source === 'btdig'
+                ? '<span class="src">btdig · DHT</span>'
+                : `<span class="seed">做种 ${item.seeders}</span><span class="leech">下载 ${item.downloads || item.leechers}</span>`}
+              ${date ? `<span>上传 ${date}</span>` : ''}
+              ${code ? `<span class="rel" data-code="${esc(code)}">发售 …</span>` : ''}
+              ${code ? `<span class="actor" data-code="${esc(code)}"></span>` : ''}
+            </div>
+            <div class="nya-actions">
+              <button type="button" class="primary" data-index="${index}">送迅雷</button>
+              <button type="button" data-copy="${index}">磁力</button>
+            </div>
+          </article>`;
+        }).join('');
+
+        list.querySelectorAll('button[data-index]').forEach((btn) => {
+          btn.addEventListener('click', () => download(sorted[Number(btn.dataset.index)], btn));
+        });
+        loadReleaseDates();
+
+        lightboxItems = sorted
+          .map((item) => {
+            const code = extractCode(item.title);
+            return code ? { src: `/api/nya/cover?code=${encodeURIComponent(code)}`, title: item.title || code, code } : null;
+          })
+          .filter(Boolean);
+        list.querySelectorAll('.nya-cover img').forEach((img) => {
+          const idx = lightboxItems.findIndex((entry) => entry.src === img.getAttribute('src'));
+          img.addEventListener('click', () => openLightbox(idx >= 0 ? idx : 0));
+        });
+
+        list.querySelectorAll('button[data-copy]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const item = sorted[Number(btn.dataset.copy)];
+            if (!item.magnet) { setStatus('该种子没有磁力链接', true); return; }
+            try {
+              await navigator.clipboard.writeText(item.magnet);
+              setStatus('磁力已复制');
+            } catch (error) {
+              setStatus('复制失败，请手动选择', true);
+            }
+          });
+        });
+      }
+
+      async function loadReleaseDates() {
+        const cards = Array.from(list.querySelectorAll('article.nya-card'))
+          .map((card) => ({ card, code: card.querySelector('span.rel')?.dataset.code }))
+          .filter((item) => item.code);
+        const queue = [...cards];
+        const worker = async () => {
+          while (queue.length) {
+            const { card, code } = queue.shift();
+            const rel = card.querySelector('span.rel');
+            const actorNode = card.querySelector('span.actor');
+            try {
+              const response = await fetch(`/api/nya/release?code=${encodeURIComponent(code)}`);
+              const data = await response.json();
+              rel.textContent = data.date ? `发售 ${data.date}` : '发售 —';
+              const detail = [data.studio, (data.genres || []).join(' / '), data.runtime, data.actress].filter(Boolean).join(' · ');
+              rel.title = detail || '该番号未收录发售信息';
+              if (actorNode) actorNode.textContent = data.actress || '';
+            } catch (error) {
+              rel.textContent = '发售 —';
+            }
+          }
+        };
+        await Promise.all(Array.from({ length: 5 }, worker));
+      }
+
+      sortSelect?.addEventListener('change', () => {
+        activeSort = sortSelect.value;
+        renderList();
+      });
+      filterWrap?.addEventListener('click', (event) => {
+        const btn = event.target.closest('button[data-filter]');
+        if (!btn) return;
+        activeFilter = btn.dataset.filter;
+        filterWrap.querySelectorAll('button').forEach((item) => item.classList.toggle('active', item === btn));
+        renderList();
+      });
+
+      async function search(query) {
+        setStatus('搜索中…');
+        const response = await fetch(`/api/nya/search?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || '搜索失败');
+        }
+        const src = data.sources || {};
+        setStatus(`找到 ${data.count} 条结果（sukebei ${src.sukebei ?? 0} · btdig ${src.btdig ?? 0}）`);
+        render(data.results || []);
+      }
+
+      async function download(item, btn) {
+        const code = extractCode(item.title) || item.view_id;
+        btn.disabled = true;
+        const original = btn.textContent;
+        btn.textContent = '发送中…';
+        try {
+          const response = await fetch('/api/nya/download', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(item.view_id ? { view_id: item.view_id, code, magnet: item.magnet } : { magnet: item.magnet, code }),
+          });
+          const data = await response.json();
+          if (!response.ok || !data.success) throw new Error(data.error || '发送失败');
+          setStatus(`已送入迅雷：${data.torrent || '磁力任务'}`);
+          btn.textContent = '已发送';
+        } catch (error) {
+          setStatus(error.message, true);
+          btn.textContent = original;
+        } finally {
+          setTimeout(() => { btn.disabled = false; if (btn.textContent === '已发送') btn.textContent = original; }, 4000);
+        }
+      }
+
+      // ---------------- 灯箱 ----------------
+      let lightboxItems = [];
+      let lightboxIndex = 0;
+      const lightbox = document.getElementById('nyaLightbox');
+      const lbImg = document.getElementById('nyaLbImg');
+      const lbTitle = document.getElementById('nyaLbTitle');
+      const lbCounter = document.getElementById('nyaLbCounter');
+      const lbDownload = document.getElementById('nyaLbDownload');
+
+      function showLightboxItem() {
+        if (!lightboxItems.length) return;
+        const item = lightboxItems[lightboxIndex];
+        lbImg.src = item.src;
+        lbImg.alt = item.title;
+        lbTitle.textContent = item.title;
+        lbCounter.textContent = `${lightboxIndex + 1} / ${lightboxItems.length}`;
+        lbDownload.href = item.src;
+        lbDownload.download = `${item.code || 'cover'}.jpg`;
+        lbDownload.textContent = '下载原图';
+      }
+
+      function openLightbox(index) {
+        if (!lightboxItems.length) return;
+        lightboxIndex = Math.max(0, Math.min(index, lightboxItems.length - 1));
+        lightbox.hidden = false;
+        document.body.style.overflow = 'hidden';
+        showLightboxItem();
+      }
+
+      function closeLightbox() {
+        lightbox.hidden = true;
+        document.body.style.overflow = '';
+      }
+
+      function stepLightbox(delta) {
+        if (!lightboxItems.length) return;
+        lightboxIndex = (lightboxIndex + delta + lightboxItems.length) % lightboxItems.length;
+        showLightboxItem();
+      }
+
+      document.getElementById('nyaLbClose').addEventListener('click', closeLightbox);
+      document.getElementById('nyaLbPrev').addEventListener('click', () => stepLightbox(-1));
+      document.getElementById('nyaLbNext').addEventListener('click', () => stepLightbox(1));
+      lightbox.addEventListener('click', (event) => { if (event.target === lightbox) closeLightbox(); });
+      document.addEventListener('keydown', (event) => {
+        if (lightbox.hidden) return;
+        if (event.key === 'Escape') closeLightbox();
+        else if (event.key === 'ArrowLeft') stepLightbox(-1);
+        else if (event.key === 'ArrowRight') stepLightbox(1);
+      });
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const query = input.value.trim();
+        if (!query) return;
+        searchBtn.disabled = true;
+        try {
+          await search(query);
+        } catch (error) {
+          setStatus(error.message, true);
+        } finally {
+          searchBtn.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

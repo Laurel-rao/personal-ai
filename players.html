@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>选手库 · 创作工作台</title>
+  <link rel="stylesheet" href="/ui-framework.css" />
+  <link rel="stylesheet" href="/admin.css" />
+  <link rel="stylesheet" href="/workspace-pages.css" />
+  <style>
+    .pl-wrap { max-width: 1280px; margin: 0 auto; padding: 26px 18px 70px; }
+    .pl-head { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+    .pl-eyebrow { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted, #8b93a7); }
+    .pl-title { margin: 4px 0 6px; font-size: 26px; }
+    .pl-sub { margin: 0; color: var(--muted, #8b93a7); font-size: 13px; }
+    .pl-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+    .pl-toolbar input, .pl-toolbar select { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.14); color: inherit; border-radius: 9px; padding: 9px 12px; font-size: 13px; outline: none; }
+    .pl-toolbar input { min-width: 200px; flex: 1 1 200px; }
+    .pl-toolbar input:focus { border-color: rgba(120,170,255,.55); }
+    .pl-count { color: var(--muted, #8b93a7); font-size: 12.5px; margin-left: auto; }
+    .pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 14px; }
+    .pl-card { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08); cursor: pointer; transition: transform .15s ease, border-color .15s ease; }
+    .pl-card:hover { transform: translateY(-2px); border-color: rgba(120,170,255,.45); }
+    .pl-cover { position: relative; width: 100%; aspect-ratio: 3 / 4; border-radius: 8px; overflow: hidden; background: rgba(255,255,255,.05); }
+    .pl-cover img { width: 100%; height: 100%; object-fit: contain; display: block; background: #0b0d12; }
+    .pl-variant-badge { position: absolute; top: 6px; right: 6px; background: rgba(120,170,255,.85); color: #0b0d12; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 7px; }
+    .pl-variants { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; }
+    .pl-variants img { width: 78px; aspect-ratio: 3/4; object-fit: contain; background: #0b0d12; border: 2px solid transparent; border-radius: 6px; cursor: pointer; opacity: .7; }
+    .pl-variants img.active, .pl-variants img:hover { border-color: #7aa8ff; opacity: 1; }
+    .pl-name { font-size: 13px; font-weight: 600; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pl-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; color: var(--muted, #8b93a7); }
+    .pl-meta .ov { color: #ffd08a; font-weight: 700; }
+    .pl-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 10.5px; color: var(--muted, #8b93a7); }
+    .pl-stats span { background: rgba(255,255,255,.05); border-radius: 5px; padding: 2px 4px; text-align: center; }
+    .pl-more { display: flex; justify-content: center; margin-top: 18px; }
+    .pl-more button { border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05); color: inherit; border-radius: 9px; padding: 9px 22px; font-size: 13px; cursor: pointer; }
+    .pl-more button:disabled { opacity: .5; cursor: default; }
+    .pl-empty { grid-column: 1 / -1; text-align: center; padding: 50px 0; color: var(--muted, #8b93a7); }
+    /* 详情弹层 */
+    .pl-modal { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.82); backdrop-filter: blur(4px); padding: 18px; }
+    .pl-modal[hidden] { display: none; }
+    .pl-modal-box { width: min(1020px, 96vw); max-height: 90vh; overflow: auto; display: grid; grid-template-columns: 300px 1fr; gap: 18px; background: #12151c; border: 1px solid rgba(255,255,255,.1); border-radius: 14px; padding: 18px; }
+    .pl-modal-img { width: 100%; border-radius: 10px; background: #0b0d12; }
+    .pl-modal-title { margin: 0 0 4px; font-size: 20px; }
+    .pl-modal-sub { margin: 0 0 12px; color: var(--muted, #8b93a7); font-size: 12.5px; }
+    .pl-kv { display: grid; grid-template-columns: 92px 1fr; gap: 6px 10px; font-size: 13px; margin-bottom: 12px; }
+    .pl-kv dt { color: var(--muted, #8b93a7); }
+    .pl-kv dd { margin: 0; }
+    .pl-stats-big { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .pl-stats-big span { background: rgba(255,255,255,.06); border-radius: 7px; padding: 5px 9px; font-size: 12px; }
+    .pl-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .pl-chips span { background: rgba(120,170,255,.16); color: #a9c6ff; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; }
+    .pl-section-title { font-size: 13px; margin: 14px 0 8px; color: #c7cede; }
+    .pl-comment { border-left: 2px solid rgba(255,255,255,.12); padding: 4px 0 4px 10px; margin-bottom: 8px; font-size: 12.5px; }
+    .pl-comment b { color: #a9c6ff; font-weight: 600; }
+    .pl-comment small { color: var(--muted, #8b93a7); margin-left: 6px; }
+    .pl-close { position: absolute; top: 16px; right: 18px; border: 0; background: rgba(255,255,255,.1); color: #fff; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; }
+    .pl-links a { color: #8fd0ff; text-decoration: none; margin-right: 10px; font-size: 12.5px; }
+    @media (max-width: 760px) { .pl-modal-box { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body data-page="idols">
+  <div class="pl-wrap">
+    <header class="pl-head">
+      <div>
+        <div class="pl-eyebrow">JSL · 选手资料库</div>
+        <h1 class="pl-title">选手库</h1>
+        <p class="pl-sub">卡牌评分、档案资料、标签与评论，一处查看。</p>
+      </div>
+    </header>
+
+    <div class="pl-toolbar">
+      <input id="plQuery" placeholder="搜索名字（中文 / 日文 / 罗马字）" aria-label="搜索选手" />
+      <select id="plSort" aria-label="排序方式">
+        <option value="overall">总评</option>
+        <option value="FAC">颜值 FAC</option>
+        <option value="BDY">身材 BDY</option>
+        <option value="SKL">技巧 SKL</option>
+        <option value="POP">人气 POP</option>
+        <option value="CHA">魅力 CHA</option>
+        <option value="PRF">表现 PRF</option>
+        <option value="height">身高</option>
+        <option value="bust">胸围</option>
+        <option value="followers">粉丝数</option>
+        <option value="debut">出道年份</option>
+        <option value="age">年龄</option>
+      </select>
+      <select id="plOrder" aria-label="排序方向">
+        <option value="desc">从高到低</option>
+        <option value="asc">从低到高</option>
+      </select>
+      <select id="plStudio" aria-label="厂牌筛选"><option value="">全部厂牌</option></select>
+      <span class="pl-count" id="plCount"></span>
+    </div>
+
+    <div class="pl-grid" id="plGrid"><div class="pl-empty">加载中…</div></div>
+    <div class="pl-more"><button id="plMore" type="button" hidden>加载更多</button></div>
+  </div>
+
+  <div class="pl-modal" id="plModal" hidden role="dialog" aria-modal="true">
+    <button class="pl-close" id="plClose" type="button" aria-label="关闭">×</button>
+    <div class="pl-modal-box" id="plModalBox"></div>
+  </div>
+
+  <script src="/ui-framework.js"></script>
+  <script>
+    (function () {
+      const grid = document.getElementById('plGrid');
+      const query = document.getElementById('plQuery');
+      const sortSelect = document.getElementById('plSort');
+      const orderSelect = document.getElementById('plOrder');
+      const studioSelect = document.getElementById('plStudio');
+      const countEl = document.getElementById('plCount');
+      const moreBtn = document.getElementById('plMore');
+      const modal = document.getElementById('plModal');
+      const modalBox = document.getElementById('plModalBox');
+      const esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+      const PAGE = 60;
+      let offset = 0;
+      let total = 0;
+      let loading = false;
+      let items = [];
+
+      function cardHtml(item) {
+        const stats = item.stats || {};
+        const mini = ['FAC', 'BDY', 'SKL', 'POP', 'CHA', 'PRF']
+          .filter((key) => stats[key] != null)
+          .map((key) => `<span title="${key}">${stats[key]}</span>`).join('');
+        return `
+        <article class="pl-card" data-id="${esc(item.id)}">
+          <div class="pl-cover">${item.card_image ? `<img loading="lazy" src="${esc(item.card_image)}" alt="${esc(item.name)}">` : ''}${item.group_size > 1 ? `<span class="pl-variant-badge">×${item.group_size}</span>` : ''}</div>
+          <div class="pl-name" title="${esc(item.name)}">${esc(item.name)}</div>
+          <div class="pl-meta">
+            <span class="ov">${item.overall != null ? item.overall : '—'}</span>
+            <span>${esc(item.studio || '')}</span>
+            ${item.height ? `<span>${item.height}cm</span>` : ''}
+            ${item.debut ? `<span>${esc(item.debut)}出道</span>` : ''}
+          </div>
+          <div class="pl-stats">${mini}</div>
+        </article>`;
+      }
+
+      async function load(reset) {
+        if (loading) return;
+        loading = true;
+        moreBtn.disabled = true;
+        try {
+          const params = new URLSearchParams({
+            q: query.value.trim(),
+            sort: sortSelect.value,
+            order: orderSelect.value,
+            studio: studioSelect.value,
+            limit: PAGE,
+            offset: reset ? 0 : offset,
+          });
+          const response = await fetch(`/api/players/list?${params}`);
+          const data = await response.json();
+          if (!response.ok || !data.success) throw new Error(data.error || '加载失败');
+          if (reset) {
+            items = [];
+            grid.innerHTML = '';
+            offset = 0;
+            if (studioSelect.options.length <= 1 && data.studios) {
+              data.studios.forEach((studio) => {
+                const option = document.createElement('option');
+                option.value = studio; option.textContent = studio;
+                studioSelect.appendChild(option);
+              });
+            }
+          }
+          items = items.concat(data.items);
+          const html = data.items.map(cardHtml).join('');
+          grid.insertAdjacentHTML('beforeend', html || (reset ? '<div class="pl-empty">没有匹配的选手</div>' : ''));
+          offset += data.items.length;
+          total = data.total;
+          countEl.textContent = `${total} 位选手`;
+          moreBtn.hidden = offset >= total;
+          moreBtn.textContent = '加载更多';
+          bindCards();
+        } catch (error) {
+          countEl.textContent = error.message;
+        } finally {
+          loading = false;
+          moreBtn.disabled = false;
+        }
+      }
+
+      function bindCards() {
+        grid.querySelectorAll('.pl-card').forEach((card) => {
+          card.addEventListener('click', () => openDetail(card.dataset.id));
+        });
+      }
+
+      async function openDetail(id) {
+        modalBox.innerHTML = '<div style="padding:30px;color:#8b93a7">加载中…</div>';
+        modal.hidden = false;
+        document.body.style.overflow = 'hidden';
+        try {
+          const response = await fetch(`/api/players/detail?id=${encodeURIComponent(id)}`);
+          const data = await response.json();
+          if (!response.ok || !data.success) throw new Error(data.error || '加载失败');
+          const item = data.item;
+          const stats = item.stats || {};
+          const statHtml = ['FAC', 'BDY', 'SKL', 'POP', 'CHA', 'PRF']
+            .filter((key) => stats[key] != null)
+            .map((key) => `<span>${key} ${stats[key]}</span>`).join('');
+          const tags = (data.tags || []).map((tag) => `<span>${esc(tag)}</span>`).join('') || '<span style="background:none;color:#8b93a7">暂无标签</span>';
+          const comments = (data.comments || []).slice(0, 20).map((comment) => `
+            <div class="pl-comment"><b>${esc(comment.author || '匿名')}</b><small>${esc(comment.createdAt || '').slice(0, 10)}</small><div>${esc(comment.body || '')}</div></div>`).join('') || '<div class="pl-comment" style="color:#8b93a7">暂无评论</div>';
+          const socials = [];
+          if (item.social?.x) socials.push(`<a href="${esc(item.social.x)}" target="_blank" rel="noopener">X</a>`);
+          if (item.social?.instagram) socials.push(`<a href="${esc(item.social.instagram)}" target="_blank" rel="noopener">Instagram</a>`);
+          const variantList = data.variants || [];
+          const variantStrip = variantList.length > 1
+            ? `<div class="pl-variants">${variantList.map((v, i) => `<img class="${i === 0 ? 'active' : ''}" src="${esc(v.card_image)}" data-variant="${i}" alt="变体 ${v.variant || i + 1}" title="变体 ${v.variant || i + 1} · 总评 ${v.overall ?? '—'}">`).join('')}</div>`
+            : '';
+          modalBox.innerHTML = `
+            <div><img class="pl-modal-img" id="plModalImg" src="${esc(item.card_image)}" alt="${esc(item.name)}">${variantStrip}</div>
+            <div>
+              <h2 class="pl-modal-title">${esc(item.name)}</h2>
+              <p class="pl-modal-sub" id="plModalSub">${esc(item.jp_name || '')} · ${esc(item.ro_name || '')} · ${esc(item.studio || '')}</p>
+              <div class="pl-stats-big" id="plStatsBig"><span>总评 <b>${item.overall ?? '—'}</b></span>${statHtml}</div>
+              <dl class="pl-kv">
+                <dt>生日</dt><dd>${esc(item.birthday || '—')}${item.age ? `（${item.age} 岁）` : ''}</dd>
+                <dt>身高</dt><dd>${item.height ? item.height + ' cm' : '—'}</dd>
+                <dt>三围</dt><dd>${esc(item.measurements || '—')}</dd>
+                <dt>事务所</dt><dd>${esc(item.agency || '—')}</dd>
+                <dt>出道</dt><dd>${esc(item.debut || '—')}</dd>
+                <dt>粉丝</dt><dd>${item.followers ? Number(item.followers).toLocaleString() : '—'}</dd>
+                <dt>厂牌/所属</dt><dd>${esc(item.studio || '—')} / ${esc(item.club || '—')}</dd>
+                ${socials.length ? `<dt>社媒</dt><dd class="pl-links">${socials.join('')}</dd>` : ''}
+              </dl>
+              <div class="pl-section-title">标签</div>
+              <div class="pl-chips">${tags}</div>
+              <div class="pl-section-title">评论（${data.comments?.length || 0}）</div>
+              ${comments}
+            </div>`;
+          modalBox.querySelectorAll('.pl-variants img').forEach((thumb) => {
+            thumb.addEventListener('click', () => {
+              const index = Number(thumb.dataset.variant);
+              const variant = variantList[index];
+              if (!variant) return;
+              modalBox.querySelectorAll('.pl-variants img').forEach((node) => node.classList.toggle('active', node === thumb));
+              const img = document.getElementById('plModalImg');
+              if (img) img.src = variant.card_image;
+              const stats = variant.stats || {};
+              const statHtml2 = ['FAC', 'BDY', 'SKL', 'POP', 'CHA', 'PRF']
+                .filter((key) => stats[key] != null)
+                .map((key) => `<span>${key} ${stats[key]}</span>`).join('');
+              const big = document.getElementById('plStatsBig');
+              if (big) big.innerHTML = `<span>总评 <b>${variant.overall ?? '—'}</b></span>${statHtml2}`;
+              const sub = document.getElementById('plModalSub');
+              if (sub) sub.textContent = `${item.jp_name || ''} · ${item.ro_name || ''} · ${variant.studio || ''} · 变体 ${variant.variant || index + 1}/${variantList.length}`;
+            });
+          });
+        } catch (error) {
+          modalBox.innerHTML = `<div style="padding:30px;color:#ff9b9b">${esc(error.message)}</div>`;
+        }
+      }
+
+      function closeModal() {
+        modal.hidden = true;
+        document.body.style.overflow = '';
+      }
+
+      document.getElementById('plClose').addEventListener('click', closeModal);
+      modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
+      document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !modal.hidden) closeModal(); });
+
+      let timer = 0;
+      query.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => load(true), 350);
+      });
+      [sortSelect, orderSelect, studioSelect].forEach((el) => el.addEventListener('change', () => load(true)));
+      moreBtn.addEventListener('click', () => load(false));
+
+      load(true);
+    })();
+  </script>
+</body>
+</html>

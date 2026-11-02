@@ -18,10 +18,13 @@ from werkzeug.security import generate_password_hash
 ROOT = Path(__file__).resolve().parent
 MODULES = (
     ("video", "视频生成", "/video", "从首尾帧到完整视频，管理你的生成任务", "film"),
+    ("player", "本地视频", "/player", "浏览本地片库、播放视频与查看影片资料", "play-circle"),
     ("image", "图片生成", "/image", "用自然语言描述创意，生成单图或批量作品", "image"),
     ("chat", "文本对话", "/chat", "与创作助手对话，梳理灵感与文案", "comment"),
     ("review", "图片标注", "/photo/review", "筛选、评价与整理生成结果", "check-square"),
     ("library", "图片库", "/photo/library", "在自己的作品中查找与预览图片", "th-large"),
+    ("nya", "番号下载", "/nya", "按番号搜索资源，一键送迅雷下载", "download"),
+    ("idols", "选手库", "/players", "卡牌评分、档案资料、标签与评论", "users"),
     ("rewrite", "记忆仿写", "/photo/rewrite", "管理员维护共享记忆与批量仿写任务", "magic"),
     ("settings", "服务设置", "/settings", "集中维护生成服务与平台凭据", "sliders"),
 )
@@ -82,6 +85,12 @@ class WorkspaceIndex(IndexView):
 
 def route_module():
     path = request.path.rstrip("/") or "/"
+    if path == "/nya" or path.startswith("/api/nya"):
+        return "nya"
+    if path == "/players" or path.startswith("/api/players"):
+        return "idols"
+    if path in ("/player", "/video_player.html") or path.startswith("/api/player/"):
+        return "player"
     if path.startswith("/photo/api/rewrite") or path == "/photo/rewrite":
         return "rewrite"
     if path.startswith("/photo/api/review") or path == "/photo/review":

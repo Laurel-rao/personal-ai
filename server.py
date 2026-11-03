@@ -19,6 +19,7 @@ import ssl
 import subprocess
 import threading
 import time
+import concurrent.futures as futures
 import html as html_lib
 import urllib.error
 import urllib.parse
@@ -386,7 +387,7 @@ def api_health() -> Response:
 # ---------------------------------------------------------------- 选手库（amxiaolin 数据）
 
 _AM_DIR = DATA_DIR / "amxiaolin"
-_AM_STATE: dict[str, Any] = {"mtime": 0.0, "cards": [], "profiles": {}, "tags": {}, "comments": {}}
+_AM_STATE: dict[str, Any] = {"mtime": 0.0, "cards": [], "profiles": {}, "tags": {}, "comments": {}, "enrich": {}}
 _AM_LOCK = threading.RLock()
 
 _STAT_KEYS = ("FAC", "BDY", "SKL", "POP", "CHA", "PRF")
@@ -397,7 +398,8 @@ def _am_load() -> dict[str, Any]:
     merged = _AM_DIR / "players-merged.json"
     tags_file = _AM_DIR / "player-tags.jsonl"
     comments_file = _AM_DIR / "player-comments.jsonl"
-    stamp = max((p.stat().st_mtime for p in (merged, tags_file, comments_file) if p.exists()), default=0.0)
+    enrich_file = _AM_DIR / "dmm-enrich.json"
+    stamp = max((p.stat().st_mtime for p in (merged, tags_file, comments_file, enrich_file) if p.exists()), default=0.0)
     with _AM_LOCK:
         if _AM_STATE["mtime"] == stamp and _AM_STATE["cards"]:
             return _AM_STATE
@@ -436,9 +438,15 @@ def _am_load() -> dict[str, Any]:
     groups: dict[str, list[dict[str, Any]]] = {}
     for card in cards:
         groups.setdefault(_person_key(card, profiles.get(card["id"], {})), []).append(card)
+    enrich: dict[str, dict[str, Any]] = {}
+    if enrich_file.is_file():
+        try:
+            enrich = json.loads(enrich_file.read_text(encoding="utf-8"))
+        except ValueError:
+            enrich = {}
     with _AM_LOCK:
         _AM_STATE.update(mtime=stamp, cards=cards, profiles=profiles, tags=tags, comments=comments,
-                         groups=groups)
+                         groups=groups, enrich=enrich)
     return _AM_STATE
 
 
@@ -463,6 +471,7 @@ def _bust(measurements: str) -> int:
 
 
 def _am_item(card: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
+    extra = (_AM_STATE.get("enrich") or {}).get(card.get("id"), {})
     birthday = card.get("birthday") or profile.get("birthday") or ""
     age = ""
     if re.match(r"^\d{4}-\d{2}-\d{2}$", birthday):
@@ -480,11 +489,11 @@ def _am_item(card: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
         "position": card.get("position") or "",
         "overall": card.get("overall"),
         "stats": card.get("stats") or {},
-        "height": profile.get("height") or "",
+        "height": profile.get("height") or extra.get("height") or "",
         "birthday": birthday,
         "age": age,
-        "measurements": card.get("measurements") or profile.get("measurements") or "",
-        "bust": _bust(card.get("measurements") or profile.get("measurements") or ""),
+        "measurements": card.get("measurements") or profile.get("measurements") or extra.get("measurements") or "",
+        "bust": _bust(card.get("measurements") or profile.get("measurements") or extra.get("measurements") or ""),
         "debut": profile.get("debutYear") or "",
         "agency": profile.get("agency") or "",
         "followers": card.get("totalFollowers") or 0,
@@ -492,6 +501,7 @@ def _am_item(card: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
         "sources": profile.get("sources") or [],
         "card_image": f"/api/players/card/{card.get('id')}" if card.get("card") else "",
         "tags": _AM_STATE.get("tags", {}).get(card.get("id"), []),
+        "dmm_id": extra.get("dmm_id") or "",
     }
 
 
@@ -501,7 +511,7 @@ def api_players_list() -> Response:
     cards, profiles, groups = state["cards"], state["profiles"], state.get("groups") or {}
     query = (request.args.get("q") or "").strip().lower()
     studio = (request.args.get("studio") or "").strip()
-    sort = (request.args.get("sort") or "overall").strip()
+    sort = (request.args.get("sort") or "FAC").strip()
     order = (request.args.get("order") or "desc").strip()
     show_all = request.args.get("show") == "all"
     try:
@@ -545,6 +555,629 @@ def api_players_list() -> Response:
     studios = sorted({card.get("studio") for card in cards if card.get("studio")})
     return jsonify({"success": True, "total": len(entries), "offset": offset, "limit": limit,
                     "studios": studios, "items": entries[offset:offset + limit]})
+
+
+_PLAYER_PHOTO_DIR = _AM_DIR / "photos"
+
+
+def _idolbase_slug(roman_name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (roman_name or "").lower()).strip("-")
+
+
+def _idolbase_images(roman_name: str, sources: list[str]) -> list[str]:
+    """theidolbase 演员页的写真画廊（1080px 级原图）。"""
+    urls = [u for u in (sources or []) if "theidolbase.com/actress/" in u]
+    if not urls:
+        slug = _idolbase_slug(roman_name)
+        if slug:
+            urls = [f"https://www.theidolbase.com/actress/{slug}"]
+    images: list[str] = []
+    for page_url in urls[:1]:
+        try:
+            html_text = _nya_fetch(page_url, timeout=25).decode("utf-8", "ignore")
+        except Exception:  # noqa: BLE001
+            continue
+        gallery = re.findall(r"https://image\.yingzhiben\.info/gallery/[^\"'\s]+?\.(?:jpg|jpeg|webp)", html_text)
+        avatar = re.findall(r"https://image\.yingzhiben\.info/avatar/[^\"'\s]+?\.(?:jpg|jpeg|webp)", html_text)
+        seen = set()
+        for item in gallery + avatar:
+            if item in seen:
+                continue
+            seen.add(item)
+            images.append(item)
+    return images
+
+
+_ACTORBASE_ALIASES = {
+    "hashimoto-arina": "arata-arina",
+    "arina-hashimoto": "arata-arina",
+}
+
+
+def _actorbase_slugs(roman_name: str) -> list[str]:
+    tokens = [t for t in re.split(r"[^A-Za-z0-9]+", (roman_name or "").lower()) if t]
+    if not tokens:
+        return []
+    base = ["-".join(reversed(tokens)), "-".join(tokens)]
+    extra = [_ACTORBASE_ALIASES[key] for key in base if key in _ACTORBASE_ALIASES]
+    return list(dict.fromkeys(base + extra))
+
+
+_ACTORBASE_WORKS_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_ACTORBASE_WORKS_TTL = 86400.0
+
+
+def _actorbase_works(roman_name: str) -> list[dict[str, Any]]:
+    """theactorbase /plates：演员作品车牌号列表（番号/时长/发行日/厂牌）。"""
+    if not roman_name:
+        return []
+    cache_key = roman_name.lower()
+    now = time.time()
+    cached = _ACTORBASE_WORKS_CACHE.get(cache_key)
+    if cached and now - cached[0] < _ACTORBASE_WORKS_TTL:
+        return cached[1]
+    works: list[dict[str, Any]] = []
+    for slug in _actorbase_slugs(roman_name):
+        try:
+            page = _nya_fetch(f"https://www.theactorbase.com/people/{slug}/plates", timeout=25).decode("utf-8", "ignore")
+        except Exception:  # noqa: BLE001
+            continue
+        rows = re.findall(
+            r'<td class="col-fanhao">([^<]+)</td>\s*<td class="col-runtime">([^<]*)</td>\s*<td>([^<]*)</td>\s*<td class="col-company">([^<]*)</td>',
+            page, re.S)
+        if not rows:
+            rows = re.findall(
+                r'<td[^>]*col-fanhao[^>]*>([^<]+)</td>.*?<td[^>]*col-runtime[^>]*>([^<]*)</td>.*?<td[^>]*>([0-9]{4}-[0-9]{2}-[0-9]{2})</td>.*?<td[^>]*col-company[^>]*>([^<]*)</td>',
+                page, re.S)
+        for code, runtime, date, studio in rows:
+            works.append({
+                "code": html_lib.unescape(code).strip(),
+                "runtime": html_lib.unescape(runtime).strip(),
+                "date": html_lib.unescape(date).strip(),
+                "studio": html_lib.unescape(studio).strip(),
+            })
+        if works:
+            break
+    _ACTORBASE_WORKS_CACHE[cache_key] = (now, works)
+    return works
+
+
+def _agency_portraits(jp_name: str, roman_name: str) -> list[str]:
+    """事务所官方肖像（T-POWERS 1044x1568 / LIFE 800x1200 / LINX 1164x1746）。"""
+    urls: list[str] = []
+    roman = (roman_name or "").strip()
+    if jp_name:
+        try:
+            page = _nya_fetch(f"https://www.t-powers.co.jp/talent/{urllib.parse.quote(jp_name)}/", timeout=20).decode("utf-8", "ignore")
+            found = re.findall(r"background-image:\s*url\((['\"]?)(https://www\.t-powers\.co\.jp/wp2021/wp-content/uploads/[^)'\"]+\.(?:jpg|jpeg|png))", page)
+            urls.extend(item[1] for item in found[:2])
+        except Exception:  # noqa: BLE001
+            pass
+    tokens = [t for t in re.split(r"[^A-Za-z0-9]+", roman.lower()) if t]
+    if tokens:
+        slug = "-".join(reversed(tokens))
+        urls.append(f"https://life-promotion.com/images/model/{slug}.webp")
+        try:
+            page = _nya_fetch(f"https://linx.live/model/{slug}/", timeout=20).decode("utf-8", "ignore")
+            found = re.findall(r'src="(https://linx\.live/_astro/[^"]+\.webp)"', page)
+            urls.extend(found[:2])
+        except Exception:  # noqa: BLE001
+            pass
+    return urls
+
+
+def _yahoo_images(name: str, limit: int = 24) -> list[str]:
+    """Yahoo! JAPAN 画像検索（原图直链，最高 3072px）。"""
+    if not name:
+        return []
+    images: list[str] = []
+    for offset in (1, 21):
+        try:
+            page = _nya_fetch(f"https://search.yahoo.co.jp/image/search?p={urllib.parse.quote(name)}&b={offset}", timeout=25).decode("utf-8", "ignore")
+        except Exception:  # noqa: BLE001
+            continue
+        for url, width in re.findall(r'"original":\{"url":"([^"]+?)"[^}]*?"width":(\d+)', page):
+            if int(width) < 800:
+                continue
+            cleaned = url.replace("\\u0026", "&").replace("\\/", "/")
+            images.append(cleaned)
+        if len(images) >= limit:
+            break
+    return list(dict.fromkeys(images))[:limit]
+
+
+def _actorbase_images(roman_name: str) -> list[str]:
+    """theactorbase 日常照（/people/<slug>/photos 的 gallery 图，1080px）。"""
+    for slug in _actorbase_slugs(roman_name):
+        for path in (f"/people/{slug}/photos", f"/people/{slug}"):
+            try:
+                page = _nya_fetch(f"https://www.theactorbase.com{path}", timeout=25).decode("utf-8", "ignore")
+            except Exception:  # noqa: BLE001
+                continue
+            gallery = re.findall(r"https?://image\.theactorbase\.com/gallery/[^\"'\s]+?\.(?:jpg|jpeg|webp|png)", page)
+            galleries = [g.replace("http://", "https://") for g in gallery]
+            deduped = list(dict.fromkeys(galleries))
+            if len(deduped) >= 6:
+                return deduped
+            if deduped:
+                return deduped
+    return []
+
+
+def _all4jp_images(roman_name: str) -> list[str]:
+    """all4jp 演员标签页图片（备用源）。"""
+    tokens = [t for t in re.split(r"[^a-z0-9]+", (roman_name or "").lower()) if t]
+    slugs = ["-".join(reversed(tokens)), "-".join(tokens)] if tokens else []
+    images: list[str] = []
+    for slug in slugs[:1]:
+        try:
+            page = _nya_fetch(f"https://all4jp.com/tag/{slug}/", timeout=20).decode("utf-8", "ignore")
+        except Exception:  # noqa: BLE001
+            continue
+        if "Page not found" in page:
+            continue
+        images = re.findall(r"https://i\.ibb\.co/[^\"'\s]+?\.(?:jpg|jpeg|png)", page)
+        if images:
+            break
+    return images
+
+
+def _javdatabase_codes(roman_name: str, limit: int = 6) -> list[str]:
+    """按女优名在 javdatabase 搜作品列表，返回番号（用于取官方剧照）。"""
+    tokens = [t for t in re.split(r"[^A-Za-z0-9]+", roman_name or "") if t]
+    queries = [" ".join(reversed(tokens)), " ".join(tokens)] if tokens else []
+    codes: list[str] = []
+    seen: set[str] = set()
+    for query in queries[:1]:
+        try:
+            page = _nya_fetch(f"https://www.javdatabase.com/?s={urllib.parse.quote(query)}", timeout=25).decode("utf-8", "ignore")
+        except Exception:  # noqa: BLE001
+            continue
+        for slug in re.findall(r"/movies/([a-z0-9-]+)/", page):
+            if slug in seen:
+                continue
+            seen.add(slug)
+            codes.append(slug)
+            if len(codes) >= limit:
+                return codes
+    return codes
+
+
+def _dmm_cid(code: str) -> str:
+    """SNIS-946 -> snis00946（DMM 内容 ID）。"""
+    match = re.match(r"^([A-Za-z]+)[-_ ]?0*(\d{1,4})", code or "")
+    if not match:
+        return ""
+    return f"{match.group(1).lower()}{match.group(2).zfill(5)}"
+
+
+_COMPILATION_PREFIXES = ("IDBD", "IPOK", "OFJE", "IBW", "SONE", "OAE", "MIRD")
+
+
+def _javdb_title_matches(code: str, roman_name: str) -> bool:
+    """校验 javdatabase 该作品页标题里确实有这位女优。"""
+    tokens = [t for t in re.split(r"[^A-Za-z0-9]+", roman_name or "") if t]
+    if not tokens:
+        return False
+    try:
+        page = _nya_fetch(f"https://www.javdatabase.com/movies/{code}/", timeout=20).decode("utf-8", "ignore")
+    except Exception:  # noqa: BLE001
+        return False
+    title = re.search(r"<title>([^<]+)</title>", page)
+    if not title:
+        return False
+    lowered = title.group(1).lower()
+    return all(token.lower() in lowered for token in tokens)
+
+
+def _dmm_stills(roman_name: str, limit_codes: int = 10) -> list[tuple[str, list[str]]]:
+    """按女优作品返回 (番号, 剧照URL列表) 分组，便于逐组尝试。
+
+    作品来源：theactorbase 精确作品表（按发行日倒序，跳过合集），
+    并用 javdatabase 页标题校验确实包含该女优。
+    """
+    codes: list[str] = []
+    works = _actorbase_works(roman_name) if roman_name else []
+    for work in works:
+        code = (work.get("code") or "").strip()
+        if not code:
+            continue
+        prefix = re.match(r"^([A-Za-z]+)", code)
+        if prefix and prefix.group(1).upper() in _COMPILATION_PREFIXES:
+            continue
+        codes.append(code)
+        if len(codes) >= limit_codes * 2:
+            break
+    if not codes:
+        codes = [c.upper() for c in _javdatabase_codes(roman_name, limit=limit_codes)]
+
+    verified: list[str] = []
+    with futures.ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda code: (code, _javdb_title_matches(code, roman_name)), codes[:limit_codes * 2]))
+    for code, ok in results:
+        if ok:
+            verified.append(code)
+        if len(verified) >= limit_codes:
+            break
+    if not verified:
+        verified = codes[:limit_codes]
+
+    groups: list[tuple[str, list[str]]] = []
+    for code in verified:
+        cid = _dmm_cid(code)
+        if not cid:
+            continue
+        urls = [f"https://awsimgsrc.dmm.co.jp/pics_dig/digital/video/{cid}/{cid}jp-{index}.jpg"
+                for index in range(1, 11)]
+        groups.append((code.upper(), urls))
+    return groups
+
+
+def _player_photos(card_id: str, name: str, roman_name: str = "", sources: list[str] | None = None,
+                   limit: int = 12, force: bool = False, kind: str = "stills",
+                   jp_name_for_photos: str = "") -> list[str]:
+    key = re.sub(r"[^A-Za-z0-9_-]+", "-", card_id)[:80] or "player"
+    if kind == "daily":
+        key += "~daily"
+    folder = _PLAYER_PHOTO_DIR / key
+    manifest_file = folder / "manifest.json"
+    manifest: dict[str, Any] = {}
+    if manifest_file.is_file():
+        try:
+            manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+        except ValueError:
+            manifest = {}
+    files = sorted(p.name for p in folder.glob("*.jpg")) if folder.is_dir() else []
+    fresh = (time.time() - manifest.get("fetched_at", 0)) < 7 * 86400 and manifest.get("source") in {"theidolbase", "dmm-stills", "all4jp", "javdatabase-covers", "actorbase"}
+    if not force and fresh and files:
+        return [f"/api/players/photo/{key}/{name_}" for name_ in files]
+    def download(candidate: str) -> bytes | None:
+        try:
+            data = _nya_fetch(candidate, timeout=20)
+        except Exception:  # noqa: BLE001
+            return None
+        return data if len(data) >= 25000 and data[:2] == b"\xff\xd8" else None
+
+    folder.mkdir(parents=True, exist_ok=True)
+    for old_file in folder.glob("*.jpg"):
+        old_file.unlink()
+
+    saved = 0
+    source_name = "dmm-stills"
+    if kind == "daily":
+        candidates = _agency_portraits(jp_name_for_photos, roman_name)
+        candidates += _actorbase_images(roman_name) if roman_name else []
+        if len(candidates) < 6 and jp_name_for_photos:
+            candidates += _yahoo_images(jp_name_for_photos)
+        with futures.ThreadPoolExecutor(max_workers=6) as pool:
+            for data in pool.map(download, candidates[:40]):
+                if saved >= limit:
+                    break
+                if not data:
+                    continue
+                saved += 1
+                (folder / f"{saved:02d}.jpg").write_bytes(data)
+        if saved:
+            source_name = "actorbase"
+        if saved == 0:
+            candidates = _idolbase_images(roman_name, sources or [])
+            source_name = "theidolbase"
+            with futures.ThreadPoolExecutor(max_workers=6) as pool:
+                for data in pool.map(download, candidates[:40]):
+                    if saved >= limit:
+                        break
+                    if not data:
+                        continue
+                    saved += 1
+                    (folder / f"{saved:02d}.jpg").write_bytes(data)
+        if saved:
+            manifest_file.write_text(json.dumps({"fetched_at": time.time(), "count": saved, "source": source_name},
+                                                ensure_ascii=False), encoding="utf-8")
+        files = sorted(p.name for p in folder.glob("*.jpg"))
+        return [f"/api/players/photo/{key}/{name_}" for name_ in files]
+
+    if roman_name:
+        tried = 0
+        for _code, urls in _dmm_stills(roman_name):
+            if saved >= limit:
+                break
+            tried += 1
+            valid = 0
+            with futures.ThreadPoolExecutor(max_workers=5) as pool:
+                for data in pool.map(download, urls):
+                    if saved >= limit:
+                        break
+                    if not data:
+                        continue
+                    valid += 1
+                    saved += 1
+                    (folder / f"{saved:02d}.jpg").write_bytes(data)
+            # 第一部就完全没剧照（老片常见）→ 直接走封面兜底，别逐部试
+            if tried >= 1 and valid == 0 and saved == 0:
+                break
+    if saved < 3 and roman_name:
+        for data in _javdatabase_covers(roman_name, limit=limit):
+            if saved >= limit:
+                break
+            saved += 1
+            (folder / f"{saved:02d}.jpg").write_bytes(data)
+        if saved:
+            source_name = "javdatabase-covers"
+    if saved == 0:
+        candidates = _idolbase_images(roman_name, sources or [])
+        source_name = "theidolbase"
+        if not candidates:
+            candidates = _all4jp_images(roman_name)
+            source_name = "all4jp"
+        with futures.ThreadPoolExecutor(max_workers=6) as pool:
+            for data in pool.map(download, candidates[:40]):
+                if saved >= limit:
+                    break
+                if not data:
+                    continue
+                saved += 1
+                (folder / f"{saved:02d}.jpg").write_bytes(data)
+    if saved:
+        manifest_file.write_text(json.dumps({"fetched_at": time.time(), "count": saved, "source": source_name},
+                                            ensure_ascii=False), encoding="utf-8")
+    files = sorted(p.name for p in folder.glob("*.jpg"))
+    return [f"/api/players/photo/{key}/{name_}" for name_ in files]
+
+
+def _ndl_books(name: str, limit: int = 18) -> list[dict[str, Any]]:
+    """国立国会図書館サーチ：写真集书目检索。"""
+    queries = [f"{name} 写真集", f"{name} ヌード"]
+
+    def fetch_xml(query: str) -> str:
+        url = ("https://ndlsearch.ndl.go.jp/api/opensearch?any="
+               f"{urllib.parse.quote(query)}&cnt=20")
+        try:
+            return _nya_fetch(url, timeout=25).decode("utf-8", "ignore")
+        except Exception:  # noqa: BLE001
+            return ""
+
+    with futures.ThreadPoolExecutor(max_workers=2) as pool:
+        pages = list(pool.map(fetch_xml, queries))
+    results: list[dict[str, Any]] = []
+    seen = set()
+    for xml_text in pages:
+        for item in re.findall(r"<item>(.*?)</item>", xml_text, re.S):
+            title = re.search(r"<title>([^<]+)</title>", item)
+            creator = re.search(r"<dc:creator>([^<]*)</dc:creator>", item)
+            date = re.search(r"<dc:date>([^<]*)</dc:date>", item)
+            link = re.search(r"<link>([^<]+)</link>", item)
+            ident = re.search(r"<dc:identifier[^>]*>([^<]+)</dc:identifier>", item)
+            if not title:
+                continue
+            key = title.group(1)
+            if key in seen:
+                continue
+            seen.add(key)
+            results.append({
+                "title": html_lib.unescape(title.group(1)).strip(),
+                "creator": html_lib.unescape(creator.group(1)).strip() if creator else "",
+                "date": (date.group(1) or "").strip() if date else "",
+                "link": (link.group(1) or "").strip() if link else "",
+                "isbn": (ident.group(1) or "").strip() if ident else "",
+            })
+    return results[:limit]
+
+
+_BOOK_COVER_DIR = _AM_DIR / "book-covers"
+_BOOK_COVER_LOCKS: dict[str, threading.Lock] = {}
+_BOOK_COVER_LOCK = threading.Lock()
+
+
+def _isbn_digits(isbn: str) -> str:
+    digits = re.sub(r"[^0-9Xx]", "", isbn or "").upper()
+    return digits
+
+
+def _book_cover(isbn: str) -> str:
+    """Google Books 封面 → 下载到本地缓存，返回可访问路径。"""
+    key = _isbn_digits(isbn)
+    if len(key) not in (10, 13):
+        return ""
+    _BOOK_COVER_DIR.mkdir(parents=True, exist_ok=True)
+    target = _BOOK_COVER_DIR / f"{key}.jpg"
+    if target.is_file() and target.stat().st_size > 2000:
+        return f"/api/players/bookcover/{key}"
+    with _BOOK_COVER_LOCK:
+        lock = _BOOK_COVER_LOCKS.setdefault(key, threading.Lock())
+    with lock:
+        if target.is_file() and target.stat().st_size > 2000:
+            return f"/api/players/bookcover/{key}"
+        try:
+            raw = _nya_fetch(f"https://books.google.com/books?jscmd=viewapi&bibkeys=ISBN:{key}", timeout=20).decode("utf-8", "ignore")
+        except Exception:  # noqa: BLE001
+            return ""
+        match = re.search(r'"thumbnail_url":"([^"]+)"', raw)
+        if not match:
+            return ""
+        url = match.group(1).replace("\\u0026", "&")
+        for zoom in (1, 5):
+            candidate = re.sub(r"zoom=\d+", f"zoom={zoom}", url)
+            try:
+                data = _nya_fetch(candidate, timeout=20)
+            except Exception:  # noqa: BLE001
+                continue
+            if len(data) < 3000 or data[:2] != b"\xff\xd8":
+                continue
+            try:
+                from PIL import Image as _Image
+                import io as _io
+                image = _Image.open(_io.BytesIO(data)).convert("RGB")
+                buffer = _io.BytesIO()
+                image.save(buffer, format="JPEG", quality=88)
+                data = buffer.getvalue()
+            except Exception:  # noqa: BLE001
+                pass
+            target.write_bytes(data)
+            return f"/api/players/bookcover/{key}"
+    return ""
+
+
+@console_bp.get("/api/players/bookcover/<isbn>")
+def api_players_bookcover(isbn: str) -> Response:
+    key = _isbn_digits(isbn)
+    target = (_BOOK_COVER_DIR / f"{key}.jpg").resolve()
+    base = _BOOK_COVER_DIR.resolve()
+    if not str(target).startswith(str(base)) or not target.is_file():
+        return error_response(404, "封面不存在")
+    return send_file(target, mimetype="image/jpeg", max_age=86400)
+
+
+@console_bp.get("/api/players/books")
+def api_players_books() -> Response:
+    name = (request.args.get("name") or "").strip()
+    if not name:
+        return error_response(400, "缺少 name")
+    books = _ndl_books(name)
+
+    def with_cover(book: dict[str, Any]) -> dict[str, Any]:
+        book["cover"] = _book_cover(book.get("isbn", ""))
+        return book
+
+    with futures.ThreadPoolExecutor(max_workers=6) as pool:
+        books = list(pool.map(with_cover, books))
+    return jsonify({"success": True, "name": name, "count": len(books), "books": books})
+
+
+_PHOTO_PREVIEW_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_PHOTO_PREVIEW_TTL = 3600.0
+
+
+def _preview_images_from_article(url: str, host_hint: str) -> list[str]:
+    try:
+        page = _nya_fetch(url, timeout=20).decode("utf-8", "ignore")
+    except Exception:  # noqa: BLE001
+        return []
+    found: list[str] = []
+    if "wpb.shueisha.co.jp" in host_hint:
+        for srcset in re.findall(r'srcset="([^"]+)"', page):
+            pairs = re.findall(r'((?:https?://|/)[^\s,]+?)\s+(\d+)w', srcset)
+            if not pairs:
+                continue
+            best = max(pairs, key=lambda x: int(x[1]))
+            if int(best[1]) >= 400:
+                url = best[0]
+                if url.startswith("/"):
+                    url = "https://wpb.shueisha.co.jp" + url
+                found.append(url)
+        for match in re.findall(r'(https://wpb\.shueisha\.co\.jp/[^"\s]+?-\d+\.(?:jpg|jpeg|webp))', page):
+            found.append(match)
+    elif "nikkan-spa.jp" in host_hint:
+        found.extend(re.findall(r'(https://nikkan-spa\.jp/wp-content/uploads/[^"\s]+\.(?:jpg|jpeg|png))', page))
+    elif "menscyzo.com" in host_hint:
+        found.extend(re.findall(r'(https://www\.menscyzo\.com/wp-content/uploads/[^"\s]+\.(?:jpg|jpeg|png))', page))
+    deduped = list(dict.fromkeys(found))
+    return [u for u in deduped if not any(x in u.lower() for x in ("logo", "icon", "banner", "sprite", "avatar", "thumb"))]
+
+
+def _photo_preview(name: str) -> list[dict[str, Any]]:
+    """写真集预览：週プレ / メンズサイゾー 的免费先行图。"""
+    key = name.strip()
+    now = time.time()
+    cached = _PHOTO_PREVIEW_CACHE.get(key)
+    if cached and now - cached[0] < _PHOTO_PREVIEW_TTL:
+        return cached[1]
+    results: list[dict[str, Any]] = []
+    sources = [
+        ("週プレNEWS", f"https://wpb.shueisha.co.jp/search/?keyword={urllib.parse.quote(name)}", r'href="(/gravure/[0-9]{8}-[0-9]+/)"'),
+        ("メンズサイゾー", f"https://www.menscyzo.com/?s={urllib.parse.quote(name)}", r'href="(https://www\.menscyzo\.com/[0-9]{4}/[0-9]{2}/post_[0-9]+\.html)"'),
+        ("日刊SPA!", f"https://nikkan-spa.jp/wp-json/wp/v2/posts?search={urllib.parse.quote(name)}&per_page=3&_fields=link", r'"link":"(https://nikkan-spa\.jp/[0-9]+)"'),
+    ]
+    for label, search_url, pattern in sources:
+        try:
+            listing = _nya_fetch(search_url, timeout=25).decode("utf-8", "ignore")
+            listing = listing.replace("\\/", "/")
+        except Exception:  # noqa: BLE001
+            continue
+        links = list(dict.fromkeys(re.findall(pattern, listing)))[:2]
+        urls = [link if link.startswith("http") else "https://wpb.shueisha.co.jp" + link for link in links]
+        with futures.ThreadPoolExecutor(max_workers=2) as pool:
+            page_images = list(pool.map(lambda url: (url, _preview_images_from_article(url, url)), urls))
+        for url, images in page_images:
+            if not images:
+                continue
+            results.append({"source": label, "article": url, "images": images[:8]})
+            if len(results) >= 4:
+                break
+        if len(results) >= 4:
+            break
+    _PHOTO_PREVIEW_CACHE[key] = (now, results)
+    return results
+
+
+@console_bp.get("/api/players/preview")
+def api_players_preview() -> Response:
+    name = (request.args.get("name") or "").strip()
+    if not name:
+        return error_response(400, "缺少 name")
+    previews = _photo_preview(name)
+    total = sum(len(p["images"]) for p in previews)
+    return jsonify({"success": True, "name": name, "count": total, "previews": previews})
+
+
+@console_bp.get("/api/players/works")
+def api_players_works() -> Response:
+    card_id = (request.args.get("id") or "").strip()
+    if not card_id:
+        return error_response(400, "缺少 id")
+    state = _am_load()
+    roman_name = ""
+    for card in state["cards"]:
+        if card.get("id") == card_id:
+            profile = state["profiles"].get(card_id, {})
+            roman_name = card.get("name") or profile.get("name") or ""
+            break
+    if not roman_name:
+        return error_response(404, "没有找到这位选手")
+    works = _actorbase_works(roman_name)
+    return jsonify({"success": True, "count": len(works), "works": works})
+
+
+@console_bp.get("/api/players/photos")
+def api_players_photos() -> Response:
+    card_id = (request.args.get("id") or "").strip()
+    if not card_id:
+        return error_response(400, "缺少 id")
+    state = _am_load()
+    name = roman_name = jp_name = ""
+    sources: list[str] = []
+    for card in state["cards"]:
+        if card.get("id") == card_id:
+            profile = state["profiles"].get(card_id, {})
+            name = card.get("displayName") or profile.get("displayName") or ""
+            roman_name = card.get("name") or profile.get("name") or ""
+            jp_name = profile.get("japaneseName") or ""
+            sources = profile.get("sources") or []
+            break
+    if not name:
+        return error_response(404, "没有找到这位选手")
+    kind = (request.args.get("kind") or "stills").lower()
+    photos = _player_photos(card_id, name, roman_name=roman_name, sources=sources, kind=kind,
+                            jp_name_for_photos=jp_name,
+                            force=request.args.get("refresh") == "1")
+    source = ""
+    folder_key = re.sub(r"[^A-Za-z0-9_-]+", "-", card_id)[:80] + ("~daily" if kind == "daily" else "")
+    manifest = _PLAYER_PHOTO_DIR / folder_key / "manifest.json"
+    if manifest.is_file():
+        try:
+            source = json.loads(manifest.read_text(encoding="utf-8")).get("source", "")
+        except ValueError:
+            source = ""
+    return jsonify({"success": True, "name": name, "photos": photos, "source": source})
+
+
+@console_bp.get("/api/players/photo/<path:name>")
+def api_players_photo(name: str) -> Response:
+    safe = re.sub(r"[^A-Za-z0-9._/-]+", "-", name)
+    target = (_PLAYER_PHOTO_DIR / safe).resolve()
+    base = _PLAYER_PHOTO_DIR.resolve()
+    if not str(target).startswith(str(base)) or not target.is_file():
+        return error_response(404, "图片不存在")
+    return send_file(target, mimetype="image/jpeg", max_age=86400)
 
 
 @console_bp.get("/api/players/detail")
@@ -618,6 +1251,24 @@ def _nya_open(url: str, timeout: int = 30) -> bytes:
     req = urllib.request.Request(url, headers=headers)
     with opener.open(req, timeout=timeout) as response:
         return response.read()
+
+
+def _nya_post_json(url: str, payload: dict[str, Any], timeout: int = 30) -> dict[str, Any]:
+    """经代理 POST JSON（DMM GraphQL 用）。"""
+    proxy = {"http": NYAA_PROXY, "https": NYAA_PROXY} if NYAA_PROXY else {}
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxy))
+    body = json.dumps(payload).encode("utf-8")
+    headers = {
+        "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                       "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"),
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Origin": "https://video.dmm.co.jp",
+        "Referer": "https://video.dmm.co.jp/",
+    }
+    req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    with opener.open(req, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8", "ignore"))
 
 
 def _nya_fetch(url: str, timeout: int = 30) -> bytes:
@@ -711,17 +1362,22 @@ def _nya_code_dir(code: str) -> Path:
     return target
 
 
-def _btdig_fetch(url: str, timeout: int = 25) -> str:
-    """btdig 对 urllib 会返回 429，固定走 curl。"""
+_BTDIG_DOWN_UNTIL = 0.0
+
+
+def _btdig_fetch(url: str, timeout: int = 6) -> str:
+    """btdig 对 urllib 会返回 429，固定走 curl；失败则熔断 10 分钟。"""
+    global _BTDIG_DOWN_UNTIL
+    if time.time() < _BTDIG_DOWN_UNTIL:
+        return ""
     command = ["curl", "-sS", "--max-time", str(timeout), "-L"]
     if NYAA_PROXY:
         command += ["-x", NYAA_PROXY]
     command += ["-A", "curl/8.0", url]
-    for attempt in range(2):
-        proc = subprocess.run(command, capture_output=True)
-        if proc.returncode == 0 and proc.stdout:
-            return proc.stdout.decode("utf-8", "ignore")
-        time.sleep(1.5)  # 限流冷却后重试一次
+    proc = subprocess.run(command, capture_output=True)
+    if proc.returncode == 0 and proc.stdout:
+        return proc.stdout.decode("utf-8", "ignore")
+    _BTDIG_DOWN_UNTIL = time.time() + 600
     return ""
 
 
@@ -763,27 +1419,75 @@ def _nya_search_btdig(query: str) -> list[dict[str, Any]]:
     return results
 
 
+_NYA_SEARCH_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_NYA_SEARCH_TTL = 600.0
+_NYA_SEARCH_LOCK = threading.Lock()
+
+
 @console_bp.get("/api/nya/search")
 def api_nya_search() -> Response:
     query = (request.args.get("q") or "").strip()
     if not query:
         return error_response(400, "请输入番号")
-    try:
-        results = _nya_search(query)
-    except Exception as exc:  # noqa: BLE001
-        return error_response(502, f"搜索失败：{exc}")
-    known_hashes = set()
-    for item in results:
-        magnet = item.get("magnet") or ""
-        found = re.search(r"btih[:=]([a-fA-F0-9]{40})", magnet)
-        if found:
-            known_hashes.add(found.group(1).lower())
-    extra = [item for item in _nya_search_btdig(query)
-             if item["infohash"] not in known_hashes]
-    combined = results + extra
-    return jsonify({"success": True, "query": query, "count": len(combined),
-                    "sources": {"sukebei": len(results), "btdig": len(extra)},
-                    "results": combined})
+    source = (request.args.get("source") or "all").lower()
+    cache_key = f"{source}:{query.lower()}"
+    now = time.time()
+    with _NYA_SEARCH_LOCK:
+        cached = _NYA_SEARCH_CACHE.get(cache_key)
+    if cached and now - cached[0] < _NYA_SEARCH_TTL:
+        return jsonify(cached[1])
+
+    results: list[dict[str, Any]] = []
+    extra: list[dict[str, Any]] = []
+    if source != "btdig":
+        try:
+            results = _nya_search(query)
+        except Exception as exc:  # noqa: BLE001
+            return error_response(502, f"搜索失败：{exc}")
+    if source != "sukebei":
+        try:
+            extra = _nya_search_btdig(query)
+        except Exception:  # noqa: BLE001
+            extra = []
+
+    if source == "all":
+        known_hashes = set()
+        for item in results:
+            magnet = item.get("magnet") or ""
+            found = re.search(r"btih[:=]([a-fA-F0-9]{40})", magnet)
+            if found:
+                known_hashes.add(found.group(1).lower())
+        extra = [item for item in extra if item["infohash"] not in known_hashes]
+
+    payload = {"success": True, "query": query, "source": source,
+               "count": len(results) + len(extra),
+               "sources": {"sukebei": len(results) if source != "btdig" else 0,
+                            "btdig": len(extra) if source != "sukebei" else 0},
+               "results": results + extra}
+    with _NYA_SEARCH_LOCK:
+        _NYA_SEARCH_CACHE[cache_key] = (now, payload)
+        if len(_NYA_SEARCH_CACHE) > 300:
+            _NYA_SEARCH_CACHE.pop(next(iter(_NYA_SEARCH_CACHE)))
+    return jsonify(payload)
+
+
+@console_bp.get("/api/nya/releases")
+def api_nya_releases() -> Response:
+    """批量取发售信息（一次请求替代每卡一次），最多 40 个番号。"""
+    codes = [c.strip() for c in (request.args.get("codes") or "").split(",") if c.strip()][:40]
+    if not codes:
+        return error_response(400, "缺少 codes")
+    result: dict[str, dict[str, Any]] = {}
+
+    def fetch(code: str) -> tuple[str, dict[str, Any]]:
+        return code, _release_date(code)
+
+    with futures.ThreadPoolExecutor(max_workers=12) as pool:
+        for code, info in pool.map(fetch, codes):
+            result[code.upper()] = info
+    return jsonify({"success": True, "items": result})
+
+
 
 
 @console_bp.post("/api/nya/download")
@@ -874,11 +1578,13 @@ def _nya_cover_is_placeholder(data: bytes) -> bool:
         return len(data) < 6000
 
 
-def _nya_cover_bytes(code: str) -> bytes | None:
-    """取封面图（DMM 官方 CDN 优先），内存+磁盘缓存。"""
+def _nya_cover_bytes(code: str, full: bool = False) -> bytes | None:
+    """取封面图（DMM 官方 CDN 优先），内存+磁盘缓存；full=True 取大图。"""
     key = re.sub(r"[^A-Za-z0-9_-]+", "-", code or "").strip("-").upper()
     if not key:
         return None
+    if not full:
+        key = key + "~thumb"
     with _NYA_COVER_LOCK:
         cached_bytes = _NYA_COVER_CACHE.get(key)
     if cached_bytes:
@@ -890,8 +1596,11 @@ def _nya_cover_bytes(code: str) -> bytes | None:
             _NYA_COVER_CACHE[key] = data
         return data
 
+    urls = _nya_cover_urls(code)
+    if not full:
+        urls = [u for u in urls if u.endswith("ps.jpg")] + [u for u in urls if not u.endswith("ps.jpg")]
     data = None
-    for url in _nya_cover_urls(code):
+    for url in urls:
         candidate = _nya_cover_fetch(url)
         if candidate and not _nya_cover_is_placeholder(candidate):
             data = candidate
@@ -1067,7 +1776,7 @@ def api_nya_cover() -> Response:
     code = (request.args.get("code") or "").strip()
     if not code:
         return error_response(400, "缺少 code")
-    data = _nya_cover_bytes(code)
+    data = _nya_cover_bytes(code, full=(request.args.get("size") or "thumb") == "full")
     if not data:
         return error_response(404, "没有封面")
     return Response(data, mimetype="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})

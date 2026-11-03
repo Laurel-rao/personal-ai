@@ -3,62 +3,132 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="dark" />
+  <meta name="color-scheme" content="light" />
   <title>选手库 · 创作工作台</title>
   <link rel="stylesheet" href="/ui-framework.css" />
   <link rel="stylesheet" href="/admin.css" />
   <link rel="stylesheet" href="/workspace-pages.css" />
   <style>
-    .pl-wrap { max-width: 1280px; margin: 0 auto; padding: 26px 18px 70px; }
+    body { background: var(--page-bg, #f5f7f9); color: var(--page-text, #243242); }
+    .pl-wrap { max-width: 1280px; margin: 0 auto; padding: 8px 4px 60px; }
     .pl-head { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
-    .pl-eyebrow { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted, #8b93a7); }
-    .pl-title { margin: 4px 0 6px; font-size: 26px; }
-    .pl-sub { margin: 0; color: var(--muted, #8b93a7); font-size: 13px; }
+    .pl-eyebrow { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--page-muted, #7b8795); }
+    .pl-title { margin: 4px 0 6px; font-size: 26px; color: var(--page-text, #243242); }
+    .pl-sub { margin: 0; color: var(--page-muted, #7b8795); font-size: 13px; }
     .pl-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
-    .pl-toolbar input, .pl-toolbar select { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.14); color: inherit; border-radius: 9px; padding: 9px 12px; font-size: 13px; outline: none; }
+    .pl-toolbar input, .pl-toolbar select { background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); color: var(--page-text, #243242); border-radius: 9px; padding: 9px 12px; font-size: 13px; outline: none; }
     .pl-toolbar input { min-width: 200px; flex: 1 1 200px; }
-    .pl-toolbar input:focus { border-color: rgba(120,170,255,.55); }
-    .pl-count { color: var(--muted, #8b93a7); font-size: 12.5px; margin-left: auto; }
+    .pl-toolbar input:focus { border-color: var(--page-primary, #087f65); box-shadow: 0 0 0 3px rgba(8,127,101,.12); }
+    .pl-count { color: var(--page-muted, #7b8795); font-size: 12.5px; margin-left: auto; }
     .pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 14px; }
-    .pl-card { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08); cursor: pointer; transition: transform .15s ease, border-color .15s ease; }
-    .pl-card:hover { transform: translateY(-2px); border-color: rgba(120,170,255,.45); }
-    .pl-cover { position: relative; width: 100%; aspect-ratio: 3 / 4; border-radius: 8px; overflow: hidden; background: rgba(255,255,255,.05); }
-    .pl-cover img { width: 100%; height: 100%; object-fit: contain; display: block; background: #0b0d12; }
-    .pl-variant-badge { position: absolute; top: 6px; right: 6px; background: rgba(120,170,255,.85); color: #0b0d12; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 7px; }
-    .pl-variants { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; }
-    .pl-variants img { width: 78px; aspect-ratio: 3/4; object-fit: contain; background: #0b0d12; border: 2px solid transparent; border-radius: 6px; cursor: pointer; opacity: .7; }
-    .pl-variants img.active, .pl-variants img:hover { border-color: #7aa8ff; opacity: 1; }
-    .pl-name { font-size: 13px; font-weight: 600; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pl-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; color: var(--muted, #8b93a7); }
-    .pl-meta .ov { color: #ffd08a; font-weight: 700; }
-    .pl-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 10.5px; color: var(--muted, #8b93a7); }
-    .pl-stats span { background: rgba(255,255,255,.05); border-radius: 5px; padding: 2px 4px; text-align: center; }
+    .pl-card { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+    .pl-card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(36,50,66,.1); border-color: rgba(8,127,101,.35); }
+    .pl-cover { position: relative; width: 100%; aspect-ratio: 3 / 4; border-radius: 8px; overflow: hidden; background: #0f1218; }
+    .pl-cover img { width: 100%; height: 100%; object-fit: contain; display: block; background: #0f1218; }
+    .pl-variant-badge { position: absolute; top: 6px; right: 6px; background: var(--page-primary, #087f65); color: #fff; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 7px; }
+    .pl-name { font-size: 13px; font-weight: 600; line-height: 1.35; color: var(--page-text, #243242); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pl-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; color: var(--page-muted, #7b8795); }
+    .pl-meta .ov { color: #b86e00; font-weight: 700; }
+    .pl-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 10.5px; color: var(--page-muted, #7b8795); }
+    .pl-stats span { background: #f3f6f8; border-radius: 5px; padding: 2px 4px; text-align: center; }
     .pl-more { display: flex; justify-content: center; margin-top: 18px; }
-    .pl-more button { border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05); color: inherit; border-radius: 9px; padding: 9px 22px; font-size: 13px; cursor: pointer; }
-    .pl-more button:disabled { opacity: .5; cursor: default; }
-    .pl-empty { grid-column: 1 / -1; text-align: center; padding: 50px 0; color: var(--muted, #8b93a7); }
+    .pl-more button { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 9px; padding: 9px 22px; font-size: 13px; cursor: pointer; }
+    .pl-more button:hover { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); }
+    .pl-empty { grid-column: 1 / -1; text-align: center; padding: 50px 0; color: var(--page-muted, #7b8795); }
     /* 详情弹层 */
-    .pl-modal { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.82); backdrop-filter: blur(4px); padding: 18px; }
+    .pl-modal { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; background: rgba(23,32,43,.45); padding: 18px; }
     .pl-modal[hidden] { display: none; }
-    .pl-modal-box { width: min(1020px, 96vw); max-height: 90vh; overflow: auto; display: grid; grid-template-columns: 300px 1fr; gap: 18px; background: #12151c; border: 1px solid rgba(255,255,255,.1); border-radius: 14px; padding: 18px; }
-    .pl-modal-img { width: 100%; border-radius: 10px; background: #0b0d12; }
-    .pl-modal-title { margin: 0 0 4px; font-size: 20px; }
-    .pl-modal-sub { margin: 0 0 12px; color: var(--muted, #8b93a7); font-size: 12.5px; }
-    .pl-kv { display: grid; grid-template-columns: 92px 1fr; gap: 6px 10px; font-size: 13px; margin-bottom: 12px; }
-    .pl-kv dt { color: var(--muted, #8b93a7); }
-    .pl-kv dd { margin: 0; }
-    .pl-stats-big { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-    .pl-stats-big span { background: rgba(255,255,255,.06); border-radius: 7px; padding: 5px 9px; font-size: 12px; }
-    .pl-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
-    .pl-chips span { background: rgba(120,170,255,.16); color: #a9c6ff; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; }
-    .pl-section-title { font-size: 13px; margin: 14px 0 8px; color: #c7cede; }
-    .pl-comment { border-left: 2px solid rgba(255,255,255,.12); padding: 4px 0 4px 10px; margin-bottom: 8px; font-size: 12.5px; }
-    .pl-comment b { color: #a9c6ff; font-weight: 600; }
-    .pl-comment small { color: var(--muted, #8b93a7); margin-left: 6px; }
-    .pl-close { position: absolute; top: 16px; right: 18px; border: 0; background: rgba(255,255,255,.1); color: #fff; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; }
-    .pl-links a { color: #8fd0ff; text-decoration: none; margin-right: 10px; font-size: 12.5px; }
-    @media (max-width: 760px) { .pl-modal-box { grid-template-columns: 1fr; } }
-  </style>
+    .pl-modal-box { position: relative; width: min(1080px, 96vw); max-height: 92vh; overflow: auto; display: grid; grid-template-columns: 300px 1fr; gap: 18px; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); border-radius: 14px; padding: 16px; box-shadow: 0 30px 80px rgba(23,32,43,.25); color: var(--page-text, #243242); }
+    .pl-modal-left { position: sticky; top: 0; align-self: start; }
+    .pl-modal-img { width: 100%; border-radius: 12px; background: #0f1218; border: 1px solid var(--page-line, #e3e9ee); }
+    .pl-modal-title { margin: 0 0 4px; font-size: 21px; letter-spacing: .01em; color: var(--page-text, #243242); }
+    .pl-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .pl-title-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .pl-title-chips span { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--page-primary-soft, #edf7f2); color: var(--page-primary, #087f65); }
+    .pl-modal-sub { margin: 0 0 10px; color: var(--page-muted, #7b8795); font-size: 13px; }
+    .pl-stat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 10px; }
+    .pl-stat { background: #f7f9fb; border: 1px solid var(--page-line, #e3e9ee); border-radius: 8px; padding: 6px 8px; }
+    .pl-stat-label { font-size: 10px; color: var(--page-muted, #7b8795); letter-spacing: .08em; }
+    .pl-stat-value { font-size: 16px; font-weight: 700; margin: 1px 0 4px; color: var(--page-text, #243242); }
+    .pl-stat-bar { height: 3px; border-radius: 2px; background: #e6ebef; overflow: hidden; }
+    .pl-stat-bar i { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #0a9d7e, #7ac6a8); }
+    .pl-kv { display: grid; grid-template-columns: 86px 1fr; gap: 5px 12px; font-size: 12.5px; margin: 0 0 10px; padding-top: 8px; border-top: 1px solid var(--page-line, #e3e9ee); }
+    .pl-kv dt { color: var(--page-muted, #7b8795); }
+    .pl-kv dd { margin: 0; overflow-wrap: anywhere; }
+    .pl-works { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 12px; max-height: 220px; overflow: auto; padding-right: 4px; }
+    .pl-work { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px 0; border-bottom: 1px solid #f1f4f6; }
+    .pl-work a { color: var(--page-primary, #087f65); font-weight: 600; text-decoration: none; white-space: nowrap; }
+    .pl-work a:hover { text-decoration: underline; }
+    .pl-work .meta { color: var(--page-muted, #7b8795); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pl-works .loading { grid-column: 1 / -1; color: var(--page-muted, #7b8795); font-size: 12px; padding: 6px 0; }
+    .pl-section-title { font-size: 12.5px; margin: 10px 0 6px; color: var(--page-text, #243242); display: flex; align-items: center; gap: 8px; }
+    .pl-section-title small { color: var(--page-muted, #7b8795); font-weight: 400; }
+    .pl-photos { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+    .pl-photos a { display: block; aspect-ratio: 3 / 4; border-radius: 6px; overflow: hidden; background: #f3f6f8; border: 1px solid var(--page-line, #e3e9ee); }
+    .pl-photos img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .2s ease; }
+    .pl-photos a:hover img { transform: scale(1.06); }
+    .pl-photos .loading { grid-column: 1 / -1; color: var(--page-muted, #7b8795); font-size: 12.5px; padding: 10px 0; }
+    .pl-photo-tabs { display: inline-flex; gap: 4px; margin-left: auto; }
+    .pl-photo-tabs button { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-muted, #7b8795); border-radius: 999px; padding: 2px 10px; font-size: 11px; cursor: pointer; }
+    .pl-photo-tabs button.active { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); background: var(--page-primary-soft, #edf7f2); }
+    .pl-photo-refresh { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 7px; padding: 3px 9px; font-size: 11.5px; cursor: pointer; margin-left: auto; }
+    .pl-photo-refresh:hover { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); }
+    .pl-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .pl-chips span { background: var(--page-primary-soft, #edf7f2); color: var(--page-primary, #087f65); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; }
+    .pl-comment { border-left: 2px solid var(--page-line, #e3e9ee); padding: 4px 0 4px 10px; margin-bottom: 10px; font-size: 12.5px; }
+    .pl-comment b { color: var(--page-primary, #087f65); font-weight: 600; }
+    .pl-comment small { color: var(--page-muted, #7b8795); margin-left: 6px; }
+    .pl-close { position: sticky; top: 8px; float: right; border: 0; background: #eef1f4; color: var(--page-text, #243242); width: 38px; height: 38px; border-radius: 50%; font-size: 19px; cursor: pointer; z-index: 2; }
+    .pl-close:hover { background: #e3e9ee; }
+    .pl-links a { color: var(--page-primary, #087f65); text-decoration: none; margin-right: 10px; font-size: 12.5px; }
+    .pl-variants { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .pl-variants img { width: 56px; aspect-ratio: 3/4; object-fit: contain; background: #0f1218; border: 2px solid transparent; border-radius: 6px; cursor: pointer; opacity: .7; }
+    .pl-variants img.active, .pl-variants img:hover { border-color: var(--page-primary, #087f65); opacity: 1; }
+    /* 图片灯箱 */
+    .pl-lb { position: fixed; inset: 0; z-index: 980; display: flex; align-items: center; justify-content: center; background: rgba(10,14,20,.92); }
+    .pl-lb[hidden] { display: none; }
+    .pl-lb-stage { position: absolute; inset: 60px 80px 76px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: grab; }
+    .pl-lb-stage.dragging { cursor: grabbing; }
+    .pl-lb-stage img { max-width: 100%; max-height: 100%; user-select: none; -webkit-user-drag: none; transform-origin: center center; transition: transform .12s ease-out; }
+    .pl-lb-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 10px; color: #dfe6f3; font-size: 13px; background: rgba(10,14,20,.55); padding: 12px 18px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); z-index: 2; }
+    .pl-lb-loading[hidden] { display: none; }
+    .pl-lb-spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.25); border-top-color: #8fd0ff; border-radius: 50%; animation: plLbSpin .8s linear infinite; }
+    @keyframes plLbSpin { to { transform: rotate(360deg); } }
+    .pl-lb-stage img { transition: opacity .15s ease; }
+    .pl-lb-btn { border: 0; background: rgba(255,255,255,.12); color: #fff; width: 44px; height: 44px; border-radius: 50%; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .pl-lb-btn:hover { background: rgba(255,255,255,.24); }
+    .pl-lb-close { position: absolute; top: 16px; right: 18px; }
+    .pl-lb-prev { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); }
+    .pl-lb-next { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); }
+    .pl-lb-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: linear-gradient(transparent, rgba(0,0,0,.8)); color: #e8eef6; font-size: 13px; }
+    .pl-lb-bar .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #cfd9e6; }
+    .pl-lb-bar .zoom { color: #9fb0c4; font-variant-numeric: tabular-nums; }
+    .pl-lb-bar .tools { display: flex; gap: 8px; }
+    .pl-lb-bar .tools button, .pl-lb-bar .tools a { border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.08); color: #e8eef6; border-radius: 8px; padding: 6px 12px; font-size: 12.5px; cursor: pointer; text-decoration: none; }
+    .pl-lb-bar .tools button:hover, .pl-lb-bar .tools a:hover { background: rgba(255,255,255,.18); }
+    /* 搜索悬浮窗 */
+    .pl-search-overlay { position: fixed; inset: 0; z-index: 950; display: flex; align-items: center; justify-content: center; background: rgba(23,32,43,.45); }
+    .pl-search-overlay[hidden] { display: none; }
+    .pl-search-box { width: min(900px, 94vw); max-height: 86vh; overflow: auto; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 70px rgba(23,32,43,.25); color: var(--page-text, #243242); }
+    .pl-search-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .pl-search-head h3 { margin: 0; font-size: 17px; flex: 1; color: var(--page-text, #243242); }
+    .pl-search-close { border: 0; background: #eef1f4; color: var(--page-text, #243242); width: 34px; height: 34px; border-radius: 50%; font-size: 17px; cursor: pointer; }
+    .pl-search-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .pl-search-tabs button { border: 1px solid var(--page-line, #e3e9ee); background: transparent; color: var(--page-muted, #7b8795); border-radius: 999px; padding: 6px 14px; font-size: 12.5px; cursor: pointer; }
+    .pl-search-tabs button.active { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); background: var(--page-primary-soft, #edf7f2); }
+    .pl-search-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--page-line, #e3e9ee); }
+    .pl-search-row:last-child { border-bottom: 0; }
+    .pl-search-cover { width: 84px; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 5px; background: #0f1218; flex: 0 0 84px; cursor: zoom-in; border: 1px solid var(--page-line, #e3e9ee); }
+    .pl-search-title { font-size: 13px; line-height: 1.4; word-break: break-word; color: var(--page-text, #243242); }
+    .pl-search-meta { font-size: 11.5px; color: var(--page-muted, #7b8795); margin-top: 3px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .pl-search-meta .seed { color: #0f9d58; }
+    .pl-search-actions { display: flex; gap: 6px; }
+    .pl-search-actions button, .pl-search-actions a { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 7px; padding: 5px 10px; font-size: 11.5px; cursor: pointer; text-decoration: none; white-space: nowrap; }
+    .pl-search-actions button.primary { background: var(--page-primary, #087f65); border: 0; color: #fff; }
+    .pl-book-cover { width: 44px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 5px; border: 1px solid var(--page-line, #e3e9ee); background: #f3f6f8; flex: 0 0 44px; }
+    .pl-book-cover-empty { display: block; }
+    .pl-search-loading { padding: 28px 0; text-align: center; color: var(--page-muted, #7b8795); font-size: 12.5px; }
+</style>
 </head>
 <body data-page="idols">
   <div class="pl-wrap">
@@ -73,8 +143,8 @@
     <div class="pl-toolbar">
       <input id="plQuery" placeholder="搜索名字（中文 / 日文 / 罗马字）" aria-label="搜索选手" />
       <select id="plSort" aria-label="排序方式">
+        <option value="FAC" selected>颜值 FAC</option>
         <option value="overall">总评</option>
-        <option value="FAC">颜值 FAC</option>
         <option value="BDY">身材 BDY</option>
         <option value="SKL">技巧 SKL</option>
         <option value="POP">人气 POP</option>
@@ -98,6 +168,39 @@
     <div class="pl-more"><button id="plMore" type="button" hidden>加载更多</button></div>
   </div>
 
+
+  <div class="pl-lb" id="plLightbox" hidden role="dialog" aria-modal="true" aria-label="图片查看">
+    <div class="pl-lb-stage" id="plLbStage">
+      <img id="plLbImg" alt="" />
+      <div class="pl-lb-loading" id="plLbLoading" hidden><span class="pl-lb-spinner"></span><span id="plLbLoadingText">加载中…</span></div>
+    </div>
+    <button class="pl-lb-btn pl-lb-close" id="plLbClose" type="button" aria-label="关闭">×</button>
+    <button class="pl-lb-btn pl-lb-prev" id="plLbPrev" type="button" aria-label="上一张">‹</button>
+    <button class="pl-lb-btn pl-lb-next" id="plLbNext" type="button" aria-label="下一张">›</button>
+    <div class="pl-lb-bar">
+      <span class="title" id="plLbTitle"></span>
+      <span class="zoom" id="plLbZoom">100%</span>
+      <div class="tools">
+        <button type="button" id="plLbZoomOut">缩小 −</button>
+        <button type="button" id="plLbZoomIn">放大 +</button>
+        <button type="button" id="plLbReset">重置</button>
+        <a id="plLbDownload" download>下载原图</a>
+      </div>
+    </div>
+  </div>
+  <div class="pl-search-overlay" id="plSearchModal" hidden role="dialog" aria-modal="true" aria-label="搜索番号与写真集">
+    <div class="pl-search-box">
+      <div class="pl-search-head">
+        <h3 id="plSearchTitle">搜索</h3>
+        <button class="pl-search-close" id="plSearchClose" type="button" aria-label="关闭">×</button>
+      </div>
+      <div class="pl-search-tabs">
+        <button type="button" data-tab="code" class="active">番号（影片）</button>
+        <button type="button" data-tab="book">写真集</button>
+      </div>
+      <div id="plSearchPane"></div>
+    </div>
+  </div>
   <div class="pl-modal" id="plModal" hidden role="dialog" aria-modal="true">
     <button class="pl-close" id="plClose" type="button" aria-label="关闭">×</button>
     <div class="pl-modal-box" id="plModalBox"></div>
@@ -193,6 +296,19 @@
         });
       }
 
+      function cleanMeasurements(text, height) {
+        const value = String(text || '');
+        if (!value.trim()) return '—';
+        const bust = value.match(/B\s*\d+(?:\([^)]*\))?/i);
+        const waist = value.match(/W\s*\d+/i);
+        const hip = value.match(/H\s*\d+/i);
+        if (bust || waist || hip) {
+          return [bust && bust[0], waist && waist[0], hip && hip[0]]
+            .filter(Boolean).map((part) => part.replace(/\s+/g, '')).join('-');
+        }
+        return value.replace(/^T?\d{2,3}\s*(cm)?\s*/i, '').trim() || '—';
+      }
+
       async function openDetail(id) {
         modalBox.innerHTML = '<div style="padding:30px;color:#8b93a7">加载中…</div>';
         modal.hidden = false;
@@ -202,61 +318,408 @@
           const data = await response.json();
           if (!response.ok || !data.success) throw new Error(data.error || '加载失败');
           const item = data.item;
+          const variants = data.variants || [];
           const stats = item.stats || {};
-          const statHtml = ['FAC', 'BDY', 'SKL', 'POP', 'CHA', 'PRF']
-            .filter((key) => stats[key] != null)
-            .map((key) => `<span>${key} ${stats[key]}</span>`).join('');
+          const statKeys = ['FAC', 'BDY', 'SKL', 'POP', 'CHA', 'PRF'];
+          const statCards = statKeys.filter((key) => stats[key] != null).map((key) => `
+            <div class="pl-stat"><div class="pl-stat-label">${key}</div><div class="pl-stat-value">${stats[key]}</div>
+              <div class="pl-stat-bar"><i style="width:${Math.min(100, stats[key])}%"></i></div></div>`).join('');
+          const variantStrip = variants.length > 1 ? `
+            <div class="pl-variants">${variants.map((v, i) => `<img class="${i === 0 ? 'active' : ''}" src="${esc(v.card_image)}" data-variant="${i}" alt="变体 ${v.variant || i + 1}" title="变体 ${v.variant || i + 1} · 总评 ${v.overall ?? '—'}">`).join('')}</div>` : '';
           const tags = (data.tags || []).map((tag) => `<span>${esc(tag)}</span>`).join('') || '<span style="background:none;color:#8b93a7">暂无标签</span>';
           const comments = (data.comments || []).slice(0, 20).map((comment) => `
-            <div class="pl-comment"><b>${esc(comment.author || '匿名')}</b><small>${esc(comment.createdAt || '').slice(0, 10)}</small><div>${esc(comment.body || '')}</div></div>`).join('') || '<div class="pl-comment" style="color:#8b93a7">暂无评论</div>';
+            <div class="pl-comment"><b>${esc(comment.author || '匿名')}</b><small>${esc((comment.createdAt || '').slice(0, 10))}</small><div>${esc(comment.body || '')}</div></div>`).join('') || '<div class="pl-comment" style="color:#8b93a7">暂无评论</div>';
           const socials = [];
-          if (item.social?.x) socials.push(`<a href="${esc(item.social.x)}" target="_blank" rel="noopener">X</a>`);
+          if (item.social?.x) socials.push(`<a href="${esc(item.social.x)}" target="_blank" rel="noopener">X / Twitter</a>`);
           if (item.social?.instagram) socials.push(`<a href="${esc(item.social.instagram)}" target="_blank" rel="noopener">Instagram</a>`);
-          const variantList = data.variants || [];
-          const variantStrip = variantList.length > 1
-            ? `<div class="pl-variants">${variantList.map((v, i) => `<img class="${i === 0 ? 'active' : ''}" src="${esc(v.card_image)}" data-variant="${i}" alt="变体 ${v.variant || i + 1}" title="变体 ${v.variant || i + 1} · 总评 ${v.overall ?? '—'}">`).join('')}</div>`
-            : '';
           modalBox.innerHTML = `
-            <div><img class="pl-modal-img" id="plModalImg" src="${esc(item.card_image)}" alt="${esc(item.name)}">${variantStrip}</div>
+            <div class="pl-modal-left">
+              <img class="pl-modal-img" id="plModalImg" src="${esc(item.card_image)}" alt="${esc(item.name)}">
+              ${variantStrip}
+            </div>
             <div>
-              <h2 class="pl-modal-title">${esc(item.name)}</h2>
-              <p class="pl-modal-sub" id="plModalSub">${esc(item.jp_name || '')} · ${esc(item.ro_name || '')} · ${esc(item.studio || '')}</p>
-              <div class="pl-stats-big" id="plStatsBig"><span>总评 <b>${item.overall ?? '—'}</b></span>${statHtml}</div>
+              <button class="pl-close" id="plClose2" type="button" aria-label="关闭">×</button>
+              <div class="pl-title-row">
+                <h2 class="pl-modal-title">${esc(item.name)}</h2>
+                <div class="pl-title-chips">
+                  <span>总评 ${item.overall ?? '—'}</span>
+                  ${item.studio ? `<span>${esc(item.studio)}</span>` : ''}
+                  ${item.position ? `<span>${esc(item.position)}</span>` : ''}
+                  ${item.height ? `<span>${item.height}cm</span>` : ''}
+                </div>
+                <button class="pl-photo-refresh" id="plSearchBtn" type="button" style="margin-left:auto">搜索番号 / 写真集</button>
+              </div>
+              <p class="pl-modal-sub" id="plModalSub">${esc(item.jp_name || '')}${item.ro_name ? ' · ' + esc(item.ro_name) : ''}</p>
+              <div class="pl-stat-grid" id="plStatsBig">${statCards}</div>
               <dl class="pl-kv">
                 <dt>生日</dt><dd>${esc(item.birthday || '—')}${item.age ? `（${item.age} 岁）` : ''}</dd>
                 <dt>身高</dt><dd>${item.height ? item.height + ' cm' : '—'}</dd>
-                <dt>三围</dt><dd>${esc(item.measurements || '—')}</dd>
+                <dt>三围</dt><dd>${esc(cleanMeasurements(item.measurements, item.height))}</dd>
                 <dt>事务所</dt><dd>${esc(item.agency || '—')}</dd>
                 <dt>出道</dt><dd>${esc(item.debut || '—')}</dd>
                 <dt>粉丝</dt><dd>${item.followers ? Number(item.followers).toLocaleString() : '—'}</dd>
-                <dt>厂牌/所属</dt><dd>${esc(item.studio || '—')} / ${esc(item.club || '—')}</dd>
+                <dt>厂牌/所属</dt><dd>${esc(item.studio || '—')}${item.club ? ' / ' + esc(item.club) : ''}</dd>
+                ${item.dmm_id ? `<dt>DMM</dt><dd class="pl-links"><a href="https://video.dmm.co.jp/av/list/?actress=${encodeURIComponent(item.dmm_id)}" target="_blank" rel="noopener">女優名鑑 #${esc(item.dmm_id)}</a></dd>` : ''}
                 ${socials.length ? `<dt>社媒</dt><dd class="pl-links">${socials.join('')}</dd>` : ''}
               </dl>
+              <div class="pl-section-title">图片 <small id="plPhotoCount"></small>
+                <span class="pl-photo-tabs"><button type="button" data-kind="stills" class="active">剧照</button><button type="button" data-kind="daily">日常照</button></span>
+                <button class="pl-photo-refresh" id="plPhotoRefresh" type="button">换一批</button>
+              </div>
+              <div class="pl-photos" id="plPhotos"><div class="loading">正在抓取写真图（首次约 10-20 秒）…</div></div>
               <div class="pl-section-title">标签</div>
               <div class="pl-chips">${tags}</div>
-              <div class="pl-section-title">评论（${data.comments?.length || 0}）</div>
+              <div class="pl-section-title">评论 <small>${(data.comments || []).length} 条</small></div>
               ${comments}
             </div>`;
+
+          let photoKind = 'stills';
+          const loadPhotos = async (refresh, kind) => {
+            const box = document.getElementById('plPhotos');
+            const counter = document.getElementById('plPhotoCount');
+            if (!box) return;
+            const targetKind = kind || photoKind || 'stills';
+            photoKind = targetKind;
+            box.innerHTML = `<div class="loading">正在抓取${targetKind === 'daily' ? '日常照' : '剧照'}（首次约 10-40 秒）…</div>`;
+            try {
+              const response = await fetch(`/api/players/photos?id=${encodeURIComponent(item.id)}${refresh ? '&refresh=1' : ''}&kind=${targetKind}`);
+              const photos = await response.json();
+              if (!photos.success) throw new Error(photos.error || '加载失败');
+              const list = photos.photos || [];
+              if (!list.length) { box.innerHTML = '<div class="loading">暂无写真图</div>'; return; }
+              box.innerHTML = list.map((src, index) => `<a href="${esc(src)}" data-index="${index}" title="查看第 ${index + 1} 张"><img loading="lazy" src="${esc(src)}" alt="图片 ${index + 1}"></a>`).join('');
+              box.querySelectorAll('a[data-index]').forEach((link) => {
+                link.addEventListener('click', (event) => {
+                  event.preventDefault();
+                  openLightbox(list.map((src, i) => ({ src, name: item.name, file: `${item.name || 'photo'}-${i + 1}.jpg` })), Number(link.dataset.index));
+                });
+              });
+              const sourceLabel = photos.source === 'dmm-stills' ? '官方剧照'
+                : photos.source === 'javdatabase-covers' ? '作品封面'
+                : photos.source === 'actorbase' ? '日常照'
+                : photos.source === 'theidolbase' ? '写真画廊' : '图片';
+              if (counter) counter.textContent = `（${list.length} 张 · ${sourceLabel} · 点击看原图）`;
+            } catch (error) {
+              box.innerHTML = `<div class="loading">${esc(error.message)}</div>`;
+            }
+          };
+          (async () => {
+            const box = document.getElementById('plWorks');
+            const counter = document.getElementById('plWorkCount');
+            if (!box) return;
+            try {
+              const response = await fetch(`/api/players/works?id=${encodeURIComponent(item.id)}`);
+              const data = await response.json();
+              if (!data.success) throw new Error(data.error || '加载失败');
+              const works = data.works || [];
+              if (counter) counter.textContent = `（${works.length} 部）`;
+              box.innerHTML = works.slice(0, 90).map((work) => `
+                <div class="pl-work">
+                  <a href="/nya?q=${encodeURIComponent(work.code)}" target="_blank" rel="noopener">${esc(work.code)}</a>
+                  <span class="meta">${esc((work.date || '').slice(0, 7))} · ${esc(work.studio || '')}</span>
+                </div>`).join('') || '<div class="loading">暂无作品数据</div>';
+            } catch (error) {
+              box.innerHTML = `<div class="loading">${esc(error.message)}</div>`;
+            }
+          })();
+
+          document.getElementById('plClose2')?.addEventListener('click', closeModal);
+          document.getElementById('plSearchBtn')?.addEventListener('click', () => openSearchModal(item));
+          modalBox.querySelectorAll('.pl-photo-tabs button').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              modalBox.querySelectorAll('.pl-photo-tabs button').forEach((node) => node.classList.toggle('active', node === btn));
+              loadPhotos(false, btn.dataset.kind);
+            });
+          });
+          document.getElementById('plPhotoRefresh')?.addEventListener('click', () => loadPhotos(true));
+
           modalBox.querySelectorAll('.pl-variants img').forEach((thumb) => {
             thumb.addEventListener('click', () => {
               const index = Number(thumb.dataset.variant);
-              const variant = variantList[index];
+              const variant = variants[index];
               if (!variant) return;
               modalBox.querySelectorAll('.pl-variants img').forEach((node) => node.classList.toggle('active', node === thumb));
               const img = document.getElementById('plModalImg');
               if (img) img.src = variant.card_image;
-              const stats = variant.stats || {};
-              const statHtml2 = ['FAC', 'BDY', 'SKL', 'POP', 'CHA', 'PRF']
-                .filter((key) => stats[key] != null)
-                .map((key) => `<span>${key} ${stats[key]}</span>`).join('');
-              const big = document.getElementById('plStatsBig');
-              if (big) big.innerHTML = `<span>总评 <b>${variant.overall ?? '—'}</b></span>${statHtml2}`;
-              const sub = document.getElementById('plModalSub');
-              if (sub) sub.textContent = `${item.jp_name || ''} · ${item.ro_name || ''} · ${variant.studio || ''} · 变体 ${variant.variant || index + 1}/${variantList.length}`;
+            });
+          });
+          loadPhotos(false);
+        } catch (error) {
+          modalBox.innerHTML = `<div style="padding:30px;color:#ff9b9b">${esc(error.message)}</div>`;
+        }
+      }
+
+      // ---------------- 图片灯箱 ----------------
+      const lb = document.getElementById('plLightbox');
+      const lbStage = document.getElementById('plLbStage');
+      const lbImg = document.getElementById('plLbImg');
+      const lbTitle = document.getElementById('plLbTitle');
+      const lbZoom = document.getElementById('plLbZoom');
+      const lbDownload = document.getElementById('plLbDownload');
+      const lbLoading = document.getElementById('plLbLoading');
+      const lbLoadingText = document.getElementById('plLbLoadingText');
+      let lbList = [];
+      let lbIndex = 0;
+      let lbScale = 1;
+      let lbX = 0;
+      let lbY = 0;
+      let lbDragging = false;
+      let lbStartX = 0;
+      let lbStartY = 0;
+
+      function lbApply() {
+        lbImg.style.transform = `translate(${lbX}px, ${lbY}px) scale(${lbScale})`;
+        lbZoom.textContent = `${Math.round(lbScale * 100)}%`;
+      }
+
+      function lbShow() {
+        if (!lbList.length) return;
+        const entry = lbList[lbIndex];
+        lbLoading.hidden = false;
+        lbLoadingText.textContent = '加载中…';
+        lbImg.style.opacity = '0';
+        lbImg.onload = () => {
+          if (lbImg.getAttribute('src') !== entry.src) return;
+          lbImg.style.opacity = '1';
+          lbLoading.hidden = true;
+        };
+        lbImg.onerror = () => {
+          if (lbImg.getAttribute('src') !== entry.src) return;
+          lbLoadingText.textContent = '加载失败，点击图片重试';
+        };
+        lbImg.onclick = () => {
+          lbImg.src = entry.src + (entry.src.includes('?') ? '&' : '?') + '_=' + Date.now();
+        };
+        lbImg.src = entry.src;
+        lbImg.alt = entry.name || '';
+        lbTitle.textContent = `${entry.name || ''}（${lbIndex + 1} / ${lbList.length}）`;
+        lbDownload.href = entry.src;
+        lbDownload.download = entry.file || 'image.jpg';
+        lbScale = 1; lbX = 0; lbY = 0;
+        lbApply();
+        // 预加载相邻两张，切页更顺
+        [1, -1].forEach((delta) => {
+          const neighbor = lbList[(lbIndex + delta + lbList.length) % lbList.length];
+          if (neighbor && neighbor.src !== entry.src) { const pre = new Image(); pre.src = neighbor.src; }
+        });
+        const single = lbList.length <= 1;
+        document.getElementById('plLbPrev').style.display = single ? 'none' : '';
+        document.getElementById('plLbNext').style.display = single ? 'none' : '';
+      }
+
+      function openLightbox(list, index) {
+        if (!list.length) return;
+        lbList = list;
+        lbIndex = Math.max(0, Math.min(index, list.length - 1));
+        lb.hidden = false;
+        document.body.style.overflow = 'hidden';
+        lbShow();
+      }
+
+      function closeLightbox() {
+        lb.hidden = true;
+        document.body.style.overflow = '';
+        lbImg.style.transform = '';
+      }
+
+      function lbStep(delta) {
+        if (!lbList.length) return;
+        lbIndex = (lbIndex + delta + lbList.length) % lbList.length;
+        lbShow();
+      }
+
+      function lbSetScale(next) {
+        lbScale = Math.max(0.3, Math.min(5, next));
+        if (lbScale <= 1) { lbX = 0; lbY = 0; }
+        lbApply();
+      }
+
+      document.getElementById('plLbClose').addEventListener('click', closeLightbox);
+      document.getElementById('plLbPrev').addEventListener('click', () => lbStep(-1));
+      document.getElementById('plLbNext').addEventListener('click', () => lbStep(1));
+      document.getElementById('plLbZoomIn').addEventListener('click', () => lbSetScale(lbScale * 1.25));
+      document.getElementById('plLbZoomOut').addEventListener('click', () => lbSetScale(lbScale / 1.25));
+      document.getElementById('plLbReset').addEventListener('click', () => lbSetScale(1));
+      lb.addEventListener('click', (event) => {
+        if (event.target === lb || event.target === lbStage) closeLightbox();
+      });
+      lbStage.addEventListener('wheel', (event) => {
+        event.preventDefault();
+        lbSetScale(lbScale * (event.deltaY < 0 ? 1.15 : 0.87));
+      }, { passive: false });
+      lbStage.addEventListener('mousedown', (event) => {
+        if (lbScale <= 1) return;
+        lbDragging = true;
+        lbStartX = event.clientX - lbX;
+        lbStartY = event.clientY - lbY;
+        lbStage.classList.add('dragging');
+      });
+      window.addEventListener('mousemove', (event) => {
+        if (!lbDragging) return;
+        lbX = event.clientX - lbStartX;
+        lbY = event.clientY - lbStartY;
+        lbApply();
+      });
+      window.addEventListener('mouseup', () => {
+        lbDragging = false;
+        lbStage.classList.remove('dragging');
+      });
+      document.addEventListener('keydown', (event) => {
+        if (lb.hidden) return;
+        if (event.key === 'Escape') closeLightbox();
+        else if (event.key === 'ArrowLeft') lbStep(-1);
+        else if (event.key === 'ArrowRight') lbStep(1);
+        else if (event.key === '+' || event.key === '=') lbSetScale(lbScale * 1.25);
+        else if (event.key === '-') lbSetScale(lbScale / 1.25);
+        else if (event.key === '0') lbSetScale(1);
+      });
+
+      // ---------------- 搜索悬浮窗 ----------------
+      const searchModal = document.getElementById('plSearchModal');
+      const searchPane = document.getElementById('plSearchPane');
+      const searchTitle = document.getElementById('plSearchTitle');
+      let searchTabsBound = false;
+      let searchContext = null;
+
+      function openSearchModal(item) {
+        searchContext = item;
+        searchModal.hidden = false;
+        document.body.style.overflow = 'hidden';
+        searchTitle.textContent = `搜索：${item.name}`;
+        loadCodeTab(item);
+        searchModal.querySelectorAll('.pl-search-tabs button').forEach((btn) => {
+          btn.classList.toggle('active', btn.dataset.tab === 'code');
+        });
+        if (!searchTabsBound) {
+          searchTabsBound = true;
+          searchModal.querySelectorAll('.pl-search-tabs button').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              searchModal.querySelectorAll('.pl-search-tabs button').forEach((node) => node.classList.toggle('active', node === btn));
+              if (btn.dataset.tab === 'code') loadCodeTab(searchContext);
+              else loadBookTab(searchContext);
+            });
+          });
+          document.getElementById('plSearchClose').addEventListener('click', closeSearchModal);
+          searchModal.addEventListener('click', (event) => { if (event.target === searchModal) closeSearchModal(); });
+        }
+      }
+
+      function closeSearchModal() {
+        searchModal.hidden = true;
+        document.body.style.overflow = '';
+      }
+
+      async function loadCodeTab(item) {
+        searchPane.innerHTML = '<div class="pl-search-loading">正在搜索番号（sukebei）…</div>';
+        const query = item.jp_name || item.ro_name || item.name;
+        try {
+          const response = await fetch(`/api/nya/search?q=${encodeURIComponent(query)}&source=sukebei`);
+          const data = await response.json();
+          if (!data.success) throw new Error(data.error || '搜索失败');
+          const coverOf = (title) => {
+            const match = String(title || '').match(/([A-Za-z]{2,6})[-_ ]?0*(\d{2,5})/);
+            return match ? `${match[1]}-${match[2]}` : '';
+          };
+          const coverItems = (data.results || []).map((result) => {
+            const code = coverOf(result.title);
+            return code ? { src: `/api/nya/cover?code=${encodeURIComponent(code)}&size=full`, name: code, file: `${code}.jpg` } : null;
+          }).filter(Boolean);
+          const rows = (data.results || []).map((result, index) => {
+            const code = coverOf(result.title);
+            const cover = code ? `/api/nya/cover?code=${encodeURIComponent(code)}` : '';
+            return `
+            <div class="pl-search-row">
+              <div style="display:flex;gap:10px;align-items:flex-start;min-width:0">
+                ${cover ? `<img class="pl-search-cover" loading="lazy" src="${cover}" alt="${esc(code)}" data-cover="${esc(cover)}" data-code="${esc(code)}">` : ''}
+                <div style="min-width:0">
+                  <div class="pl-search-title">${esc(result.title)}</div>
+                  <div class="pl-search-meta"><span>${esc(code || '')}</span><span>${esc(result.size || '—')}</span><span class="seed">做种 ${result.seeders}</span><span>下载 ${result.downloads || result.leechers}</span><span>${esc((result.uploaded_at || '').slice(0, 10))}</span></div>
+                </div>
+              </div>
+              <div class="pl-search-actions">
+                <button type="button" class="primary" data-code-download="${index}">送迅雷</button>
+                <button type="button" data-code-copy="${index}">磁力</button>
+              </div>
+            </div>`;
+          }).join('');
+          searchPane.innerHTML = rows || '<div class="pl-search-loading">没有找到相关番号</div>';
+          searchPane.querySelectorAll('img.pl-search-cover').forEach((img) => {
+            img.addEventListener('click', () => {
+              const idx = coverItems.findIndex((entry) => entry.name === img.dataset.code);
+              openLightbox(coverItems, idx >= 0 ? idx : 0);
+            });
+          });
+          searchPane.querySelectorAll('button[data-code-download]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+              const result = data.results[Number(btn.dataset.codeDownload)];
+              btn.disabled = true; btn.textContent = '发送中…';
+              try {
+                const response = await fetch('/api/nya/download', {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(result.view_id ? { view_id: result.view_id, code: '', magnet: result.magnet } : { magnet: result.magnet }),
+                });
+                const out = await response.json();
+                if (!response.ok || !out.success) throw new Error(out.error || '失败');
+                btn.textContent = '已发送';
+              } catch (error) { btn.textContent = '失败'; }
+              setTimeout(() => { btn.disabled = false; btn.textContent = '送迅雷'; }, 3000);
+            });
+          });
+          searchPane.querySelectorAll('button[data-code-copy]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+              const result = data.results[Number(btn.dataset.codeCopy)];
+              if (!result.magnet) return;
+              try { await navigator.clipboard.writeText(result.magnet); btn.textContent = '已复制'; } catch (e) { btn.textContent = '失败'; }
+              setTimeout(() => { btn.textContent = '磁力'; }, 2000);
             });
           });
         } catch (error) {
-          modalBox.innerHTML = `<div style="padding:30px;color:#ff9b9b">${esc(error.message)}</div>`;
+          searchPane.innerHTML = `<div class="pl-search-loading">${esc(error.message)}</div>`;
+        }
+      }
+
+      async function loadBookTab(item) {
+        searchPane.innerHTML = '<div class="pl-search-loading">正在检索写真集书目（NDL）…</div>';
+        try {
+          const response = await fetch(`/api/players/books?name=${encodeURIComponent(item.jp_name || item.name)}`);
+          const data = await response.json();
+          if (!data.success) throw new Error(data.error || '检索失败');
+          const rows = (data.books || []).map((book) => `
+            <div class="pl-search-row">
+              <div style="display:flex;gap:10px;align-items:center;min-width:0">
+                ${book.cover ? `<img class="pl-book-cover" loading="lazy" src="${esc(book.cover)}" alt="">` : '<span class="pl-book-cover pl-book-cover-empty"></span>'}
+                <div style="min-width:0">
+                  <div class="pl-search-title">${esc(book.title)}</div>
+                  <div class="pl-search-meta"><span>${esc(book.creator || '')}</span><span>${esc(book.date || '')}</span>${book.isbn ? `<span>ISBN ${esc(book.isbn)}</span>` : ''}</div>
+                </div>
+              </div>
+              <div class="pl-search-actions">${book.link ? `<a href="${esc(book.link)}" target="_blank" rel="noopener">书目</a>` : ''}
+                <button type="button" class="js-preview" data-book="${esc(book.title || '')}">预览</button>
+                <a href="https://book.dmm.co.jp/search/?search_word=${encodeURIComponent(book.title || '')}" target="_blank" rel="noopener">FANZA</a></div>
+            </div>`).join('');
+          searchPane.innerHTML = rows || '<div class="pl-search-loading">没有找到写真集书目</div>';
+          searchPane.querySelectorAll('button.js-preview').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+              const original = btn.textContent;
+              btn.disabled = true; btn.textContent = '查找中…';
+              try {
+                const response = await fetch(`/api/players/preview?name=${encodeURIComponent(item.jp_name || item.name)}`);
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error || '失败');
+                const images = [];
+                (data.previews || []).forEach((group) => {
+                  (group.images || []).forEach((url) => images.push({ src: url, name: `${item.name} · ${group.source}`, file: `preview-${images.length + 1}.jpg` }));
+                });
+                if (!images.length) { btn.textContent = '无预览'; }
+                else { openLightbox(images, 0); btn.textContent = `${images.length} 张`; }
+              } catch (error) {
+                btn.textContent = '失败';
+              }
+              setTimeout(() => { btn.disabled = false; btn.textContent = original; }, 4000);
+            });
+          });
+        } catch (error) {
+          searchPane.innerHTML = `<div class="pl-search-loading">${esc(error.message)}</div>`;
         }
       }
 

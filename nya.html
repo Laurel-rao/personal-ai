@@ -3,73 +3,73 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="color-scheme" content="dark" />
+  <meta name="color-scheme" content="light" />
   <title>番号下载 · 创作工作台</title>
   <link rel="stylesheet" href="/ui-framework.css" />
   <link rel="stylesheet" href="/admin.css" />
   <link rel="stylesheet" href="/workspace-pages.css" />
   <style>
-    .nya-wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 64px; }
-    .nya-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; }
-    .nya-eyebrow { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted, #8b93a7); }
-    .nya-title { margin: 4px 0 6px; font-size: 26px; }
-    .nya-sub { margin: 0; color: var(--muted, #8b93a7); font-size: 13px; }
+    body { background: var(--page-bg, #f5f7f9); color: var(--page-text, #243242); }
+    .nya-wrap { max-width: 1120px; margin: 0 auto; padding: 8px 4px 60px; }
+    .nya-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+    .nya-eyebrow { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--page-muted, #7b8795); }
+    .nya-title { margin: 4px 0 6px; font-size: 26px; color: var(--page-text, #243242); }
+    .nya-sub { margin: 0; color: var(--page-muted, #7b8795); font-size: 13px; }
     .nya-form { display: flex; gap: 10px; flex: 1 1 420px; }
-    .nya-form input { flex: 1; min-width: 0; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.12); color: inherit; border-radius: 10px; padding: 12px 14px; font-size: 15px; outline: none; }
-    .nya-form input:focus { border-color: rgba(120,170,255,.6); box-shadow: 0 0 0 3px rgba(120,170,255,.15); }
-    .nya-form button { border: 0; border-radius: 10px; padding: 12px 20px; font-weight: 600; cursor: pointer; background: linear-gradient(135deg,#4f7cff,#7a5cff); color: #fff; }
+    .nya-form input { flex: 1; min-width: 0; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); color: var(--page-text, #243242); border-radius: 10px; padding: 12px 14px; font-size: 15px; outline: none; }
+    .nya-form input:focus { border-color: var(--page-primary, #087f65); box-shadow: 0 0 0 3px rgba(8,127,101,.12); }
+    .nya-form button { border: 0; border-radius: 10px; padding: 12px 22px; font-weight: 600; cursor: pointer; background: var(--page-primary, #087f65); color: #fff; }
+    .nya-form button:hover { background: #0a9578; }
     .nya-form button:disabled { opacity: .55; cursor: wait; }
-    .nya-status { min-height: 20px; margin: 6px 0 14px; font-size: 13px; color: var(--muted, #8b93a7); }
-    .nya-status.error { color: #ff7b7b; }
+    .nya-status { min-height: 20px; margin: 6px 0 14px; font-size: 13px; color: var(--page-muted, #7b8795); }
+    .nya-status.error { color: var(--page-danger, #c34f55); }
     .nya-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; font-size: 12.5px; }
-    .nya-toolbar label { color: var(--muted, #8b93a7); }
-    .nya-toolbar select { background: rgba(255,255,255,.05); color: inherit; border: 1px solid rgba(255,255,255,.14); border-radius: 8px; padding: 6px 8px; font-size: 12.5px; }
+    .nya-toolbar label { color: var(--page-muted, #7b8795); }
+    .nya-toolbar select { background: var(--page-surface, #fff); color: var(--page-text, #243242); border: 1px solid var(--page-line, #e3e9ee); border-radius: 8px; padding: 6px 8px; font-size: 12.5px; }
     .nya-chips { display: flex; gap: 6px; flex-wrap: wrap; }
-    .nya-chips button { border: 1px solid rgba(255,255,255,.14); background: transparent; color: var(--muted, #8b93a7); border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
-    .nya-chips button.active { border-color: rgba(120,170,255,.6); color: #cfe0ff; background: rgba(120,170,255,.12); }
-    .nya-badges { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
-    .nya-badges span { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: rgba(255,255,255,.07); color: #c7cede; }
-    .nya-badges .sub { background: rgba(110,231,168,.14); color: #8ff0be; }
-    .nya-badges .unc { background: rgba(255,155,155,.16); color: #ffb3b3; }
-    .nya-badges .kind { background: rgba(120,170,255,.16); color: #a9c6ff; }
-    .nya-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(186px, 1fr)); gap: 16px; }
-    .nya-card { display: flex; flex-direction: column; gap: 9px; padding: 10px; border-radius: 12px; background: rgba(255,255,255,.035); border: 1px solid rgba(255,255,255,.08); transition: transform .15s ease, border-color .15s ease; }
-    .nya-card:hover { border-color: rgba(120,170,255,.45); transform: translateY(-2px); }
-    .nya-cover { width: 100%; aspect-ratio: 3 / 2; border-radius: 8px; overflow: hidden; background: rgba(255,255,255,.06); position: relative; display: block; }
-    .nya-cover img { width: 100%; height: 100%; object-fit: contain; display: block; background: #0b0d12; cursor: zoom-in; }
-    .nya-cover .nya-noimg { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 11px; color: rgba(255,255,255,.45); text-align: center; padding: 8px; }
+    .nya-chips button { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-muted, #7b8795); border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+    .nya-chips button.active { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); background: var(--page-primary-soft, #edf7f2); }
+    .nya-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 16px; }
+    .nya-card { display: flex; flex-direction: column; gap: 9px; padding: 10px; border-radius: 12px; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+    .nya-card:hover { border-color: rgba(8,127,101,.35); transform: translateY(-2px); box-shadow: 0 10px 28px rgba(36,50,66,.1); }
+    .nya-cover { width: 100%; aspect-ratio: 3 / 2; border-radius: 8px; overflow: hidden; background: #0f1218; position: relative; display: block; }
+    .nya-cover img { width: 100%; height: 100%; object-fit: contain; display: block; background: #0f1218; cursor: zoom-in; }
+    .nya-cover .nya-noimg { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 11px; color: rgba(255,255,255,.55); text-align: center; padding: 8px; }
     .nya-cover.empty img { display: none; }
     .nya-cover.empty .nya-noimg { display: flex; }
-    .nya-name { font-size: 13px; line-height: 1.4; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 36px; }
-    .nya-meta { display: flex; gap: 8px 12px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted, #8b93a7); }
-    .nya-meta .seed { color: #6ee7a8; }
-    .nya-meta .leech { color: #ff9b9b; }
-    .nya-meta .src { color: #9bb0ff; }
-    .nya-meta .rel { color: #ffd08a; }
-    .nya-meta .actor { color: #b7f0d0; }
-    .nya-badges .actor { background: rgba(255,208,138,.14); color: #ffd08a; }
+    .nya-name { font-size: 13px; line-height: 1.4; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 36px; color: var(--page-text, #243242); }
+    .nya-badges { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
+    .nya-badges span { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: #f1f4f7; color: #5d6b7a; }
+    .nya-badges .sub { background: var(--page-primary-soft, #edf7f2); color: var(--page-primary, #087f65); }
+    .nya-badges .unc { background: #fdeeee; color: #c34f55; }
+    .nya-badges .kind { background: #eef2fb; color: #4a67b3; }
+    .nya-meta { display: flex; gap: 8px 12px; flex-wrap: wrap; font-size: 11.5px; color: var(--page-muted, #7b8795); }
+    .nya-meta .seed { color: #0f9d58; }
+    .nya-meta .leech { color: #d0555b; }
+    .nya-meta .src { color: #4a67b3; }
+    .nya-meta .rel { color: #b86e00; }
+    .nya-meta .actor { color: var(--page-primary, #087f65); }
     .nya-actions { display: flex; gap: 6px; margin-top: 2px; }
-    .nya-actions button { flex: 1; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05); color: inherit; border-radius: 8px; padding: 7px 6px; font-size: 12px; cursor: pointer; white-space: nowrap; }
-    .nya-actions button.primary { background: linear-gradient(135deg,#3f9eff,#6a6bff); border: 0; color: #fff; font-weight: 600; }
+    .nya-actions button { flex: 1; border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 8px; padding: 7px 6px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+    .nya-actions button.primary { background: var(--page-primary, #087f65); border: 0; color: #fff; font-weight: 600; }
     .nya-actions button:disabled { opacity: .5; cursor: wait; }
-    .nya-empty { grid-column: 1 / -1; padding: 40px 0; text-align: center; color: var(--muted, #8b93a7); font-size: 14px; }
-    .nya-empty { padding: 40px 0; text-align: center; color: var(--muted, #8b93a7); font-size: 14px; }
-    .nya-lightbox { position: fixed; inset: 0; z-index: 999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.88); backdrop-filter: blur(4px); }
+    .nya-empty { grid-column: 1 / -1; padding: 40px 0; text-align: center; color: var(--page-muted, #7b8795); font-size: 14px; }
+    .nya-hint { margin-top: 22px; font-size: 12px; color: var(--page-muted, #7b8795); line-height: 1.7; }
+    .nya-hint code { background: #eef2f5; padding: 1px 6px; border-radius: 5px; }
+    .nya-lightbox { position: fixed; inset: 0; z-index: 999; display: flex; align-items: center; justify-content: center; background: rgba(23,32,43,.55); backdrop-filter: blur(3px); }
     .nya-lightbox[hidden] { display: none; }
-    .nya-lb-img { max-width: min(92vw, 1400px); max-height: 82vh; object-fit: contain; border-radius: 8px; box-shadow: 0 20px 60px rgba(0,0,0,.6); background: #0b0d12; }
-    .nya-lb-close, .nya-lb-prev, .nya-lb-next { position: absolute; border: 0; background: rgba(255,255,255,.08); color: #fff; cursor: pointer; border-radius: 50%; width: 46px; height: 46px; font-size: 24px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+    .nya-lb-img { max-width: min(92vw, 1400px); max-height: 82vh; object-fit: contain; border-radius: 8px; box-shadow: 0 20px 60px rgba(23,32,43,.35); background: #0f1218; }
+    .nya-lb-close, .nya-lb-prev, .nya-lb-next { position: absolute; border: 0; background: rgba(255,255,255,.85); color: #243242; cursor: pointer; border-radius: 50%; width: 46px; height: 46px; font-size: 24px; line-height: 1; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(23,32,43,.25); }
     .nya-lb-close { top: 18px; right: 18px; }
     .nya-lb-prev { left: 18px; top: 50%; transform: translateY(-50%); }
     .nya-lb-next { right: 18px; top: 50%; transform: translateY(-50%); }
-    .nya-lb-close:hover, .nya-lb-prev:hover, .nya-lb-next:hover { background: rgba(255,255,255,.2); }
-    .nya-lb-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 14px; padding: 12px 18px; background: linear-gradient(transparent, rgba(0,0,0,.85)); color: #dfe6f3; font-size: 13px; }
+    .nya-lb-close:hover, .nya-lb-prev:hover, .nya-lb-next:hover { background: #fff; }
+    .nya-lb-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 14px; padding: 12px 18px; background: linear-gradient(transparent, rgba(23,32,43,.75)); color: #eef2f7; font-size: 13px; }
     .nya-lb-bar .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .nya-lb-bar .counter { color: #8b93a7; }
-    .nya-lb-bar a { color: #8fd0ff; text-decoration: none; border: 1px solid rgba(143,208,255,.4); padding: 6px 12px; border-radius: 8px; }
-    .nya-lb-bar a:hover { background: rgba(143,208,255,.12); }
-    .nya-hint { margin-top: 22px; font-size: 12px; color: var(--muted, #8b93a7); line-height: 1.7; }
-    .nya-hint code { background: rgba(255,255,255,.08); padding: 1px 6px; border-radius: 5px; }
-  </style>
+    .nya-lb-bar .counter { color: #b9c3cf; }
+    .nya-lb-bar a { color: #8fd0ff; text-decoration: none; border: 1px solid rgba(143,208,255,.5); padding: 6px 12px; border-radius: 8px; }
+    .nya-lb-bar a:hover { background: rgba(143,208,255,.15); }
+</style>
 </head>
 <body data-page="nya">
   <div class="nya-wrap">
@@ -248,28 +248,27 @@
       }
 
       async function loadReleaseDates() {
-        const cards = Array.from(list.querySelectorAll('article.nya-card'))
-          .map((card) => ({ card, code: card.querySelector('span.rel')?.dataset.code }))
-          .filter((item) => item.code);
-        const queue = [...cards];
-        const worker = async () => {
-          while (queue.length) {
-            const { card, code } = queue.shift();
-            const rel = card.querySelector('span.rel');
-            const actorNode = card.querySelector('span.actor');
-            try {
-              const response = await fetch(`/api/nya/release?code=${encodeURIComponent(code)}`);
-              const data = await response.json();
-              rel.textContent = data.date ? `发售 ${data.date}` : '发售 —';
-              const detail = [data.studio, (data.genres || []).join(' / '), data.runtime, data.actress].filter(Boolean).join(' · ');
-              rel.title = detail || '该番号未收录发售信息';
-              if (actorNode) actorNode.textContent = data.actress || '';
-            } catch (error) {
-              rel.textContent = '发售 —';
-            }
+        const nodes = Array.from(list.querySelectorAll('span.rel[data-code]'));
+        if (!nodes.length) return;
+        const codes = [...new Set(nodes.map((node) => node.dataset.code))];
+        const map = new Map();
+        // 一次批量请求（后端并发查询），取代逐卡请求
+        try {
+          const response = await fetch(`/api/nya/releases?codes=${encodeURIComponent(codes.join(','))}`);
+          const data = await response.json();
+          if (data.success) {
+            Object.entries(data.items || {}).forEach(([code, info]) => map.set(code.toUpperCase(), info));
           }
-        };
-        await Promise.all(Array.from({ length: 5 }, worker));
+        } catch (error) { /* 保持占位 */ }
+        nodes.forEach((node) => {
+          const info = map.get(node.dataset.code.toUpperCase());
+          if (!info) { node.textContent = '发售 —'; return; }
+          node.textContent = info.date ? `发售 ${info.date}` : '发售 —';
+          const detail = [info.studio, (info.genres || []).join(' / '), info.runtime, info.actress].filter(Boolean).join(' · ');
+          node.title = detail || '该番号未收录发售信息';
+          const actorNode = node.parentElement?.querySelector('span.actor');
+          if (actorNode) actorNode.textContent = info.actress || '';
+        });
       }
 
       sortSelect?.addEventListener('change', () => {
@@ -284,16 +283,36 @@
         renderList();
       });
 
+      function mergeResults(base, extra) {
+        const seen = new Set(base.map((item) => item.magnet || item.view_id));
+        const merged = base.slice();
+        extra.forEach((item) => {
+          const key = item.magnet || item.view_id;
+          if (!seen.has(key)) { seen.add(key); merged.push(item); }
+        });
+        return merged;
+      }
+
       async function search(query) {
-        setStatus('搜索中…');
-        const response = await fetch(`/api/nya/search?q=${encodeURIComponent(query)}`);
-        const data = await response.json();
-        if (!response.ok || !data.success) {
-          throw new Error(data.error || '搜索失败');
+        setStatus('搜索中（sukebei）…');
+        const first = await fetch(`/api/nya/search?q=${encodeURIComponent(query)}&source=sukebei`);
+        const base = await first.json();
+        if (!first.ok || !base.success) throw new Error(base.error || '搜索失败');
+        render(base.results || []);
+        setStatus(`找到 ${base.count} 条（sukebei），正在补充 DHT 源…`);
+        try {
+          const second = await fetch(`/api/nya/search?q=${encodeURIComponent(query)}&source=btdig`);
+          const extra = await second.json();
+          if (extra.success && (extra.results || []).length) {
+            const merged = mergeResults(base.results || [], extra.results || []);
+            render(merged);
+            setStatus(`找到 ${merged.length} 条（sukebei ${base.count} · DHT ${extra.results.length}）`);
+          } else {
+            setStatus(`找到 ${base.count} 条（sukebei · DHT 源暂不可用）`);
+          }
+        } catch (error) {
+          setStatus(`找到 ${base.count} 条（sukebei · DHT 源暂不可用）`);
         }
-        const src = data.sources || {};
-        setStatus(`找到 ${data.count} 条结果（sukebei ${src.sukebei ?? 0} · btdig ${src.btdig ?? 0}）`);
-        render(data.results || []);
       }
 
       async function download(item, btn) {
@@ -331,7 +350,7 @@
       function showLightboxItem() {
         if (!lightboxItems.length) return;
         const item = lightboxItems[lightboxIndex];
-        lbImg.src = item.src;
+        lbImg.src = `${item.src}${item.src.includes('?') ? '&' : '?'}size=full`;
         lbImg.alt = item.title;
         lbTitle.textContent = item.title;
         lbCounter.textContent = `${lightboxIndex + 1} / ${lightboxItems.length}`;
@@ -370,10 +389,7 @@
         else if (event.key === 'ArrowRight') stepLightbox(1);
       });
 
-      form.addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const query = input.value.trim();
-        if (!query) return;
+      async function runSearch(query) {
         searchBtn.disabled = true;
         try {
           await search(query);
@@ -382,7 +398,21 @@
         } finally {
           searchBtn.disabled = false;
         }
+      }
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const query = input.value.trim();
+        if (!query) return;
+        await runSearch(query);
       });
+
+      // 支持 /nya?q=CODE 直达搜索（选手作品列表点番号跳转）
+      const initialQuery = new URLSearchParams(location.search).get('q');
+      if (initialQuery) {
+        input.value = initialQuery;
+        runSearch(initialQuery.trim());
+      }
     })();
   </script>
 </body>

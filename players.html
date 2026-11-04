@@ -20,12 +20,67 @@
     .pl-toolbar input { min-width: 200px; flex: 1 1 200px; }
     .pl-toolbar input:focus { border-color: var(--page-primary, #087f65); box-shadow: 0 0 0 3px rgba(8,127,101,.12); }
     .pl-count { color: var(--page-muted, #7b8795); font-size: 12.5px; margin-left: auto; }
+    .pl-add { border: 0; background: var(--page-primary, #087f65); color: #fff; border-radius: 8px; padding: 9px 14px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+    .pl-add:hover { filter: brightness(1.06); }
+    .pl-add-overlay { position: fixed; inset: 0; z-index: 2147482600; display: flex; align-items: center; justify-content: center; background: rgba(23,32,43,.45); padding: 18px; }
+    .pl-add-overlay[hidden] { display: none; }
+    .pl-add-box { width: min(460px, 96vw); max-height: 90vh; overflow: auto; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 70px rgba(23,32,43,.25); color: var(--page-text, #243242); }
+    .pl-add-box h3 { margin: 0 0 4px; font-size: 17px; }
+    .pl-add-hint { margin: 0 0 14px; color: var(--page-muted, #7b8795); font-size: 12.5px; }
+    .pl-add-box label { display: block; font-size: 12.5px; color: var(--page-muted, #7b8795); margin-bottom: 10px; }
+    .pl-add-box label input { display: block; width: 100%; margin-top: 5px; padding: 8px 10px; border: 1px solid var(--page-line, #e3e9ee); border-radius: 8px; font-size: 13px; color: var(--page-text, #243242); background: var(--page-surface, #fff); }
+    .pl-add-box label input:focus { outline: 0; border-color: var(--page-primary, #087f65); box-shadow: 0 0 0 3px rgba(8,127,101,.12); }
+    .pl-add-search { margin: 0 0 14px; }
+    .pl-add-search-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; font-size: 12.5px; color: var(--page-muted, #7b8795); }
+    .pl-add-search-head small { margin-left: auto; font-size: 11px; color: #9aa6b2; }
+    .pl-add-search > input { display: block; width: 100%; padding: 8px 10px; border: 1px solid var(--page-line, #e3e9ee); border-radius: 8px; font-size: 13px; color: var(--page-text, #243242); background: var(--page-surface, #fff); }
+    .pl-add-search > input:focus { outline: 0; border-color: var(--page-primary, #087f65); box-shadow: 0 0 0 3px rgba(8,127,101,.12); }
+    .pl-add-results { margin-top: 6px; max-height: 238px; overflow: auto; border: 1px solid var(--page-line, #e3e9ee); border-radius: 9px; background: var(--page-surface, #fff); }
+    .pl-add-results[hidden] { display: none; }
+    .pl-add-result { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 9px; border: 0; border-bottom: 1px solid #f1f4f6; background: transparent; text-align: left; cursor: pointer; font: inherit; color: var(--page-text, #243242); }
+    .pl-add-result:last-child { border-bottom: 0; }
+    .pl-add-result:hover, .pl-add-result.active { background: var(--page-primary-soft, #edf7f2); }
+    .pl-add-result img, .pl-add-result .pl-add-result-cover-empty { width: 36px; height: 48px; object-fit: cover; border-radius: 5px; background: #0f1218; flex: 0 0 36px; display: block; }
+    .pl-add-result-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .pl-add-result-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pl-add-result-sub { font-size: 11px; color: var(--page-muted, #7b8795); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pl-add-result-flag { margin-left: auto; flex: 0 0 auto; font-size: 10.5px; color: #b86e00; background: #fff4e5; border-radius: 999px; padding: 2px 7px; }
+    .pl-add-result-state { padding: 16px 10px; text-align: center; color: var(--page-muted, #7b8795); font-size: 12px; }
+    .pl-add-picked { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 8px; border-radius: 8px; background: var(--page-primary-soft, #edf7f2); color: var(--page-primary, #087f65); font-size: 12px; }
+    .pl-add-picked[hidden] { display: none; }
+    .pl-add-picked img { width: 24px; height: 32px; object-fit: cover; border-radius: 4px; background: #0f1218; display: block; }
+    .pl-add-picked span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pl-add-picked button { border: 0; padding: 0; background: none; color: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; }
+    .pl-add-box label.pl-add-auto { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 2px 0 12px; cursor: pointer; }
+    .pl-add-box label.pl-add-auto input { display: inline-block; width: auto; margin: 0; padding: 0; accent-color: var(--page-primary, #087f65); }
+    .pl-add-auto small { margin-left: auto; font-size: 11px; color: #9aa6b2; }
+    .pl-dl-banner { display: flex; align-items: center; gap: 10px; margin: -4px 0 14px; padding: 9px 12px; border: 1px solid rgba(8,127,101,.22); border-radius: 9px; background: var(--page-primary-soft, #edf7f2); color: var(--page-primary, #087f65); font-size: 12.5px; }
+    .pl-dl-banner[hidden] { display: none; }
+    .pl-dl-banner.error { border-color: #f0c6c0; background: #fdf1ef; color: #b03a2e; }
+    .pl-dl-banner span { flex: 1; min-width: 0; }
+    .pl-dl-banner button { border: 0; background: none; color: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; padding: 0; }
+    .pl-download-status { margin: 0 0 10px; padding: 7px 10px; border-radius: 8px; background: var(--page-primary-soft, #edf7f2); color: var(--page-primary, #087f65); font-size: 12px; }
+    .pl-download-status[hidden] { display: none; }
+    .pl-download-status.error { background: #fdf1ef; color: #b03a2e; }
+    .pl-download-text { line-height: 1.5; }
+    .pl-download-bar { height: 4px; margin-top: 6px; border-radius: 2px; overflow: hidden; background: rgba(8,127,101,.15); }
+    .pl-download-bar[hidden] { display: none; }
+    .pl-download-bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: var(--page-primary, #087f65); transition: width .3s ease; }
+    .pl-download-bar.indeterminate i { width: 35%; animation: plDlSlide 1.2s ease-in-out infinite; }
+    @keyframes plDlSlide { from { transform: translateX(-100%); } to { transform: translateX(320%); } }
+    .pl-add-error { margin: 0 0 10px; color: #c0392b; font-size: 12.5px; }
+    .pl-add-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+    .pl-add-actions button { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; }
+    .pl-add-actions button.primary { border: 0; background: var(--page-primary, #087f65); color: #fff; }
+    .pl-add-actions button:disabled { opacity: .6; cursor: default; }
     .pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 14px; }
     .pl-card { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
     .pl-card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(36,50,66,.1); border-color: rgba(8,127,101,.35); }
     .pl-cover { position: relative; width: 100%; aspect-ratio: 3 / 4; border-radius: 8px; overflow: hidden; background: #0f1218; }
     .pl-cover img { width: 100%; height: 100%; object-fit: contain; display: block; background: #0f1218; }
     .pl-variant-badge { position: absolute; top: 6px; right: 6px; background: var(--page-primary, #087f65); color: #fff; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 7px; }
+    .pl-local-badge { position: absolute; top: 6px; left: 6px; border: 0; font: inherit; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 2px 7px; background: rgba(15,18,24,.72); color: #fff; cursor: pointer; }
+    .pl-local-badge:hover { background: var(--page-primary, #087f65); }
     .pl-name { font-size: 13px; font-weight: 600; line-height: 1.35; color: var(--page-text, #243242); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pl-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; color: var(--page-muted, #7b8795); }
     .pl-meta .ov { color: #b86e00; font-weight: 700; }
@@ -36,7 +91,7 @@
     .pl-more button:hover { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); }
     .pl-empty { grid-column: 1 / -1; text-align: center; padding: 50px 0; color: var(--page-muted, #7b8795); }
     /* 详情弹层 */
-    .pl-modal { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; background: rgba(23,32,43,.45); padding: 18px; }
+    .pl-modal { position: fixed; inset: 0; z-index: 2147482000; display: flex; align-items: center; justify-content: center; background: rgba(23,32,43,.45); padding: 18px; }
     .pl-modal[hidden] { display: none; }
     .pl-modal-box { position: relative; width: min(1080px, 96vw); max-height: 92vh; overflow: auto; display: grid; grid-template-columns: 300px 1fr; gap: 18px; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); border-radius: 14px; padding: 16px; box-shadow: 0 30px 80px rgba(23,32,43,.25); color: var(--page-text, #243242); }
     .pl-modal-left { position: sticky; top: 0; align-self: start; }
@@ -65,7 +120,7 @@
     .pl-section-title small { color: var(--page-muted, #7b8795); font-weight: 400; }
     .pl-photos { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
     .pl-photos a { display: block; aspect-ratio: 3 / 4; border-radius: 6px; overflow: hidden; background: #f3f6f8; border: 1px solid var(--page-line, #e3e9ee); }
-    .pl-photos img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .2s ease; }
+    .pl-photos img { width: 100%; height: 100%; object-fit: contain; background: #0f1218; display: block; transition: transform .2s ease; }
     .pl-photos a:hover img { transform: scale(1.06); }
     .pl-photos .loading { grid-column: 1 / -1; color: var(--page-muted, #7b8795); font-size: 12.5px; padding: 10px 0; }
     .pl-photo-tabs { display: inline-flex; gap: 4px; margin-left: auto; }
@@ -85,12 +140,12 @@
     .pl-variants img { width: 56px; aspect-ratio: 3/4; object-fit: contain; background: #0f1218; border: 2px solid transparent; border-radius: 6px; cursor: pointer; opacity: .7; }
     .pl-variants img.active, .pl-variants img:hover { border-color: var(--page-primary, #087f65); opacity: 1; }
     /* 图片灯箱 */
-    .pl-lb { position: fixed; inset: 0; z-index: 980; display: flex; align-items: center; justify-content: center; background: rgba(10,14,20,.92); }
+    .pl-lb { position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: center; justify-content: center; background: rgba(10,14,20,.92); }
     .pl-lb[hidden] { display: none; }
     .pl-lb-stage { position: absolute; inset: 60px 80px 76px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: grab; }
     .pl-lb-stage.dragging { cursor: grabbing; }
     .pl-lb-stage img { max-width: 100%; max-height: 100%; user-select: none; -webkit-user-drag: none; transform-origin: center center; transition: transform .12s ease-out; }
-    .pl-lb-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 10px; color: #dfe6f3; font-size: 13px; background: rgba(10,14,20,.55); padding: 12px 18px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); z-index: 2; }
+    .pl-lb-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 10px; color: #dfe6f3; font-size: 13px; background: rgba(10,14,20,.72); padding: 10px 16px; border-radius: 999px; border: 0; box-shadow: 0 6px 20px rgba(0,0,0,.35); z-index: 2; }
     .pl-lb-loading[hidden] { display: none; }
     .pl-lb-spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.25); border-top-color: #8fd0ff; border-radius: 50%; animation: plLbSpin .8s linear infinite; }
     @keyframes plLbSpin { to { transform: rotate(360deg); } }
@@ -107,7 +162,7 @@
     .pl-lb-bar .tools button, .pl-lb-bar .tools a { border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.08); color: #e8eef6; border-radius: 8px; padding: 6px 12px; font-size: 12.5px; cursor: pointer; text-decoration: none; }
     .pl-lb-bar .tools button:hover, .pl-lb-bar .tools a:hover { background: rgba(255,255,255,.18); }
     /* 搜索悬浮窗 */
-    .pl-search-overlay { position: fixed; inset: 0; z-index: 950; display: flex; align-items: center; justify-content: center; background: rgba(23,32,43,.45); }
+    .pl-search-overlay { position: fixed; inset: 0; z-index: 2147482500; display: flex; align-items: center; justify-content: center; background: rgba(23,32,43,.45); }
     .pl-search-overlay[hidden] { display: none; }
     .pl-search-box { width: min(900px, 94vw); max-height: 86vh; overflow: auto; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 70px rgba(23,32,43,.25); color: var(--page-text, #243242); }
     .pl-search-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
@@ -161,8 +216,10 @@
         <option value="asc">从低到高</option>
       </select>
       <select id="plStudio" aria-label="厂牌筛选"><option value="">全部厂牌</option></select>
+      <button type="button" class="pl-add" id="plAdd">＋ 添加选手</button>
       <span class="pl-count" id="plCount"></span>
     </div>
+    <div class="pl-dl-banner" id="plDlBanner" hidden></div>
 
     <div class="pl-grid" id="plGrid"><div class="pl-empty">加载中…</div></div>
     <div class="pl-more"><button id="plMore" type="button" hidden>加载更多</button></div>
@@ -201,6 +258,29 @@
       <div id="plSearchPane"></div>
     </div>
   </div>
+  <div class="pl-add-overlay" id="plAddModal" hidden role="dialog" aria-modal="true" aria-labelledby="plAddTitle">
+    <form class="pl-add-box" id="plAddForm" novalidate>
+      <h3 id="plAddTitle">添加选手</h3>
+      <p class="pl-add-hint">可先检索 DMM 女优库自动填表；保存前会检查库里是否已有同名选手。</p>
+      <div class="pl-add-search">
+        <div class="pl-add-search-head"><span>检索选手</span><small>DMM 女优库</small></div>
+        <input id="plAddQuery" type="text" autocomplete="off" placeholder="中文 / 日文 / 罗马字，如：小谷アリサ" aria-label="检索选手" />
+        <div class="pl-add-results" id="plAddResults" hidden></div>
+        <div class="pl-add-picked" id="plAddPicked" hidden></div>
+      </div>
+      <label>显示名（必填）<input id="plAddName" maxlength="40" required autocomplete="off" placeholder="如：小谷アリサ"></label>
+      <label>日文名<input id="plAddJp" maxlength="40" autocomplete="off"></label>
+      <label>罗马字<input id="plAddRoman" maxlength="60" autocomplete="off" placeholder="如：Otani Arisa"></label>
+      <label>厂牌<input id="plAddStudio" maxlength="40" autocomplete="off"></label>
+      <label>备注<input id="plAddNote" maxlength="500" autocomplete="off"></label>
+      <label class="pl-add-auto"><input id="plAddAuto" type="checkbox" checked>保存后自动下载她的 DMM 写真<small>试读原图</small></label>
+      <p class="pl-add-error" id="plAddError" hidden></p>
+      <div class="pl-add-actions">
+        <button type="button" id="plAddCancel">取消</button>
+        <button type="submit" class="primary" id="plAddSave">保存</button>
+      </div>
+    </form>
+  </div>
   <div class="pl-modal" id="plModal" hidden role="dialog" aria-modal="true">
     <button class="pl-close" id="plClose" type="button" aria-label="关闭">×</button>
     <div class="pl-modal-box" id="plModalBox"></div>
@@ -225,6 +305,10 @@
       let total = 0;
       let loading = false;
       let items = [];
+      const dlBanner = document.getElementById('plDlBanner');
+      let dlBannerPoll = 0;
+      let detailDownloadPoll = 0;
+      let detailDownloadToken = 0;
 
       function cardHtml(item) {
         const stats = item.stats || {};
@@ -233,7 +317,7 @@
           .map((key) => `<span title="${key}">${stats[key]}</span>`).join('');
         return `
         <article class="pl-card" data-id="${esc(item.id)}">
-          <div class="pl-cover">${item.card_image ? `<img loading="lazy" src="${esc(item.card_image)}" alt="${esc(item.name)}">` : ''}${item.group_size > 1 ? `<span class="pl-variant-badge">×${item.group_size}</span>` : ''}</div>
+          <div class="pl-cover">${item.card_image ? `<img loading="lazy" src="${esc(item.card_image)}" alt="${esc(item.name)}">` : ''}${item.local_books ? `<button type="button" class="pl-local-badge" data-local="1" title="本地写真 ${item.local_books} 本 · ${item.local_pages} 张">写真 ${item.local_books}</button>` : ''}${item.group_size > 1 ? `<span class="pl-variant-badge">×${item.group_size}</span>` : ''}</div>
           <div class="pl-name" title="${esc(item.name)}">${esc(item.name)}</div>
           <div class="pl-meta">
             <span class="ov">${item.overall != null ? item.overall : '—'}</span>
@@ -294,6 +378,117 @@
         grid.querySelectorAll('.pl-card').forEach((card) => {
           card.addEventListener('click', () => openDetail(card.dataset.id));
         });
+        grid.querySelectorAll('.pl-local-badge').forEach((badge) => {
+          badge.addEventListener('click', (event) => {
+            event.stopPropagation();
+            openLocalPhotos(badge.closest('.pl-card').dataset.id);
+          });
+        });
+      }
+
+      function downloadText(job) {
+        const elapsed = job.started_at ? Math.max(0, Math.round(Date.now() / 1000 - job.started_at)) : 0;
+        const suffix = elapsed ? ` · ${elapsed}s` : '';
+        if (job.phase === 'listing') {
+          const where = job.list_pages ? `第 ${job.list_page || 1}/${job.list_pages} 页` : '作品列表';
+          return `正在检索作品（${where}）${suffix}`;
+        }
+        const parts = [`已完成 ${job.finished || 0}/${job.total || 0} 本`, `${job.pages || 0} 张`];
+        if (job.page_total) parts.push(`当前页 ${job.page_now || 0}/${job.page_total}`);
+        if (job.failed) parts.push(`失败 ${job.failed}`);
+        return parts.join(' · ') + suffix;
+      }
+
+      function renderDownloadBanner(job) {
+        if (!job || !job.status || job.status === 'idle') {
+          dlBanner.hidden = true;
+          return;
+        }
+        dlBanner.hidden = false;
+        dlBanner.classList.toggle('error', job.status === 'error');
+        let text = '';
+        if (job.status === 'running') text = `「${job.name}」${downloadText(job)}`;
+        else if (job.status === 'done') text = `「${job.name}」写真下载完成：${job.message || ''}${job.errors && job.errors.length ? ` · ${job.errors[0]}` : ''}`;
+        else text = `「${job.name}」写真下载失败：${job.message || '未知错误'}${job.errors && job.errors.length ? ` · ${job.errors[0]}` : ''}`;
+        dlBanner.innerHTML = `<span>${esc(text)}</span><button type="button" id="plDlHide">${job.status === 'running' ? '隐藏' : '关闭'}</button>`;
+        document.getElementById('plDlHide').addEventListener('click', () => {
+          clearInterval(dlBannerPoll);
+          dlBannerPoll = 0;
+          dlBanner.hidden = true;
+        });
+      }
+
+      function stopBannerPoll() {
+        clearInterval(dlBannerPoll);
+        dlBannerPoll = 0;
+      }
+
+      function stopDetailDownloadPoll() {
+        clearInterval(detailDownloadPoll);
+        detailDownloadPoll = 0;
+      }
+
+      function pollDownloadBanner(cardId, name) {
+        stopBannerPoll();
+        const tick = async () => {
+          try {
+            const response = await fetch(`/api/players/download/status?id=${encodeURIComponent(cardId)}`);
+            const data = await response.json();
+            const job = data.job || { status: 'idle' };
+            if (!job.name) job.name = name;
+            renderDownloadBanner(job);
+            if (job.status !== 'running') {
+              stopBannerPoll();
+              if (job.status === 'done') {
+                load(true);
+                setTimeout(() => { if (!dlBannerPoll) dlBanner.hidden = true; }, 6000);
+              }
+            }
+          } catch (error) {
+            stopBannerPoll();
+          }
+        };
+        tick();
+        dlBannerPoll = setInterval(tick, 2000);
+      }
+
+      function showDownloadError(name, message) {
+        stopBannerPoll();
+        renderDownloadBanner({ name, status: 'error', message });
+      }
+
+      async function openLocalPhotos(id) {
+        detailDownloadToken += 1;
+        stopDetailDownloadPoll();
+        const item = items.find((entry) => entry.id === id);
+        if (!item) return;
+        modalBox.innerHTML = `
+          <div style="grid-column:1/-1">
+            <button class="pl-close" id="plLocalClose" type="button" aria-label="关闭">×</button>
+            <h2 class="pl-modal-title">${esc(item.name)} · 本地写真 <small id="plLocalCount" style="font-size:13px;color:#7b8795"></small></h2>
+            <div class="pl-photos" id="plLocalPhotos"><div class="loading">加载中…</div></div>
+          </div>`;
+        modal.hidden = false;
+        document.body.style.overflow = 'hidden';
+        document.getElementById('plLocalClose').addEventListener('click', closeModal);
+        const box = document.getElementById('plLocalPhotos');
+        try {
+          const response = await fetch(`/api/players/photos?id=${encodeURIComponent(id)}&kind=local`);
+          const data = await response.json();
+          if (!data.success) throw new Error(data.error || '加载失败');
+          const list = data.photos || [];
+          if (!list.length) { box.innerHTML = '<div class="loading">还没有本地写真</div>'; return; }
+          document.getElementById('plLocalCount').textContent = `（${list.length} 张）`;
+          box.innerHTML = list.map((src, index) => `<a href="${esc(src)}" data-index="${index}" title="第 ${index + 1} 张"><img loading="lazy" src="${esc(src)}?w=420" alt="图片 ${index + 1}"></a>`).join('');
+          box.querySelectorAll('a[data-index]').forEach((link) => {
+            link.addEventListener('click', (event) => {
+              event.preventDefault();
+              openLightbox(list.map((src, i) => ({ src: `${src}?w=1200`, name: item.name, file: `${item.name}-${i + 1}.jpg` })), Number(link.dataset.index));
+            });
+          });
+        } catch (error) {
+          box.innerHTML = `<div class="loading">${esc(error.message)}</div>`;
+        }
       }
 
       function cleanMeasurements(text, height) {
@@ -310,6 +505,8 @@
       }
 
       async function openDetail(id) {
+        const downloadToken = ++detailDownloadToken;
+        stopDetailDownloadPoll();
         modalBox.innerHTML = '<div style="padding:30px;color:#8b93a7">加载中…</div>';
         modal.hidden = false;
         document.body.style.overflow = 'hidden';
@@ -347,9 +544,14 @@
                   ${item.position ? `<span>${esc(item.position)}</span>` : ''}
                   ${item.height ? `<span>${item.height}cm</span>` : ''}
                 </div>
-                <button class="pl-photo-refresh" id="plSearchBtn" type="button" style="margin-left:auto">搜索番号 / 写真集</button>
+                <button class="pl-photo-refresh" id="plDownloadBtn" type="button" style="margin-left:auto">下载写真</button>
+                <button class="pl-photo-refresh" id="plSearchBtn" type="button">搜索番号 / 写真集</button>
               </div>
               <p class="pl-modal-sub" id="plModalSub">${esc(item.jp_name || '')}${item.ro_name ? ' · ' + esc(item.ro_name) : ''}</p>
+              <div class="pl-download-status" id="plDownloadStatus" hidden>
+                <div class="pl-download-text" id="plDownloadText"></div>
+                <div class="pl-download-bar" id="plDownloadBar" hidden><i id="plDownloadBarFill"></i></div>
+              </div>
               <div class="pl-stat-grid" id="plStatsBig">${statCards}</div>
               <dl class="pl-kv">
                 <dt>生日</dt><dd>${esc(item.birthday || '—')}${item.age ? `（${item.age} 岁）` : ''}</dd>
@@ -363,7 +565,7 @@
                 ${socials.length ? `<dt>社媒</dt><dd class="pl-links">${socials.join('')}</dd>` : ''}
               </dl>
               <div class="pl-section-title">图片 <small id="plPhotoCount"></small>
-                <span class="pl-photo-tabs"><button type="button" data-kind="stills" class="active">剧照</button><button type="button" data-kind="daily">日常照</button></span>
+                <span class="pl-photo-tabs"><button type="button" data-kind="stills" class="active">剧照</button><button type="button" data-kind="daily">日常照</button><button type="button" data-kind="local">本地写真</button></span>
                 <button class="pl-photo-refresh" id="plPhotoRefresh" type="button">换一批</button>
               </div>
               <div class="pl-photos" id="plPhotos"><div class="loading">正在抓取写真图（首次约 10-20 秒）…</div></div>
@@ -387,17 +589,24 @@
               if (!photos.success) throw new Error(photos.error || '加载失败');
               const list = photos.photos || [];
               if (!list.length) { box.innerHTML = '<div class="loading">暂无写真图</div>'; return; }
-              box.innerHTML = list.map((src, index) => `<a href="${esc(src)}" data-index="${index}" title="查看第 ${index + 1} 张"><img loading="lazy" src="${esc(src)}" alt="图片 ${index + 1}"></a>`).join('');
+              const gridSrc = (src) => (photos.source === 'local' ? `${src}?w=420` : src);
+              box.innerHTML = list.map((src, index) => `<a href="${esc(src)}" data-index="${index}" title="查看第 ${index + 1} 张"><img loading="lazy" src="${esc(gridSrc(src))}" alt="图片 ${index + 1}"></a>`).join('');
               box.querySelectorAll('a[data-index]').forEach((link) => {
                 link.addEventListener('click', (event) => {
                   event.preventDefault();
-                  openLightbox(list.map((src, i) => ({ src, name: item.name, file: `${item.name || 'photo'}-${i + 1}.jpg` })), Number(link.dataset.index));
+                  const heavy = photos.source === 'local';
+                  openLightbox(list.map((src, i) => ({
+                    src: heavy ? `${src}?w=1200` : src,
+                    name: item.name,
+                    file: `${item.name || 'photo'}-${i + 1}.jpg`,
+                  })), Number(link.dataset.index));
                 });
               });
               const sourceLabel = photos.source === 'dmm-stills' ? '官方剧照'
                 : photos.source === 'javdatabase-covers' ? '作品封面'
                 : photos.source === 'actorbase' ? '日常照'
-                : photos.source === 'theidolbase' ? '写真画廊' : '图片';
+                : photos.source === 'theidolbase' ? '写真画廊'
+                : photos.source === 'local' ? '本地写真集' : '图片';
               if (counter) counter.textContent = `（${list.length} 张 · ${sourceLabel} · 点击看原图）`;
             } catch (error) {
               box.innerHTML = `<div class="loading">${esc(error.message)}</div>`;
@@ -443,6 +652,103 @@
               if (img) img.src = variant.card_image;
             });
           });
+
+          const downloadBtn = document.getElementById('plDownloadBtn');
+          const downloadStatus = document.getElementById('plDownloadStatus');
+          const downloadTextEl = document.getElementById('plDownloadText');
+          const downloadBar = document.getElementById('plDownloadBar');
+          const downloadBarFill = document.getElementById('plDownloadBarFill');
+
+          function applyDownloadJob(job) {
+            if (downloadToken !== detailDownloadToken || !downloadBtn) return;
+            if (job.status === 'running') {
+              downloadBtn.disabled = true;
+              downloadBtn.textContent = '下载中…';
+              downloadStatus.hidden = false;
+              downloadStatus.classList.remove('error');
+              downloadTextEl.textContent = downloadText(job);
+              downloadBar.hidden = false;
+              downloadBar.classList.toggle('indeterminate', job.phase === 'listing');
+              if (job.phase === 'listing') {
+                downloadBarFill.style.width = '';
+              } else {
+                const percent = job.total ? Math.max(4, Math.min(100, Math.round((job.finished || 0) / job.total * 100))) : 5;
+                downloadBarFill.style.width = `${percent}%`;
+              }
+              if (!detailDownloadPoll) {
+                detailDownloadPoll = setInterval(() => refreshDownload(true), 1500);
+              }
+            } else if (job.status === 'done') {
+              downloadBtn.disabled = false;
+              downloadBtn.textContent = '继续下载';
+              downloadStatus.hidden = false;
+              downloadStatus.classList.remove('error');
+              downloadTextEl.textContent = `下载完成：${job.message || ''}${job.errors && job.errors.length ? ` · ${job.errors[0]}` : ''}`;
+              downloadBar.hidden = false;
+              downloadBar.classList.remove('indeterminate');
+              downloadBarFill.style.width = '100%';
+              stopDetailDownloadPoll();
+              const active = modalBox.querySelector('.pl-photo-tabs button.active');
+              if (active && active.dataset.kind === 'local') loadPhotos(false, 'local');
+            } else if (job.status === 'error') {
+              downloadBtn.disabled = false;
+              downloadBtn.textContent = '重试下载';
+              downloadStatus.hidden = false;
+              downloadStatus.classList.add('error');
+              downloadTextEl.textContent = `下载失败：${job.message || '未知错误'}${job.errors && job.errors.length ? ` · ${job.errors[0]}` : ''}`;
+              downloadBar.hidden = true;
+              stopDetailDownloadPoll();
+            } else {
+              downloadBtn.disabled = false;
+              downloadBtn.textContent = '下载写真';
+              downloadStatus.hidden = true;
+              downloadStatus.classList.remove('error');
+              downloadBar.hidden = true;
+              stopDetailDownloadPoll();
+            }
+          }
+
+          async function refreshDownload(silent) {
+            if (downloadToken !== detailDownloadToken) return;
+            try {
+              const response = await fetch(`/api/players/download/status?id=${encodeURIComponent(item.id)}`);
+              const data = await response.json();
+              if (downloadToken !== detailDownloadToken) return;
+              applyDownloadJob(data.job || { status: 'idle' });
+            } catch (error) {
+              if (silent || downloadToken !== detailDownloadToken) return;
+              downloadStatus.hidden = false;
+              downloadStatus.classList.add('error');
+              downloadTextEl.textContent = error.message;
+              downloadBar.hidden = true;
+            }
+          }
+
+          downloadBtn?.addEventListener('click', async () => {
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = '启动中…';
+            downloadStatus.hidden = true;
+            try {
+              const response = await fetch('/api/players/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: item.id }),
+              });
+              const data = await response.json();
+              if (!response.ok || !data.success) throw new Error(data.error || '启动下载失败');
+              if (downloadToken !== detailDownloadToken) return;
+              applyDownloadJob(data.job || { status: 'running', name: item.name, phase: 'listing' });
+            } catch (error) {
+              if (downloadToken !== detailDownloadToken) return;
+              downloadBtn.disabled = false;
+              downloadBtn.textContent = '下载写真';
+              downloadStatus.hidden = false;
+              downloadStatus.classList.add('error');
+              downloadTextEl.textContent = error.message;
+              downloadBar.hidden = true;
+            }
+          });
+          refreshDownload(true);
           loadPhotos(false);
         } catch (error) {
           modalBox.innerHTML = `<div style="padding:30px;color:#ff9b9b">${esc(error.message)}</div>`;
@@ -458,6 +764,7 @@
       const lbDownload = document.getElementById('plLbDownload');
       const lbLoading = document.getElementById('plLbLoading');
       const lbLoadingText = document.getElementById('plLbLoadingText');
+      let lbToken = 0;
       let lbList = [];
       let lbIndex = 0;
       let lbScale = 1;
@@ -478,19 +785,21 @@
         lbLoading.hidden = false;
         lbLoadingText.textContent = '加载中…';
         lbImg.style.opacity = '0';
+        const token = ++lbToken;
         lbImg.onload = () => {
-          if (lbImg.getAttribute('src') !== entry.src) return;
+          if (token !== lbToken) return;
           lbImg.style.opacity = '1';
           lbLoading.hidden = true;
         };
         lbImg.onerror = () => {
-          if (lbImg.getAttribute('src') !== entry.src) return;
+          if (token !== lbToken) return;
           lbLoadingText.textContent = '加载失败，点击图片重试';
         };
         lbImg.onclick = () => {
           lbImg.src = entry.src + (entry.src.includes('?') ? '&' : '?') + '_=' + Date.now();
         };
-        lbImg.src = entry.src;
+        const stamp = Date.now();
+        lbImg.src = `${entry.src}${entry.src.includes('?') ? '&' : '?'}_t=${stamp}`;
         lbImg.alt = entry.name || '';
         lbTitle.textContent = `${entry.name || ''}（${lbIndex + 1} / ${lbList.length}）`;
         lbDownload.href = entry.src;
@@ -724,6 +1033,8 @@
       }
 
       function closeModal() {
+        detailDownloadToken += 1;
+        stopDetailDownloadPoll();
         modal.hidden = true;
         document.body.style.overflow = '';
       }
@@ -739,6 +1050,193 @@
       });
       [sortSelect, orderSelect, studioSelect].forEach((el) => el.addEventListener('change', () => load(true)));
       moreBtn.addEventListener('click', () => load(false));
+
+      const addModal = document.getElementById('plAddModal');
+      const addForm = document.getElementById('plAddForm');
+      const addError = document.getElementById('plAddError');
+      const addName = document.getElementById('plAddName');
+      const addSave = document.getElementById('plAddSave');
+      const addQuery = document.getElementById('plAddQuery');
+      const addResults = document.getElementById('plAddResults');
+      const addPicked = document.getElementById('plAddPicked');
+      let addSearchTimer = 0;
+      let addSearchToken = 0;
+      let addChoices = [];
+      let addActive = -1;
+      let addPickedItem = null;
+
+      function clearAddPick() {
+        addPickedItem = null;
+        addPicked.hidden = true;
+        addPicked.innerHTML = '';
+      }
+
+      function clearAddSearch() {
+        clearTimeout(addSearchTimer);
+        addSearchToken += 1;
+        addChoices = [];
+        addActive = -1;
+        addQuery.value = '';
+        addResults.hidden = true;
+        addResults.innerHTML = '';
+        clearAddPick();
+      }
+
+      function pickAddChoice(index) {
+        const item = addChoices[index];
+        if (!item) return;
+        addPickedItem = item;
+        addName.value = item.name;
+        document.getElementById('plAddJp').value = item.name;
+        document.getElementById('plAddRoman').value = item.roman || '';
+        addResults.hidden = true;
+        addActive = -1;
+        addPicked.hidden = false;
+        addPicked.innerHTML = `${item.image ? `<img src="${esc(item.image)}" alt="">` : ''}
+          <span>已匹配 DMM #${esc(item.id)} · ${esc(item.name)}${item.kana ? `（${esc(item.kana)}）` : ''}</span>
+          <button type="button" id="plAddClearPick">取消匹配</button>`;
+        document.getElementById('plAddClearPick').addEventListener('click', () => {
+          clearAddPick();
+          addError.hidden = true;
+        });
+        if (item.in_library) {
+          addError.textContent = `库里已有这位选手：${item.existing_name || item.name}`;
+          addError.hidden = false;
+        } else {
+          addError.hidden = true;
+        }
+      }
+
+      function renderAddResults(queryText) {
+        const value = queryText.trim();
+        const token = ++addSearchToken;
+        addActive = -1;
+        if (!value) {
+          addResults.hidden = true;
+          addResults.innerHTML = '';
+          addChoices = [];
+          return;
+        }
+        addResults.hidden = false;
+        addResults.innerHTML = '<div class="pl-add-result-state">检索中…</div>';
+        fetch(`/api/players/actresses?q=${encodeURIComponent(value)}&limit=20`)
+          .then((response) => response.json())
+          .then((data) => {
+            if (token !== addSearchToken) return;
+            if (!data.success) throw new Error(data.error || '检索失败');
+            addChoices = data.items || [];
+            if (!addChoices.length) {
+              addResults.innerHTML = '<div class="pl-add-result-state">DMM 女优库没有匹配结果</div>';
+              return;
+            }
+            addResults.innerHTML = addChoices.map((item, index) => {
+              const sub = [item.kana, item.roman, item.height ? `${item.height}cm` : '']
+                .filter(Boolean).map(esc).join(' · ') || '—';
+              return `
+                <button type="button" class="pl-add-result" data-index="${index}">
+                  ${item.image ? `<img loading="lazy" src="${esc(item.image)}" alt="">` : '<span class="pl-add-result-cover-empty"></span>'}
+                  <span class="pl-add-result-info">
+                    <span class="pl-add-result-name">${esc(item.name)}</span>
+                    <span class="pl-add-result-sub">${sub}</span>
+                  </span>
+                  ${item.in_library ? '<span class="pl-add-result-flag">已在库</span>' : ''}
+                </button>`;
+            }).join('');
+            addResults.querySelectorAll('.pl-add-result').forEach((btn) => {
+              btn.addEventListener('click', () => pickAddChoice(Number(btn.dataset.index)));
+            });
+          })
+          .catch((error) => {
+            if (token !== addSearchToken) return;
+            addChoices = [];
+            addResults.innerHTML = `<div class="pl-add-result-state">${esc(error.message)}</div>`;
+          });
+      }
+
+      function moveAddActive(delta) {
+        if (addResults.hidden || !addChoices.length) return;
+        addActive = (addActive + delta + addChoices.length) % addChoices.length;
+        addResults.querySelectorAll('.pl-add-result').forEach((node, index) => {
+          node.classList.toggle('active', index === addActive);
+        });
+        const active = addResults.querySelector('.pl-add-result.active');
+        if (active) active.scrollIntoView({ block: 'nearest' });
+      }
+
+      addQuery.addEventListener('input', () => {
+        clearTimeout(addSearchTimer);
+        addSearchTimer = setTimeout(() => renderAddResults(addQuery.value), 260);
+      });
+      addQuery.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !addResults.hidden) {
+          addResults.hidden = true;
+          event.stopPropagation();
+          return;
+        }
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          if (!addResults.hidden && addChoices.length) pickAddChoice(addActive >= 0 ? addActive : 0);
+          return;
+        }
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          moveAddActive(event.key === 'ArrowDown' ? 1 : -1);
+        }
+      });
+
+      function openAdd() {
+        addForm.reset();
+        addError.hidden = true;
+        clearAddSearch();
+        addModal.hidden = false;
+        addQuery.focus();
+      }
+      function closeAdd() { addModal.hidden = true; }
+      document.getElementById('plAdd').addEventListener('click', openAdd);
+      document.getElementById('plAddCancel').addEventListener('click', closeAdd);
+      addModal.addEventListener('click', (event) => { if (event.target === addModal) closeAdd(); });
+      document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !addModal.hidden) closeAdd(); });
+      addForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        addError.hidden = true;
+        if (!addName.value.trim()) {
+          addError.textContent = '请先填写显示名';
+          addError.hidden = false;
+          return;
+        }
+        addSave.disabled = true;
+        try {
+          const response = await fetch('/api/players/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              displayName: addName.value.trim(),
+              japaneseName: document.getElementById('plAddJp').value.trim(),
+              romanName: document.getElementById('plAddRoman').value.trim(),
+              studio: document.getElementById('plAddStudio').value.trim(),
+              note: document.getElementById('plAddNote').value.trim(),
+              dmmId: addPickedItem ? addPickedItem.id : '',
+              height: addPickedItem ? addPickedItem.height : '',
+              measurements: addPickedItem ? addPickedItem.measurements : '',
+              image: addPickedItem ? addPickedItem.image : '',
+              autoDownload: document.getElementById('plAddAuto').checked,
+            }),
+          });
+          const data = await response.json();
+          if (!response.ok || !data.success) throw new Error(data.error || '保存失败');
+          closeAdd();
+          studioSelect.value = '';
+          query.value = data.item.name;
+          load(true);
+          if (data.download) pollDownloadBanner(data.download.id, data.download.name || data.item.name);
+          else if (data.download_error) showDownloadError(data.item.name, data.download_error);
+        } catch (error) {
+          addError.textContent = error.message;
+          addError.hidden = false;
+        } finally {
+          addSave.disabled = false;
+        }
+      });
 
       load(true);
     })();

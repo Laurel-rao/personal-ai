@@ -15,10 +15,12 @@ import json
 import mimetypes
 import os
 import re
+import shutil
 import ssl
 import subprocess
 import threading
 import time
+import unicodedata
 import concurrent.futures as futures
 import html as html_lib
 import urllib.error
@@ -27,6 +29,8 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+import dmm_books
 
 from flask import Blueprint, Flask, Response, jsonify, render_template_string, request, send_file, stream_with_context
 from flask_login import current_user
@@ -389,8 +393,23 @@ def api_health() -> Response:
 _AM_DIR = DATA_DIR / "amxiaolin"
 _AM_STATE: dict[str, Any] = {"mtime": 0.0, "cards": [], "profiles": {}, "tags": {}, "comments": {}, "enrich": {}}
 _AM_LOCK = threading.RLock()
+# 手动添加的选手单独存放，导入数据重新生成时不会被覆盖。
+_AM_USER_FILE = _AM_DIR / "player-user.json"
 
 _STAT_KEYS = ("FAC", "BDY", "SKL", "POP", "CHA", "PRF")
+
+
+def _am_user_rows() -> list[dict[str, Any]]:
+    """读取手动添加的选手记录。"""
+    if not _AM_USER_FILE.is_file():
+        return []
+    try:
+        data = json.loads(_AM_USER_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    if not isinstance(data, list):
+        return []
+    return [row for row in data if isinstance(row, dict) and (row.get("card") or {}).get("id")]
 
 
 def _am_load() -> dict[str, Any]:
@@ -399,7 +418,7 @@ def _am_load() -> dict[str, Any]:
     tags_file = _AM_DIR / "player-tags.jsonl"
     comments_file = _AM_DIR / "player-comments.jsonl"
     enrich_file = _AM_DIR / "dmm-enrich.json"
-    stamp = max((p.stat().st_mtime for p in (merged, tags_file, comments_file, enrich_file) if p.exists()), default=0.0)
+    stamp = max((p.stat().st_mtime for p in (merged, tags_file, comments_file, enrich_file, _AM_USER_FILE) if p.exists()), default=0.0)
     with _AM_LOCK:
         if _AM_STATE["mtime"] == stamp and _AM_STATE["cards"]:
             return _AM_STATE
@@ -411,6 +430,9 @@ def _am_load() -> dict[str, Any]:
         raw = json.loads(merged.read_text(encoding="utf-8")) if merged.exists() else []
     except (OSError, ValueError):
         raw = []
+    if not isinstance(raw, list):
+        raw = []
+    raw = _am_user_rows() + raw
     for item in raw:
         card = item.get("card") or {}
         profile = item.get("profile") or {}
@@ -501,7 +523,7 @@ def _am_item(card: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
         "sources": profile.get("sources") or [],
         "card_image": f"/api/players/card/{card.get('id')}" if card.get("card") else "",
         "tags": _AM_STATE.get("tags", {}).get(card.get("id"), []),
-        "dmm_id": extra.get("dmm_id") or "",
+        "dmm_id": extra.get("dmm_id") or profile.get("dmmId") or "",
     }
 
 
@@ -553,8 +575,260 @@ def api_players_list() -> Response:
         entries.sort(key=lambda item: str(sort_key(item)), reverse=(order != "asc"))
 
     studios = sorted({card.get("studio") for card in cards if card.get("studio")})
+    page_items = entries[offset:offset + limit]
+    for item in page_items:
+        item["local_books"], item["local_pages"] = _local_stats(item.get("name") or "")
     return jsonify({"success": True, "total": len(entries), "offset": offset, "limit": limit,
-                    "studios": studios, "items": entries[offset:offset + limit]})
+                    "studios": studios, "items": page_items})
+
+
+# ---------------------------------------------------------------- 女优库检索（添加选手用）
+
+_DMM_ACTRESS_STATE: dict[str, Any] = {"stamp": None, "path": "", "entries": []}
+_DMM_ACTRESS_LOCK = threading.RLock()
+
+
+def _kana_fold(text: str) -> str:
+    """片假名转平假名并转小写，方便中日文互相检索。"""
+    normalized = unicodedata.normalize("NFKC", text or "")
+    return "".join(chr(ord(ch) - 0x60) if "\u30a1" <= ch <= "\u30f6" else ch
+                   for ch in normalized).lower()
+
+
+def _name_key(text: str) -> str:
+    """名字归一化：统一假名/大小写，并去掉空格。"""
+    return re.sub(r"\s+", "", _kana_fold(text))
+
+
+def _actress_roman(image_url: str) -> str:
+    """从 DMM 头像地址反推罗马字：kotani_arisa.jpg -> Kotani Arisa。"""
+    file_name = urllib.parse.urlparse(image_url or "").path.rsplit("/", 1)[-1]
+    file_name = re.sub(r"\.[A-Za-z0-9]+$", "", file_name)
+    file_name = re.sub(r"\d+$", "", file_name)
+    words = [word for word in re.split(r"[^A-Za-z]+", file_name) if word]
+    return " ".join(word[:1].upper() + word[1:].lower() for word in words)
+
+
+def _dmm_actresses() -> list[dict[str, Any]]:
+    """懒加载 DMM 女优索引（约 1.5 万条），按文件修改时间缓存。"""
+    path = _AM_DIR / "dmm-actresses.json"
+    try:
+        stamp = path.stat().st_mtime
+    except OSError:
+        return []
+    with _DMM_ACTRESS_LOCK:
+        if _DMM_ACTRESS_STATE["entries"] and _DMM_ACTRESS_STATE["stamp"] == stamp \
+                and _DMM_ACTRESS_STATE["path"] == str(path):
+            return _DMM_ACTRESS_STATE["entries"]
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    if not isinstance(rows, list):
+        return []
+    entries: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict) or not row.get("name"):
+            continue
+        name = str(row.get("name") or "").strip()
+        kana = str(row.get("nameRuby") or "").strip()
+        image = str(row.get("imageUrl") or "").strip()
+        roman = _actress_roman(image)
+        entries.append({
+            "id": str(row.get("id") or ""),
+            "name": name,
+            "kana": kana,
+            "roman": roman,
+            "image": image,
+            "height": str(row.get("height") or ""),
+            "bust": str(row.get("bust") or ""),
+            "waist": str(row.get("waist") or ""),
+            "hip": str(row.get("hip") or ""),
+            "name_fold": _name_key(name),
+            "kana_fold": _name_key(kana),
+            "roman_l": roman.lower(),
+            "roman_tokens": set(re.findall(r"[a-z]+", roman.lower())),
+            "person_key": _person_key({"name": roman, "displayName": name},
+                                      {"name": roman, "displayName": name}),
+        })
+    with _DMM_ACTRESS_LOCK:
+        _DMM_ACTRESS_STATE.update(stamp=stamp, path=str(path), entries=entries)
+    return entries
+
+
+def _resolve_dmm_id(display_name: str, jp_name: str, roman_name: str) -> str:
+    """按名字在本地 DMM 女优索引里找唯一匹配的 id；不唯一时返回空。"""
+    keys = {_name_key(value) for value in (display_name, jp_name) if value}
+    roman_tokens = set(re.findall(r"[a-z]+", (roman_name or "").lower()))
+    matched: list[str] = []
+    for entry in _dmm_actresses():
+        if entry["name_fold"] in keys or entry["kana_fold"] in keys:
+            matched.append(entry["id"])
+        elif roman_tokens and entry["roman_tokens"] == roman_tokens:
+            matched.append(entry["id"])
+    ids = list(dict.fromkeys(item for item in matched if item))
+    return ids[0] if len(ids) == 1 else ""
+
+
+def _library_name_index() -> dict[str, dict[str, str]]:
+    """已有选手的名字索引，用于在检索结果里标记「已在库」。"""
+    state = _am_load()
+    index: dict[str, dict[str, str]] = {}
+    for card in state["cards"]:
+        profile = state["profiles"].get(card["id"], {})
+        info = {"id": card["id"],
+                "name": card.get("displayName") or profile.get("displayName") or card.get("name") or card["id"]}
+        index.setdefault(_person_key(card, profile), info)
+        for value in (card.get("displayName"), profile.get("displayName"),
+                      profile.get("japaneseName"), card.get("name"), profile.get("name")):
+            if value:
+                index.setdefault("name:" + _name_key(str(value)), info)
+    return index
+
+
+def _actress_score(entry: dict[str, Any], query_name: str, query_l: str,
+                   query_tokens: set[str]) -> int | None:
+    if query_name == entry["name_fold"] or query_name == entry["kana_fold"] or query_l == entry["roman_l"]:
+        return 0
+    if entry["name_fold"].startswith(query_name) or entry["kana_fold"].startswith(query_name) \
+            or entry["roman_l"].startswith(query_l):
+        return 1
+    if query_name in entry["name_fold"] or query_name in entry["kana_fold"] \
+            or (entry["roman_l"] and query_l in entry["roman_l"]):
+        return 2
+    if query_tokens and entry["roman_tokens"] and query_tokens.issubset(entry["roman_tokens"]):
+        return 3
+    return None
+
+
+@console_bp.get("/api/players/actresses")
+def api_players_actresses() -> Response:
+    """按名字检索 DMM 女优库，返回可回填到「添加选手」表单的资料。"""
+    query = (request.args.get("q") or "").strip()
+    if not query:
+        return jsonify({"success": True, "query": "", "items": []})
+    try:
+        limit = max(1, min(int(request.args.get("limit") or 20), 40))
+    except ValueError:
+        limit = 20
+    query_fold = _kana_fold(query)
+    query_l = query_fold.lower()
+    query_name = re.sub(r"\s+", "", query_fold)
+    query_tokens = set(re.findall(r"[a-z]+", query_l))
+    lookup = _library_name_index()
+    scored: list[tuple[int, int, dict[str, Any]]] = []
+    for order, entry in enumerate(_dmm_actresses()):
+        score = _actress_score(entry, query_name, query_l, query_tokens)
+        if score is None:
+            continue
+        scored.append((score, order, entry))
+    scored.sort(key=lambda row: (row[0], row[1]))
+    items: list[dict[str, Any]] = []
+    for _score, _order, entry in scored[:limit]:
+        existing = lookup.get(entry["person_key"]) or lookup.get("name:" + entry["name_fold"])
+        if existing is None and entry["roman_l"]:
+            existing = lookup.get("name:" + re.sub(r"\s+", "", entry["roman_l"]))
+        measurements = "-".join(part for part in (
+            f"B{entry['bust']}" if entry["bust"] else "",
+            f"W{entry['waist']}" if entry["waist"] else "",
+            f"H{entry['hip']}" if entry["hip"] else "",
+        ) if part)
+        height = entry["height"] if re.fullmatch(r"\d{2,3}", entry["height"]) else ""
+        items.append({
+            "id": entry["id"],
+            "name": entry["name"],
+            "kana": entry["kana"],
+            "roman": entry["roman"],
+            "image": entry["image"],
+            "height": height,
+            "measurements": measurements,
+            "in_library": bool(existing),
+            "existing_id": (existing or {}).get("id", ""),
+            "existing_name": (existing or {}).get("name", ""),
+        })
+    return jsonify({"success": True, "query": query, "total": len(scored), "items": items})
+
+
+def _am_add_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
+    """登记一位选手；只写文字资料，不抓取任何图片。"""
+    name = str(payload.get("displayName") or "").strip()
+    if not 1 <= len(name) <= 40:
+        return None, "名字需为 1—40 个字符"
+    jp_name = str(payload.get("japaneseName") or "").strip()[:40]
+    roman = str(payload.get("romanName") or "").strip()[:60]
+    studio = str(payload.get("studio") or "").strip()[:40]
+    note = str(payload.get("note") or "").strip()[:500]
+    # 从 DMM 女优库检索结果带来的补充资料（可选，手动填写时为空）。
+    dmm_id = str(payload.get("dmmId") or "").strip()
+    if not re.fullmatch(r"\d{1,12}", dmm_id):
+        dmm_id = ""
+    height = str(payload.get("height") or "").strip()
+    height = height if re.fullmatch(r"\d{2,3}", height) else ""
+    measurements = str(payload.get("measurements") or "").strip()[:40]
+    image = str(payload.get("image") or "").strip()[:300]
+    if not re.match(r"https://awsimgsrc\.dmm\.co\.jp/", image):
+        image = ""
+    if not dmm_id:
+        dmm_id = _resolve_dmm_id(name, jp_name, roman)
+
+    state = _am_load()
+    wanted_key = _person_key({"name": roman, "displayName": name}, {"name": roman, "displayName": name})
+    wanted_names = {_name_key(value) for value in (name, jp_name) if value}
+    for card in state["cards"]:
+        profile = state["profiles"].get(card["id"], {})
+        same_person = _person_key(card, profile) == wanted_key
+        if not same_person:
+            existing_names = {_name_key(str(value)) for value in
+                              (card.get("displayName"), profile.get("displayName"), profile.get("japaneseName"))
+                              if value}
+            same_person = bool(wanted_names & existing_names)
+        if same_person:
+            existing = card.get("displayName") or profile.get("displayName") or card.get("name") or card["id"]
+            return None, f"库中已有这位选手：{existing}"
+
+    base = re.sub(r"[^a-z0-9]+", "-", (roman or name).lower()).strip("-") or "player"
+    used = {card["id"] for card in state["cards"]}
+    player_id, index = f"user-{base}", 2
+    while player_id in used:
+        player_id, index = f"user-{base}-{index}", index + 1
+    card = {"id": player_id, "displayName": name, "name": roman, "studio": studio, "variant": 1}
+    profile = {"displayName": name, "name": roman, "japaneseName": jp_name, "aliases": [],
+               "sources": [], "note": note, "custom": True}
+    if dmm_id:
+        profile["dmmId"] = dmm_id
+    if height:
+        profile["height"] = height
+    if measurements:
+        profile["measurements"] = measurements
+    if image:
+        profile["dmmImage"] = image
+
+    rows = _am_user_rows()
+    rows.append({"card": card, "profile": profile})
+    _AM_DIR.mkdir(parents=True, exist_ok=True)
+    temporary = _AM_USER_FILE.with_name(f"{_AM_USER_FILE.name}.tmp")
+    with _AM_LOCK:
+        temporary.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(_AM_USER_FILE)
+        _AM_STATE["mtime"] = 0.0
+    refreshed = _am_load()
+    return _am_item(card, refreshed["profiles"].get(player_id, profile)), ""
+
+
+@console_bp.post("/api/players/create")
+def api_players_create() -> Response:
+    payload = request.get_json(silent=True) or {}
+    item, error = _am_add_player(payload)
+    if error:
+        return jsonify({"success": False, "error": error}), 400
+    result: dict[str, Any] = {"success": True, "item": item}
+    if item and payload.get("autoDownload"):
+        job, download_error = _start_player_download(item["id"])
+        if job:
+            result["download"] = job
+        if download_error:
+            result["download_error"] = download_error
+    return jsonify(result)
 
 
 _PLAYER_PHOTO_DIR = _AM_DIR / "photos"
@@ -1137,6 +1411,263 @@ def api_players_works() -> Response:
     return jsonify({"success": True, "count": len(works), "works": works})
 
 
+_LOCAL_PHOTO_DIR = Path.home() / "Movies" / "写真"
+_LOCAL_STATS: dict[str, tuple[float, int, int]] = {}
+_LOCAL_STATS_TTL = 60.0
+
+
+def _local_stats(name: str) -> tuple[int, int]:
+    """本地写真集数 / 页数；60 秒缓存，新下载的写真最多 1 分钟后出现。"""
+    if not name:
+        return 0, 0
+    now = time.time()
+    cached = _LOCAL_STATS.get(name)
+    if cached and now - cached[0] < _LOCAL_STATS_TTL:
+        return cached[1], cached[2]
+    books = pages = 0
+    base = _LOCAL_PHOTO_DIR / name
+    if base.is_dir():
+        for book in base.iterdir():
+            if not book.is_dir() or book.name.startswith("."):
+                continue
+            books += 1
+            spreads = list((book / "spreads").glob("spread_*.jpg"))
+            pages += len(spreads) if spreads else sum(1 for _ in book.glob("page_*.jpg"))
+    _LOCAL_STATS[name] = (now, books, pages)
+    return books, pages
+
+
+def _local_photos(name: str, limit: int = 120) -> list[str]:
+    """~/Movies/写真/<女优名>/<作品code>/page_*.jpg 本地已下载写真。"""
+    if not name:
+        return []
+    base = _LOCAL_PHOTO_DIR / name
+    if not base.is_dir():
+        return []
+    files: list[Path] = []
+    for book in sorted(base.iterdir()):
+        if not book.is_dir() or book.name.startswith("."):
+            continue
+        spreads = sorted((book / "spreads").glob("spread_*.jpg"))
+        files.extend(spreads or sorted(book.glob("page_*.jpg")))
+        if len(files) >= limit:
+            break
+    chosen = files[:limit]
+
+    def prewarm() -> None:
+        for path in chosen[:60]:
+            try:
+                _local_thumb(path, 420)
+            except Exception:  # noqa: BLE001
+                pass
+
+    threading.Thread(target=prewarm, daemon=True).start()
+    return [f"/api/players/local-photo/{urllib.parse.quote(name)}/{page.relative_to(base).as_posix()}"
+            for page in chosen]
+
+
+# ---------------------------------------------------------------- 写真下载任务
+
+_DOWNLOAD_JOBS: dict[str, dict[str, Any]] = {}
+_DOWNLOAD_LOCK = threading.RLock()
+_DOWNLOAD_WORKERS = 2
+
+
+def _safe_player_folder(name: str) -> bool:
+    return bool(name) and name not in {".", ".."} and not any(ch in name for ch in ("/", "\\", "\x00"))
+
+
+def _download_job(card_id: str) -> dict[str, Any] | None:
+    with _DOWNLOAD_LOCK:
+        job = _DOWNLOAD_JOBS.get(card_id)
+        if job is None:
+            return None
+        snapshot = dict(job)
+        snapshot["errors"] = list(job.get("errors") or [])
+        return snapshot
+
+
+def _download_update(card_id: str, **values: Any) -> None:
+    with _DOWNLOAD_LOCK:
+        job = _DOWNLOAD_JOBS.get(card_id)
+        if job is not None:
+            job.update(values)
+
+
+def _download_one(card_id: str, name: str, book: dict[str, str]) -> int:
+    """下载一本书到临时目录，成功后再替换正式目录，避免半成品可见。"""
+    base = _LOCAL_PHOTO_DIR / name
+    target = base / book["code"]
+    temporary = base / f".{book['code']}.part"
+    if temporary.exists():
+        shutil.rmtree(temporary, ignore_errors=True)
+    temporary.mkdir(parents=True, exist_ok=True)
+
+    def on_page(done: int, total: int) -> None:
+        _download_update(card_id, current=book["code"], page_now=done, page_total=total)
+
+    last: Exception | None = None
+    for attempt in range(2):
+        try:
+            pages = dmm_books.download_book(book["series"], book["code"], temporary, on_page=on_page)
+            if target.exists():
+                shutil.rmtree(target)
+            temporary.rename(target)
+            (target / ".done").write_text(str(time.time()), encoding="utf-8")
+            return pages
+        except Exception as exc:  # noqa: BLE001
+            last = exc
+            shutil.rmtree(temporary, ignore_errors=True)
+            if attempt == 0:
+                temporary.mkdir(parents=True, exist_ok=True)
+                time.sleep(3)
+    raise last or RuntimeError("下载失败")
+
+
+def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> None:
+    try:
+        def listed(page: int, pages: int) -> None:
+            _download_update(card_id, list_page=page, list_pages=pages,
+                             message=f"正在检索作品：第 {page}/{pages} 页…")
+
+        books = (dmm_books.list_books(dmm_id, on_progress=listed) if dmm_id
+                 else dmm_books.search_books(search_name, on_progress=listed))
+        if not books:
+            raise RuntimeError("DMM 上没有找到她的試し読み作品")
+        dest = _LOCAL_PHOTO_DIR / name
+        if dest.is_dir():
+            for stale in dest.glob(".*.part"):
+                if stale.is_dir():
+                    shutil.rmtree(stale, ignore_errors=True)
+        pending = [book for book in books if not (dest / book["code"] / ".done").is_file()]
+        skipped = len(books) - len(pending)
+        _download_update(card_id, phase="downloading", total=len(pending), skipped=skipped,
+                         message=f"共 {len(books)} 本，待下载 {len(pending)} 本")
+        if not pending:
+            _LOCAL_STATS.pop(name, None)
+            _download_update(card_id, status="done", finished_at=time.time(),
+                             message=f"共 {len(books)} 本，已全部下载过")
+            return
+        finished = failed = pages = 0
+        errors: list[str] = []
+        with futures.ThreadPoolExecutor(max_workers=_DOWNLOAD_WORKERS) as pool:
+            jobs = {pool.submit(_download_one, card_id, name, book): book for book in pending}
+            for future in futures.as_completed(jobs):
+                book = jobs[future]
+                try:
+                    pages += future.result()
+                    finished += 1
+                except Exception as exc:  # noqa: BLE001
+                    failed += 1
+                    errors.append(f"{book['code']}: {str(exc)[:100]}")
+                _download_update(card_id, finished=finished, failed=failed, pages=pages)
+        _LOCAL_STATS.pop(name, None)
+        message = f"完成 {finished} 本 / {pages} 张"
+        if skipped:
+            message += f"，跳过已下载 {skipped} 本"
+        if failed:
+            message += f"，失败 {failed} 本"
+        _download_update(card_id, status="done" if finished else "error", message=message,
+                         errors=errors[:5], finished_at=time.time())
+    except Exception as exc:  # noqa: BLE001
+        _download_update(card_id, status="error", message=str(exc)[:200], finished_at=time.time())
+
+
+def _start_player_download(card_id: str) -> tuple[dict[str, Any] | None, str]:
+    """启动（或复用）一位选手的写真下载任务。"""
+    state = _am_load()
+    card = next((item for item in state["cards"] if item.get("id") == card_id), None)
+    if card is None:
+        return None, "没有找到这位选手"
+    profile = state["profiles"].get(card_id, {})
+    extra = (state.get("enrich") or {}).get(card_id, {})
+    name = card.get("displayName") or profile.get("displayName") or card.get("name") or ""
+    jp_name = profile.get("japaneseName") or ""
+    roman = card.get("name") or profile.get("name") or ""
+    dmm_id = str(extra.get("dmm_id") or profile.get("dmmId") or "")
+    if not dmm_id:
+        dmm_id = _resolve_dmm_id(name, jp_name, roman)
+    if not dmm_id and not jp_name:
+        return None, "没有匹配到 DMM 女优 ID，无法定位她的作品"
+    if not _safe_player_folder(name):
+        return None, "选手名字包含不能用于文件夹的字符"
+    with _DOWNLOAD_LOCK:
+        existing = _DOWNLOAD_JOBS.get(card_id)
+        if existing and existing.get("status") == "running":
+            snapshot = dict(existing)
+            snapshot["errors"] = list(existing.get("errors") or [])
+            return snapshot, ""
+        job = {"id": card_id, "name": name, "status": "running", "phase": "listing",
+               "total": 0, "finished": 0, "skipped": 0, "failed": 0, "pages": 0,
+               "page_now": 0, "page_total": 0, "list_page": 0, "list_pages": 0,
+               "current": "", "message": "正在检索她的 DMM 作品…" if dmm_id else "正在按日文名搜索作品…",
+               "started_at": time.time(), "finished_at": 0, "errors": []}
+        _DOWNLOAD_JOBS[card_id] = job
+    threading.Thread(target=_download_worker,
+                     args=(card_id, name, dmm_id, jp_name or name), daemon=True).start()
+    return _download_job(card_id), ""
+
+
+@console_bp.get("/api/players/download/status")
+def api_players_download_status() -> Response:
+    card_id = (request.args.get("id") or "").strip()
+    job = _download_job(card_id) if card_id else None
+    return jsonify({"success": True, "job": job or {"id": card_id, "status": "idle"}})
+
+
+@console_bp.post("/api/players/download")
+def api_players_download() -> Response:
+    payload = request.get_json(silent=True) or {}
+    card_id = str(payload.get("id") or "").strip()
+    if not card_id:
+        return error_response(400, "缺少 id")
+    job, error = _start_player_download(card_id)
+    if error:
+        return error_response(400, error)
+    return jsonify({"success": True, "job": job})
+
+
+_LOCAL_THUMB_DIR = DATA_DIR / "amxiaolin" / "thumbs"
+
+
+def _local_thumb(target: Path, width: int) -> bytes | None:
+    """生成/读取本地写真缩略图（磁盘缓存）。"""
+    try:
+        import hashlib
+        import io as _io
+        from PIL import Image as _Image
+        key = hashlib.md5(f"{target}:{width}".encode()).hexdigest()
+        _LOCAL_THUMB_DIR.mkdir(parents=True, exist_ok=True)
+        cache = _LOCAL_THUMB_DIR / f"{key}.jpg"
+        if cache.is_file() and cache.stat().st_size > 500:
+            return cache.read_bytes()
+        image = _Image.open(target).convert("RGB")
+        ratio = width / max(1, image.width)
+        image = image.resize((width, max(1, int(image.height * ratio))), _Image.LANCZOS)
+        buffer = _io.BytesIO()
+        image.save(buffer, format="JPEG", quality=82)
+        data = buffer.getvalue()
+        cache.write_bytes(data)
+        return data
+    except Exception:  # noqa: BLE001
+        return None
+
+
+@console_bp.get("/api/players/local-photo/<path:rel>")
+def api_players_local_photo(rel: str) -> Response:
+    target = (_LOCAL_PHOTO_DIR / rel).resolve()
+    base = _LOCAL_PHOTO_DIR.resolve()
+    if not str(target).startswith(str(base)) or not target.is_file():
+        return error_response(404, "图片不存在")
+    width = request.args.get("w", type=int)
+    if width and 160 <= width <= 1200:
+        thumb = _local_thumb(target, width)
+        if thumb:
+            return Response(thumb, mimetype="image/jpeg",
+                            headers={"Cache-Control": "public, max-age=86400"})
+    return send_file(target, mimetype="image/jpeg", max_age=86400)
+
+
 @console_bp.get("/api/players/photos")
 def api_players_photos() -> Response:
     card_id = (request.args.get("id") or "").strip()
@@ -1156,6 +1687,8 @@ def api_players_photos() -> Response:
     if not name:
         return error_response(404, "没有找到这位选手")
     kind = (request.args.get("kind") or "stills").lower()
+    if kind == "local":
+        return jsonify({"success": True, "name": name, "photos": _local_photos(name), "source": "local"})
     photos = _player_photos(card_id, name, roman_name=roman_name, sources=sources, kind=kind,
                             jp_name_for_photos=jp_name,
                             force=request.args.get("refresh") == "1")

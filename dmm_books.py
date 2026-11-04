@@ -24,9 +24,13 @@ from PIL import Image
 TS = 64
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-PROXY = os.environ.get("DMM_PROXY") or os.environ.get("NYAA_PROXY") or "http://127.0.0.1:7897"
-PROXY_FALLBACKS = [item for item in dict.fromkeys(
-    (os.environ.get("DMM_PROXY"), os.environ.get("NYAA_PROXY"), "http://127.0.0.1:7897")) if item]
+DEFAULT_PROXY = "http://127.0.0.1:7897"
+
+
+def proxy_candidates() -> list[str]:
+    """DMM_PROXY 优先，其次 NYAA_PROXY，最后本机 7897；去重保序。"""
+    values = (os.environ.get("DMM_PROXY"), os.environ.get("NYAA_PROXY"), DEFAULT_PROXY)
+    return [item for item in dict.fromkeys(value.strip() for value in values if value) if item]
 BOOK_URL = "https://book.dmm.co.jp/product/{series}/{code}/"
 MAX_PAGES = 30
 MAX_BOOK_PAGES = 500
@@ -63,7 +67,7 @@ def get(url: str, referer: str = "https://book.dmm.co.jp/", timeout: int = 60,
     last: Exception | None = None
     for attempt in range(retries):
         blocked = False
-        for proxy in PROXY_FALLBACKS:
+        for proxy in proxy_candidates():
             try:
                 with _opener(proxy).open(request, timeout=timeout) as response:
                     return response.read()
@@ -81,6 +85,73 @@ def get(url: str, referer: str = "https://book.dmm.co.jp/", timeout: int = 60,
 
 def _decode(url: str, referer: str = "https://book.dmm.co.jp/") -> str:
     return get(url, referer=referer).decode("utf-8", "replace")
+
+
+def normalize_proxy(value: str) -> str:
+    """规范化代理地址；空串表示清空，交由 NYAA_PROXY/7897 回退。"""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if "://" not in text:
+        text = "http://" + text
+    parsed = urllib.parse.urlparse(text)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise ValueError("代理地址需为 http://host:port 或 https://host:port")
+    if parsed.path not in ("", "/") or parsed.query or parsed.fragment:
+        raise ValueError("代理地址不能包含路径、查询或片段")
+    try:
+        parsed.port
+    except ValueError as exc:
+        raise ValueError("代理端口不合法") from exc
+    return text
+
+
+def _probe(proxy: str, url: str, timeout: int, read_limit: int = 0) -> tuple[int, bytes]:
+    request = urllib.request.Request(url, headers={
+        "User-Agent": UA,
+        "Accept": "*/*",
+        "Cookie": "age_check_done=1",
+    })
+    with _opener(proxy).open(request, timeout=timeout) as response:
+        data = response.read(read_limit) if read_limit else response.read()
+        return response.status, data
+
+
+def check_proxy(proxy: str, timeout: int = 8) -> dict:
+    """检查代理出口地区与 DMM 可达性；供设置页“检测代理”使用。"""
+    result = {"proxy": proxy, "ok": False, "country": "", "city": "", "ip": "",
+              "latency_ms": None, "dmm_ok": False, "dmm_status": None, "error": ""}
+    started = time.time()
+    try:
+        status, body = _probe(proxy, "https://ipinfo.io/json", timeout)
+        info = json.loads(body.decode("utf-8", "replace"))
+        result.update(country=str(info.get("country") or ""), city=str(info.get("city") or ""),
+                      ip=str(info.get("ip") or ""))
+        result["latency_ms"] = int((time.time() - started) * 1000)
+    except Exception as exc:  # noqa: BLE001
+        result["error"] = f"出口检测失败：{str(exc)[:150]}"
+    try:
+        status, _ = _probe(proxy, "https://book.dmm.co.jp/", timeout, read_limit=512)
+        result["dmm_status"] = status
+        result["dmm_ok"] = 200 <= status < 400
+        if result["latency_ms"] is None:
+            result["latency_ms"] = int((time.time() - started) * 1000)
+    except urllib.error.HTTPError as exc:
+        result["dmm_status"] = exc.code
+        result["dmm_ok"] = exc.code not in (403, 451)
+        result["error"] = f"DMM 返回 HTTP {exc.code}"
+    except Exception as exc:  # noqa: BLE001
+        result["error"] = f"DMM 检测失败：{str(exc)[:150]}"
+    result["ok"] = bool(result["dmm_ok"] or result["country"])
+    return result
+
+
+def check_proxies(timeout: int = 8) -> list[dict]:
+    candidates = proxy_candidates()
+    if not candidates:
+        return []
+    with futures.ThreadPoolExecutor(max_workers=len(candidates)) as pool:
+        return list(pool.map(lambda item: check_proxy(item, timeout), candidates))
 
 
 def _products(html: str) -> list[tuple[str, str]]:

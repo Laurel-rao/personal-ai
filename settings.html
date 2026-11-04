@@ -55,6 +55,27 @@
         </section>
 
         <section class="settings-card">
+          <h2>DMM 写真下载代理</h2>
+          <p class="settings-desc">「試し読み」下载走日本出口；留空时回退到 NYAA_PROXY（默认 127.0.0.1:7897）。</p>
+
+          <div class="settings-row">
+            <label for="dmmProxy">代理地址<small>如 http://127.0.0.1:7898；也支持远程 http/https 代理</small></label>
+            <div class="field">
+              <span id="dmmProxyState">当前：读取中…</span>
+              <input id="dmmProxy" type="text" spellcheck="false" autocomplete="off" placeholder="http://127.0.0.1:7898" />
+            </div>
+          </div>
+
+          <div class="settings-actions">
+            <button class="button button-primary" id="saveDmmProxy" type="button">保存代理</button>
+            <button class="button button-secondary" id="checkDmmProxy" type="button">检测代理</button>
+            <button class="button button-secondary" id="startDmmProxy" type="button">启动本机 JP 出口</button>
+            <span class="settings-status" id="dmmProxyStatus" role="status"></span>
+          </div>
+          <div class="settings-hint" id="dmmProxyResult"></div>
+        </section>
+
+        <section class="settings-card">
           <h2>当前生效值</h2>
           <p class="settings-desc">以下为服务进程实际使用的配置（环境变量优先于 .env）。</p>
           <div class="settings-row">

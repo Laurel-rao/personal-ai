@@ -2411,9 +2411,58 @@ def api_settings_get() -> Response:
             "autodl_token_masked": mask_secret(autodl_token),
             "azt_key_set": bool(azt_key),
             "azt_key_masked": mask_secret(azt_key),
+            "dmm_proxy": effective_setting("DMM_PROXY", ""),
+            "dmm_proxy_candidates": dmm_books.proxy_candidates(),
             "env_file": str(ENV_FILE),
         }
     )
+
+
+@console_bp.get("/api/settings/dmm-proxy")
+def api_settings_dmm_proxy() -> Response:
+    """DMM 下载代理：读取候选；check=1 时实测出口与 DMM 可达性。"""
+    check = request.args.get("check") == "1"
+    try:
+        results = dmm_books.check_proxies(timeout=8) if check else []
+    except Exception as exc:  # noqa: BLE001
+        return error_response(502, f"代理检测失败：{exc}")
+    script = ROOT / "tools" / "dmm_jp_proxy.sh"
+    return jsonify({
+        "success": True,
+        "proxy": effective_setting("DMM_PROXY", ""),
+        "candidates": dmm_books.proxy_candidates(),
+        "results": results,
+        "script_exists": script.is_file(),
+    })
+
+
+@console_bp.post("/api/settings/dmm-proxy")
+def api_settings_dmm_proxy_save() -> Response:
+    """保存 DMM_PROXY 到 .env 并立即生效（无需重启）。"""
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        proxy = dmm_books.normalize_proxy(str(data.get("proxy") or ""))
+        save_env_values({"DMM_PROXY": proxy})
+        os.environ["DMM_PROXY"] = proxy
+        return jsonify({"success": True, "proxy": proxy,
+                        "candidates": dmm_books.proxy_candidates()})
+    except Exception as exc:  # noqa: BLE001
+        return error_response(400, str(exc))
+
+
+@console_bp.post("/api/settings/dmm-proxy/start")
+def api_settings_dmm_proxy_start() -> Response:
+    """启动本机独立日本出口（tools/dmm_jp_proxy.sh）。"""
+    script = ROOT / "tools" / "dmm_jp_proxy.sh"
+    if not script.is_file():
+        return error_response(404, "找不到 tools/dmm_jp_proxy.sh")
+    try:
+        process = subprocess.run(["bash", str(script)], capture_output=True, text=True, timeout=30)
+    except Exception as exc:  # noqa: BLE001
+        return error_response(500, f"启动失败：{exc}")
+    output = (process.stdout + process.stderr).strip()[-1200:]
+    return jsonify({"success": process.returncode == 0, "output": output,
+                    "candidates": dmm_books.proxy_candidates()})
 
 
 @console_bp.post("/api/settings")

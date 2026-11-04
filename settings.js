@@ -64,6 +64,11 @@
       $("comfyUrls").textContent = "当前：" + (data.comfy_url || "未配置");
       $("autodlTokenState").textContent = data.autodl_token_set ? "已配置（保存时留空保持不变）" : "尚未配置";
       $("aztKeyState").textContent = data.azt_key_set ? "已配置（保存时留空保持不变）" : "尚未配置";
+      const dmmProxy = data.dmm_proxy || "";
+      const fallback = (data.dmm_proxy_candidates || [])[0] || "未配置";
+      $("dmmProxyState").textContent = dmmProxy
+        ? "当前：" + dmmProxy
+        : "未配置（回退：" + fallback + "）";
       setStatus("");
     } catch (error) {
       setStatus("读取设置失败：" + error.message, "err");
@@ -131,7 +136,91 @@
     }
   }
 
+  function setDmmStatus(text, tone) {
+    const element = $("dmmProxyStatus");
+    element.textContent = text;
+    element.className = "settings-status" + (tone ? " " + tone : "");
+  }
+
+  function renderDmmResults(results) {
+    const box = $("dmmProxyResult");
+    box.innerHTML = "";
+    for (const result of results) {
+      const line = document.createElement("div");
+      const place = result.country ? `出口 ${result.country}${result.city ? "/" + result.city : ""}` : "出口未知";
+      if (result.ok && result.dmm_ok) {
+        line.textContent = `${result.proxy} · 可用 · ${place} · ${result.latency_ms || "—"}ms · DMM 可达`;
+      } else if (result.ok) {
+        line.textContent = `${result.proxy} · 代理可用但 DMM 不可达（${result.dmm_status || result.error || "未知"}）`;
+      } else {
+        line.textContent = `${result.proxy} · 不可用 · ${result.error || "未知错误"}`;
+      }
+      box.appendChild(line);
+    }
+  }
+
+  async function saveDmmProxy() {
+    const button = $("saveDmmProxy");
+    button.disabled = true;
+    setDmmStatus("保存中…");
+    try {
+      const response = await fetch("/api/settings/dmm-proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proxy: $("dmmProxy").value.trim() }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || "保存失败");
+      $("dmmProxy").value = "";
+      setDmmStatus("已保存并立即生效", "ok");
+      await loadSettings();
+    } catch (error) {
+      setDmmStatus("保存失败：" + error.message, "err");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function checkDmmProxy() {
+    const button = $("checkDmmProxy");
+    button.disabled = true;
+    setDmmStatus("正在检测代理…");
+    try {
+      const response = await fetch("/api/settings/dmm-proxy?check=1", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || "检测失败");
+      renderDmmResults(data.results || []);
+      const usable = (data.results || []).some((item) => item.ok && item.dmm_ok);
+      setDmmStatus(usable ? "检测完成" : "没有可用的 DMM 代理", usable ? "ok" : "err");
+    } catch (error) {
+      setDmmStatus("检测失败：" + error.message, "err");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  async function startDmmProxy() {
+    const button = $("startDmmProxy");
+    button.disabled = true;
+    setDmmStatus("正在启动本机 JP 出口…");
+    try {
+      const response = await fetch("/api/settings/dmm-proxy/start", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || data.output || "启动失败");
+      setDmmStatus("JP 出口已启动", "ok");
+      $("dmmProxyResult").textContent = data.output || "";
+      await checkDmmProxy();
+    } catch (error) {
+      setDmmStatus("启动失败：" + (error.message || "未知错误"), "err");
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   $("saveButton").addEventListener("click", saveSettings);
+  $("saveDmmProxy").addEventListener("click", saveDmmProxy);
+  $("checkDmmProxy").addEventListener("click", checkDmmProxy);
+  $("startDmmProxy").addEventListener("click", startDmmProxy);
   $("verifyComfyButton").addEventListener("click", verifyComfy);
   $("verifyVideoButton").addEventListener("click", verifyVideo);
   startupToggle.addEventListener("change", () => updateStartup(true));

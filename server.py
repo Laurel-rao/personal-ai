@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 import dmm_books
+import task_store
 
 from flask import Blueprint, Flask, Response, jsonify, render_template_string, request, send_file, stream_with_context
 from flask_login import current_user
@@ -391,6 +392,7 @@ def api_health() -> Response:
 # ---------------------------------------------------------------- 选手库（amxiaolin 数据）
 
 _AM_DIR = DATA_DIR / "amxiaolin"
+task_store.configure(_AM_DIR)
 _AM_STATE: dict[str, Any] = {"mtime": 0.0, "cards": [], "profiles": {}, "tags": {}, "comments": {}, "enrich": {}}
 _AM_LOCK = threading.RLock()
 # 手动添加的选手单独存放，导入数据重新生成时不会被覆盖。
@@ -982,11 +984,131 @@ def _am_refresh_profile(player_id: str) -> tuple[dict[str, Any] | None, list[str
 @console_bp.post("/api/players/refresh")
 def api_players_refresh() -> Response:
     payload = request.get_json(silent=True) or {}
-    item, changed, error = _am_refresh_profile(str(payload.get("id") or "").strip())
+    card_id = str(payload.get("id") or "").strip()
+    info = _task_player(card_id)
+    if not info:
+        return error_response(400, "没有找到这位选手")
+    task = task_store.create("refresh", f"刷新资料：{info['name']}",
+                             payload={"player_id": card_id}, player_id=card_id,
+                             player_name=info["name"])
+    task_id = task["id"]
+    task_store.log(task_id, "从 DMM 索引与 theidolbase 获取基础信息…")
+    item, changed, error = _am_refresh_profile(card_id)
     if item is None:
+        task_store.log(task_id, f"失败：{error}")
+        task_store.finish(task_id, "failed", error=error)
         return error_response(400, error)
+    message = error or (f"已更新：{'、'.join(changed)}" if changed else "")
+    task_store.log(task_id, message or "没有可更新字段")
+    task_store.finish(task_id, "success", {"updated": changed, "message": message})
     return jsonify({"success": True, "item": item, "updated": changed,
-                    "message": error or (f"已更新：{'、'.join(changed)}" if changed else "")})
+                    "message": message, "task_id": task_id})
+
+
+def _run_retry_task(task: dict[str, Any]) -> None:
+    task_id = task["id"]
+    kind = task.get("kind") or ""
+    payload = task.get("payload") or {}
+    card_id = str(task.get("player_id") or "")
+    try:
+        if kind == "refresh":
+            item, changed, message = _am_refresh_profile(card_id)
+            if item is None:
+                raise RuntimeError(message)
+            task_store.log(task_id, message or f"已更新：{'、'.join(changed)}")
+            task_store.finish(task_id, "success", {"updated": changed, "message": message})
+        elif kind == "photos":
+            photo_kind = str(payload.get("kind") or "stills")
+            result = _photos_payload(card_id, photo_kind, bool(payload.get("refresh")))
+            count = len(result["photos"])
+            task_store.log(task_id, f"来源 {result.get('source') or '-'}，共 {count} 张")
+            task_store.finish(task_id, "success", {
+                "name": result["name"], "source": result["source"], "count": count,
+                "photos": result["photos"],
+            })
+        elif kind == "works":
+            result = _works_payload(card_id)
+            count = len(result["works"])
+            task_store.log(task_id, f"共 {count} 部作品")
+            task_store.finish(task_id, "success", {
+                "name": result["name"], "count": count, "works": result["works"][:8],
+            })
+        elif kind == "books":
+            name = str(payload.get("name") or "")
+            result = _books_payload(name)
+            count = len(result["books"])
+            task_store.log(task_id, f"共 {count} 本书目")
+            task_store.finish(task_id, "success", {
+                "name": name, "count": count,
+                "books": [book for book in result["books"] if book.get("cover")][:8],
+            })
+        elif kind == "preview":
+            name = str(payload.get("name") or "")
+            result = _preview_payload(name)
+            count = len(result["images"])
+            task_store.log(task_id, f"共 {count} 张预览图")
+            task_store.finish(task_id, "success", {
+                "name": name, "count": count, "images": result["images"][:12],
+            })
+        else:
+            raise RuntimeError(f"不支持重试的任务类型：{kind}")
+    except Exception as exc:  # noqa: BLE001
+        task_store.log(task_id, f"失败：{exc}")
+        task_store.finish(task_id, "failed", error=str(exc)[:300])
+
+
+@console_bp.get("/api/tasks")
+def api_tasks_list() -> Response:
+    try:
+        limit = max(1, min(int(request.args.get("limit") or 100), 200))
+        offset = max(0, int(request.args.get("offset") or 0))
+    except ValueError:
+        limit, offset = 100, 0
+    items, total = task_store.list_tasks(
+        kind=(request.args.get("kind") or "").strip(),
+        status=(request.args.get("status") or "").strip(),
+        player_id=(request.args.get("player_id") or "").strip(),
+        limit=limit, offset=offset,
+    )
+    for item in items:
+        result = dict(item.get("result") or {})
+        if isinstance(result.get("photos"), list):
+            result["photos"] = result["photos"][:12]
+        item["result"] = result
+    return jsonify({"success": True, "total": total, "items": items})
+
+
+@console_bp.get("/api/tasks/<task_id>")
+def api_tasks_detail(task_id: str) -> Response:
+    task = task_store.get(task_id, with_logs=True)
+    if task is None:
+        return error_response(404, "任务不存在")
+    return jsonify({"success": True, "task": task})
+
+
+@console_bp.post("/api/tasks/<task_id>/retry")
+def api_tasks_retry(task_id: str) -> Response:
+    old = task_store.get(task_id, with_logs=False)
+    if old is None:
+        return error_response(404, "任务不存在")
+    if old.get("status") == "running":
+        return error_response(400, "任务仍在运行，不能重试")
+    if old.get("kind") == "download":
+        job, error = _start_player_download(str(old.get("player_id") or ""))
+        if error:
+            return error_response(400, error)
+        new_task = task_store.get(str(job.get("task_id") or ""), with_logs=False) if job else None
+        return jsonify({"success": True, "task": new_task})
+    title = old.get("title") or old.get("kind") or "任务"
+    if not title.startswith("重试："):
+        title = "重试：" + title
+    task = task_store.create(
+        old.get("kind") or "unknown", title, payload=old.get("payload") or {},
+        player_id=old.get("player_id") or "", player_name=old.get("player_name") or "",
+        retry_of=task_id,
+    )
+    threading.Thread(target=_run_retry_task, args=(task,), daemon=True).start()
+    return jsonify({"success": True, "task": task})
 
 
 @console_bp.post("/api/players/update")
@@ -1527,11 +1649,7 @@ def api_players_bookcover(isbn: str) -> Response:
     return send_file(target, mimetype="image/jpeg", max_age=86400)
 
 
-@console_bp.get("/api/players/books")
-def api_players_books() -> Response:
-    name = (request.args.get("name") or "").strip()
-    if not name:
-        return error_response(400, "缺少 name")
+def _books_payload(name: str) -> dict[str, Any]:
     books = _ndl_books(name)
 
     def with_cover(book: dict[str, Any]) -> dict[str, Any]:
@@ -1540,7 +1658,34 @@ def api_players_books() -> Response:
 
     with futures.ThreadPoolExecutor(max_workers=6) as pool:
         books = list(pool.map(with_cover, books))
-    return jsonify({"success": True, "name": name, "count": len(books), "books": books})
+    return {"name": name, "books": books}
+
+
+@console_bp.get("/api/players/books")
+def api_players_books() -> Response:
+    name = (request.args.get("name") or "").strip()
+    if not name:
+        return error_response(400, "缺少 name")
+    card_id = (request.args.get("id") or "").strip()
+    info = _task_player(card_id) if card_id else {}
+    task = task_store.create("books", f"写真集书目：{info.get('name') or name}",
+                             payload={"name": name, "player_id": card_id},
+                             player_id=card_id, player_name=info.get("name") or name)
+    task_id = task["id"]
+    try:
+        result = _books_payload(name)
+        count = len(result["books"])
+        task_store.log(task_id, f"共 {count} 本书目")
+        task_store.finish(task_id, "success", {
+            "name": name, "count": count,
+            "books": [book for book in result["books"] if book.get("cover")][:8],
+        })
+        return jsonify({"success": True, "name": name, "count": count,
+                        "books": result["books"], "task_id": task_id})
+    except Exception as exc:  # noqa: BLE001
+        task_store.log(task_id, f"失败：{exc}")
+        task_store.finish(task_id, "failed", error=str(exc)[:300])
+        return error_response(502, f"书目获取失败：{exc}")
 
 
 _PHOTO_PREVIEW_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
@@ -1609,14 +1754,46 @@ def _photo_preview(name: str) -> list[dict[str, Any]]:
     return results
 
 
+def _preview_payload(name: str) -> dict[str, Any]:
+    previews = _photo_preview(name)
+    images = [url for group in previews for url in (group.get("images") or [])]
+    return {"name": name, "previews": previews, "images": images}
+
+
 @console_bp.get("/api/players/preview")
 def api_players_preview() -> Response:
     name = (request.args.get("name") or "").strip()
     if not name:
         return error_response(400, "缺少 name")
-    previews = _photo_preview(name)
-    total = sum(len(p["images"]) for p in previews)
-    return jsonify({"success": True, "name": name, "count": total, "previews": previews})
+    card_id = (request.args.get("id") or "").strip()
+    info = _task_player(card_id) if card_id else {}
+    task = task_store.create("preview", f"写真集预览：{info.get('name') or name}",
+                             payload={"name": name, "player_id": card_id},
+                             player_id=card_id, player_name=info.get("name") or name)
+    task_id = task["id"]
+    try:
+        result = _preview_payload(name)
+        count = len(result["images"])
+        task_store.log(task_id, f"共 {count} 张预览图")
+        task_store.finish(task_id, "success", {
+            "name": name, "count": count, "images": result["images"][:12],
+        })
+        return jsonify({"success": True, "name": name, "count": count,
+                        "previews": result["previews"], "task_id": task_id})
+    except Exception as exc:  # noqa: BLE001
+        task_store.log(task_id, f"失败：{exc}")
+        task_store.finish(task_id, "failed", error=str(exc)[:300])
+        return error_response(502, f"预览获取失败：{exc}")
+
+
+def _works_payload(card_id: str) -> dict[str, Any]:
+    info = _task_player(card_id)
+    if not info:
+        raise LookupError("没有找到这位选手")
+    if not info["roman"]:
+        raise LookupError("没有罗马字名，无法检索作品")
+    works = _actorbase_works(info["roman"])
+    return {"name": info["name"], "works": works}
 
 
 @console_bp.get("/api/players/works")
@@ -1624,17 +1801,26 @@ def api_players_works() -> Response:
     card_id = (request.args.get("id") or "").strip()
     if not card_id:
         return error_response(400, "缺少 id")
-    state = _am_load()
-    roman_name = ""
-    for card in state["cards"]:
-        if card.get("id") == card_id:
-            profile = state["profiles"].get(card_id, {})
-            roman_name = card.get("name") or profile.get("name") or ""
-            break
-    if not roman_name:
+    info = _task_player(card_id)
+    if not info:
         return error_response(404, "没有找到这位选手")
-    works = _actorbase_works(roman_name)
-    return jsonify({"success": True, "count": len(works), "works": works})
+    task = task_store.create("works", f"作品：{info['name']}",
+                             payload={"player_id": card_id}, player_id=card_id,
+                             player_name=info["name"])
+    task_id = task["id"]
+    try:
+        result = _works_payload(card_id)
+        count = len(result["works"])
+        task_store.log(task_id, f"共 {count} 部作品")
+        task_store.finish(task_id, "success", {
+            "name": result["name"], "count": count, "works": result["works"][:8],
+        })
+        return jsonify({"success": True, "count": count, "works": result["works"],
+                        "task_id": task_id})
+    except Exception as exc:  # noqa: BLE001
+        task_store.log(task_id, f"失败：{exc}")
+        task_store.finish(task_id, "failed", error=str(exc)[:300])
+        return error_response(502, f"作品获取失败：{exc}")
 
 
 _LOCAL_PHOTO_DIR = Path.home() / "Movies" / "写真"
@@ -1690,6 +1876,24 @@ def _local_photos(name: str, limit: int = 120) -> list[str]:
     threading.Thread(target=prewarm, daemon=True).start()
     return [f"/api/players/local-photo/{urllib.parse.quote(name)}/{page.relative_to(base).as_posix()}"
             for page in chosen]
+
+
+# ---------------------------------------------------------------- 外部数据任务
+
+def _task_player(card_id: str) -> dict[str, Any]:
+    state = _am_load()
+    for card in state["cards"]:
+        if card.get("id") != card_id:
+            continue
+        profile = state["profiles"].get(card_id, {})
+        return {
+            "id": card_id,
+            "name": card.get("displayName") or profile.get("displayName") or card.get("name") or card_id,
+            "roman": card.get("name") or profile.get("name") or "",
+            "jp": profile.get("japaneseName") or "",
+            "sources": profile.get("sources") or [],
+        }
+    return {}
 
 
 # ---------------------------------------------------------------- 写真下载任务
@@ -1751,10 +1955,22 @@ def _download_one(card_id: str, name: str, book: dict[str, str]) -> int:
 
 
 def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> None:
+    job = _download_job(card_id) or {}
+    task_id = str(job.get("task_id") or "")
+
+    def tlog(message: str) -> None:
+        if task_id:
+            task_store.log(task_id, message)
+
+    def tupdate(**values: Any) -> None:
+        if task_id:
+            task_store.update(task_id, **values)
+
     try:
         def listed(page: int, pages: int) -> None:
             _download_update(card_id, list_page=page, list_pages=pages,
                              message=f"正在检索作品：第 {page}/{pages} 页…")
+            tlog(f"检索作品：第 {page}/{pages} 页")
 
         books: list[dict[str, str]] = []
         list_error = ""
@@ -1769,6 +1985,7 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
         if not books:
             detail = f"（{list_error[:90]}）" if list_error else ""
             raise RuntimeError(f"DMM 上没有找到可下载的试读作品{detail}")
+        tlog(f"找到 {len(books)} 本作品")
         dest = _LOCAL_PHOTO_DIR / name
         if dest.is_dir():
             for stale in dest.glob(".*.part"):
@@ -1778,10 +1995,15 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
         skipped = len(books) - len(pending)
         _download_update(card_id, phase="downloading", total=len(pending), skipped=skipped,
                          message=f"共 {len(books)} 本，待下载 {len(pending)} 本")
+        tupdate(progress=0.1, result={"total": len(books), "pending": len(pending), "skipped": skipped})
+        tlog(f"共 {len(books)} 本，待下载 {len(pending)} 本，跳过已下载 {skipped} 本")
         if not pending:
             _LOCAL_STATS.pop(name, None)
             _download_update(card_id, status="done", finished_at=time.time(),
                              message=f"共 {len(books)} 本，已全部下载过")
+            task_store.finish(task_id, "success",
+                              {"total": len(books), "skipped": skipped,
+                               "photos": _local_photos(name)[:12]}, progress=1)
             return
         finished = failed = pages = 0
         errors: list[str] = []
@@ -1790,12 +2012,18 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
             for future in futures.as_completed(jobs):
                 book = jobs[future]
                 try:
-                    pages += future.result()
+                    count = future.result()
+                    pages += count
                     finished += 1
+                    tlog(f"完成 {book['code']}（{count} 页）")
                 except Exception as exc:  # noqa: BLE001
                     failed += 1
                     errors.append(f"{book['code']}: {str(exc)[:100]}")
+                    tlog(f"失败 {book['code']}：{str(exc)[:160]}")
                 _download_update(card_id, finished=finished, failed=failed, pages=pages)
+                tupdate(progress=0.1 + 0.9 * finished / max(1, len(pending)),
+                        result={"finished": finished, "failed": failed, "pages": pages,
+                                "total": len(pending)})
         _LOCAL_STATS.pop(name, None)
         message = f"完成 {finished} 本 / {pages} 张"
         if skipped:
@@ -1804,8 +2032,15 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
             message += f"，失败 {failed} 本"
         _download_update(card_id, status="done" if finished else "error", message=message,
                          errors=errors[:5], finished_at=time.time())
+        task_store.finish(task_id, "success" if finished else "failed",
+                          {"finished": finished, "failed": failed, "pages": pages,
+                           "skipped": skipped, "total": len(books),
+                           "photos": _local_photos(name)[:12] if finished else []},
+                          error="" if finished else message, progress=1)
     except Exception as exc:  # noqa: BLE001
         _download_update(card_id, status="error", message=str(exc)[:200], finished_at=time.time())
+        tlog(f"任务失败：{exc}")
+        task_store.finish(task_id, "failed", error=str(exc)[:500])
 
 
 def _start_player_download(card_id: str) -> tuple[dict[str, Any] | None, str]:
@@ -1832,11 +2067,15 @@ def _start_player_download(card_id: str) -> tuple[dict[str, Any] | None, str]:
             snapshot = dict(existing)
             snapshot["errors"] = list(existing.get("errors") or [])
             return snapshot, ""
+        task = task_store.create("download", f"下载写真：{name}",
+                                 payload={"player_id": card_id}, player_id=card_id,
+                                 player_name=name)
         job = {"id": card_id, "name": name, "status": "running", "phase": "listing",
                "total": 0, "finished": 0, "skipped": 0, "failed": 0, "pages": 0,
                "page_now": 0, "page_total": 0, "list_page": 0, "list_pages": 0,
                "current": "", "message": "正在检索她的 DMM 作品…" if dmm_id else "正在按日文名搜索作品…",
-               "started_at": time.time(), "finished_at": 0, "errors": []}
+               "started_at": time.time(), "finished_at": 0, "errors": [],
+               "task_id": task["id"]}
         _DOWNLOAD_JOBS[card_id] = job
     threading.Thread(target=_download_worker,
                      args=(card_id, name, dmm_id, jp_name or name), daemon=True).start()
@@ -1903,18 +2142,7 @@ def api_players_local_photo(rel: str) -> Response:
     return send_file(target, mimetype="image/jpeg", max_age=86400)
 
 
-@console_bp.get("/api/players/photos")
-def api_players_photos() -> Response:
-    try:
-        return _players_photos_response()
-    except Exception as exc:  # noqa: BLE001
-        return error_response(502, f"写真加载失败：{exc}")
-
-
-def _players_photos_response() -> Response:
-    card_id = (request.args.get("id") or "").strip()
-    if not card_id:
-        return error_response(400, "缺少 id")
+def _photos_payload(card_id: str, kind: str, refresh: bool = False) -> dict[str, Any]:
     state = _am_load()
     name = roman_name = jp_name = ""
     sources: list[str] = []
@@ -1927,13 +2155,11 @@ def _players_photos_response() -> Response:
             sources = profile.get("sources") or []
             break
     if not name:
-        return error_response(404, "没有找到这位选手")
-    kind = (request.args.get("kind") or "stills").lower()
+        raise LookupError("没有找到这位选手")
     if kind == "local":
-        return jsonify({"success": True, "name": name, "photos": _local_photos(name), "source": "local"})
+        return {"name": name, "photos": _local_photos(name), "source": "local"}
     photos = _player_photos(card_id, name, roman_name=roman_name, sources=sources, kind=kind,
-                            jp_name_for_photos=jp_name,
-                            force=request.args.get("refresh") == "1")
+                            jp_name_for_photos=jp_name, force=refresh)
     source = ""
     folder_key = re.sub(r"[^A-Za-z0-9_-]+", "-", card_id)[:80] + ("~daily" if kind == "daily" else "")
     manifest = _PLAYER_PHOTO_DIR / folder_key / "manifest.json"
@@ -1942,7 +2168,36 @@ def _players_photos_response() -> Response:
             source = json.loads(manifest.read_text(encoding="utf-8")).get("source", "")
         except ValueError:
             source = ""
-    return jsonify({"success": True, "name": name, "photos": photos, "source": source})
+    return {"name": name, "photos": photos, "source": source}
+
+
+@console_bp.get("/api/players/photos")
+def api_players_photos() -> Response:
+    card_id = (request.args.get("id") or "").strip()
+    if not card_id:
+        return error_response(400, "缺少 id")
+    info = _task_player(card_id)
+    if not info:
+        return error_response(404, "没有找到这位选手")
+    kind = (request.args.get("kind") or "stills").lower()
+    refresh = request.args.get("refresh") == "1"
+    task = task_store.create("photos", f"写真：{info['name']} · {kind}",
+                             payload={"player_id": card_id, "kind": kind, "refresh": refresh},
+                             player_id=card_id, player_name=info["name"])
+    task_id = task["id"]
+    try:
+        result = _photos_payload(card_id, kind, refresh)
+        count = len(result["photos"])
+        task_store.log(task_id, f"来源 {result.get('source') or '-'}，共 {count} 张")
+        task_store.finish(task_id, "success", {
+            "name": result["name"], "source": result["source"], "count": count,
+            "photos": result["photos"],
+        })
+        return jsonify({"success": True, **result, "task_id": task_id})
+    except Exception as exc:  # noqa: BLE001
+        task_store.log(task_id, f"失败：{exc}")
+        task_store.finish(task_id, "failed", error=str(exc)[:300])
+        return error_response(502, f"写真加载失败：{exc}")
 
 
 @console_bp.get("/api/players/photo/<path:name>")
@@ -3401,6 +3656,7 @@ def api_chat_image(name: str) -> Response:
 # ---------------------------------------------------------------- 应用工厂
 
 def create_console_app(config=None) -> Flask:
+    task_store.interrupt_running("服务重启，任务已中断")
     app = Flask(__name__, static_folder=None)
     if config:
         app.config.update(config)

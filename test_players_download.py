@@ -11,11 +11,13 @@ from pathlib import Path
 
 import dmm_books
 import server
+import task_store
 from flask import Flask
 
 original_dir = server._AM_DIR
 original_file = server._AM_USER_FILE
 original_photo_dir = server._LOCAL_PHOTO_DIR
+original_task_root = task_store._ROOT
 original_list = dmm_books.list_books
 original_search = dmm_books.search_books
 original_download = dmm_books.download_book
@@ -24,6 +26,8 @@ try:
     server._AM_DIR = tmp
     server._AM_USER_FILE = tmp / "player-user.json"
     server._LOCAL_PHOTO_DIR = tmp / "写真"
+    task_store.configure(tmp / "tasks")
+    task_store.clear()
     server._AM_STATE.update(mtime=0.0, cards=[], profiles={}, tags={}, comments={}, enrich={})
     server._DOWNLOAD_JOBS.clear()
     (tmp / "dmm-actresses.json").write_text(json.dumps([
@@ -64,6 +68,7 @@ try:
 
     job, error = server._start_player_download(item["id"])
     assert error == "" and job and job["status"] == "running", (job, error)
+    assert job.get("task_id"), job
     deadline = time.time() + 5
     while time.time() < deadline:
         job = server._download_job(item["id"])
@@ -102,6 +107,8 @@ try:
         time.sleep(0.05)
     assert job["status"] == "done" and job["finished"] == 1, job
     assert (server._LOCAL_PHOTO_DIR / "搜索选手" / "b092agwrk02412" / ".done").is_file()
+    started_task = task_store.get(job["task_id"])
+    assert started_task and started_task["status"] == "success", started_task
 
     created = client.post("/api/players/create", json={
         "displayName": "自动下载选手", "dmmId": "1083265", "autoDownload": True,
@@ -121,6 +128,7 @@ finally:
     server._AM_DIR = original_dir
     server._AM_USER_FILE = original_file
     server._LOCAL_PHOTO_DIR = original_photo_dir
+    task_store.configure(original_task_root)
     server._AM_STATE.update(mtime=0.0, cards=[], profiles={})
     server._DOWNLOAD_JOBS.clear()
     dmm_books.list_books = original_list

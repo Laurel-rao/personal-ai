@@ -75,6 +75,33 @@
     .pl-add-actions button { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; }
     .pl-add-actions button.primary { border: 0; background: var(--page-primary, #087f65); color: #fff; }
     .pl-add-actions button:disabled { opacity: .6; cursor: default; }
+    .pl-tasks-btn { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 8px; padding: 9px 14px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+    .pl-tasks-btn:hover { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); }
+    .pl-tasks-box { width: min(1000px, 96vw); max-height: 88vh; display: flex; flex-direction: column; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); border-radius: 14px; padding: 16px 18px; box-shadow: 0 24px 70px rgba(23,32,43,.25); color: var(--page-text, #243242); }
+    .pl-tasks-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .pl-tasks-bar select { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 7px; padding: 5px 9px; font-size: 12px; }
+    .pl-tasks-bar button { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 7px; padding: 5px 11px; font-size: 12px; cursor: pointer; }
+    .pl-tasks-count { margin-left: auto; color: var(--page-muted, #7b8795); font-size: 12px; }
+    .pl-tasks-list { flex: 1; min-height: 120px; overflow: auto; border-top: 1px solid var(--page-line, #e3e9ee); }
+    .pl-task-row { display: flex; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px solid #f1f4f6; font-size: 12.5px; }
+    .pl-task-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; background: #9aa6b2; }
+    .pl-task-dot.running { background: #d19a00; box-shadow: 0 0 0 3px rgba(209,154,0,.15); }
+    .pl-task-dot.success { background: #087f65; }
+    .pl-task-dot.failed { background: #c0392b; }
+    .pl-task-kind { flex: 0 0 auto; font-size: 10.5px; color: var(--page-muted, #7b8795); background: #f3f6f8; border-radius: 999px; padding: 2px 7px; }
+    .pl-task-main { flex: 1; min-width: 0; }
+    .pl-task-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pl-task-meta { color: var(--page-muted, #7b8795); font-size: 11px; margin-top: 2px; }
+    .pl-task-actions { flex: 0 0 auto; display: flex; gap: 5px; }
+    .pl-task-actions button { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 6px; padding: 3px 7px; font-size: 11px; cursor: pointer; white-space: nowrap; }
+    .pl-task-actions button:hover { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); }
+    .pl-task-actions button:disabled { opacity: .5; cursor: default; }
+    .pl-task-detail { border-top: 1px solid var(--page-line, #e3e9ee); margin-top: 8px; padding-top: 8px; }
+    .pl-task-detail[hidden] { display: none; }
+    .pl-task-detail-head { display: flex; align-items: center; gap: 10px; font-size: 12.5px; margin-bottom: 6px; }
+    .pl-task-detail-head button { margin-left: auto; border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 6px; padding: 3px 8px; font-size: 11px; cursor: pointer; }
+    .pl-task-logs { max-height: 220px; overflow: auto; margin: 0; padding: 9px 10px; background: #0f1218; color: #dfe6f3; border-radius: 8px; font-size: 11.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+    .pl-task-empty { padding: 30px 0; text-align: center; color: var(--page-muted, #7b8795); font-size: 12.5px; }
     .pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 14px; }
     .pl-card { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
     .pl-card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(36,50,66,.1); border-color: rgba(8,127,101,.35); }
@@ -220,6 +247,7 @@
       </select>
       <select id="plStudio" aria-label="厂牌筛选"><option value="">全部厂牌</option></select>
       <button type="button" class="pl-add" id="plAdd">＋ 添加选手</button>
+      <button type="button" class="pl-tasks-btn" id="plTasksBtn">外部任务</button>
       <span class="pl-count" id="plCount"></span>
     </div>
     <div class="pl-dl-banner" id="plDlBanner" hidden></div>
@@ -259,6 +287,38 @@
         <button type="button" data-tab="book">写真集</button>
       </div>
       <div id="plSearchPane"></div>
+    </div>
+  </div>
+  <div class="pl-search-overlay" id="plTasksModal" hidden role="dialog" aria-modal="true" aria-label="外部数据任务">
+    <div class="pl-tasks-box">
+      <div class="pl-search-head">
+        <h3>外部数据任务</h3>
+        <button class="pl-search-close" id="plTasksClose" type="button" aria-label="关闭">×</button>
+      </div>
+      <div class="pl-tasks-bar">
+        <select id="plTasksKind" aria-label="任务类型">
+          <option value="">全部类型</option>
+          <option value="download">写真下载</option>
+          <option value="refresh">资料刷新</option>
+          <option value="photos">写真查询</option>
+          <option value="works">作品查询</option>
+          <option value="books">写真集书目</option>
+          <option value="preview">写真集预览</option>
+        </select>
+        <select id="plTasksStatus" aria-label="任务状态">
+          <option value="">全部状态</option>
+          <option value="running">运行中</option>
+          <option value="success">成功</option>
+          <option value="failed">失败</option>
+        </select>
+        <button id="plTasksRefresh" type="button">刷新</button>
+        <span class="pl-tasks-count" id="plTasksCount"></span>
+      </div>
+      <div class="pl-tasks-list" id="plTasksList"><div class="pl-task-empty">加载中…</div></div>
+      <div class="pl-task-detail" id="plTaskDetail" hidden>
+        <div class="pl-task-detail-head"><b id="plTaskDetailTitle"></b><button id="plTaskDetailClose" type="button">关闭日志</button></div>
+        <pre class="pl-task-logs" id="plTaskLogs"></pre>
+      </div>
     </div>
   </div>
   <div class="pl-add-overlay" id="plAddModal" hidden role="dialog" aria-modal="true" aria-labelledby="plAddTitle">
@@ -1048,7 +1108,7 @@
       async function loadBookTab(item) {
         searchPane.innerHTML = '<div class="pl-search-loading">正在检索写真集书目（NDL）…</div>';
         try {
-          const response = await fetch(`/api/players/books?name=${encodeURIComponent(item.jp_name || item.name)}`);
+          const response = await fetch(`/api/players/books?name=${encodeURIComponent(item.jp_name || item.name)}&id=${encodeURIComponent(item.id)}`);
           const data = await readJson(response);
           if (!data.success) throw new Error(data.error || '检索失败');
           const rows = (data.books || []).map((book) => `
@@ -1070,7 +1130,7 @@
               const original = btn.textContent;
               btn.disabled = true; btn.textContent = '查找中…';
               try {
-                const response = await fetch(`/api/players/preview?name=${encodeURIComponent(item.jp_name || item.name)}`);
+                const response = await fetch(`/api/players/preview?name=${encodeURIComponent(item.jp_name || item.name)}&id=${encodeURIComponent(item.id)}`);
                 const data = await readJson(response);
                 if (!data.success) throw new Error(data.error || '失败');
                 const images = [];
@@ -1349,6 +1409,169 @@
         } finally {
           addSave.disabled = false;
         }
+      });
+
+      // ---------------- 外部数据任务中心 ----------------
+      const tasksModal = document.getElementById('plTasksModal');
+      const tasksList = document.getElementById('plTasksList');
+      const tasksCount = document.getElementById('plTasksCount');
+      const tasksKind = document.getElementById('plTasksKind');
+      const tasksStatus = document.getElementById('plTasksStatus');
+      const taskDetail = document.getElementById('plTaskDetail');
+      const taskDetailTitle = document.getElementById('plTaskDetailTitle');
+      const taskLogs = document.getElementById('plTaskLogs');
+      const TASK_KINDS = {
+        download: '写真下载', refresh: '资料刷新', photos: '写真查询',
+        works: '作品查询', books: '写真集书目', preview: '写真集预览',
+      };
+      const TASK_STATUS = { running: '运行中', success: '成功', failed: '失败' };
+      let tasksPoll = 0;
+      let taskItems = [];
+
+      function taskImages(task) {
+        const result = task.result || {};
+        const images = [];
+        (result.photos || []).forEach((url) => images.push(url));
+        (result.images || []).forEach((url) => images.push(url));
+        (result.books || []).forEach((book) => { if (book.cover) images.push(book.cover); });
+        return images;
+      }
+
+      function taskSummary(task) {
+        const result = task.result || {};
+        if (task.kind === 'download') {
+          if (!result.total) return '';
+          return `${result.finished || 0}/${result.total} 本 · ${result.pages || 0} 张${result.failed ? ` · 失败 ${result.failed}` : ''}`;
+        }
+        if (task.kind === 'refresh') {
+          return (result.updated || []).length ? `更新 ${result.updated.join('、')}` : (result.message || '');
+        }
+        if (result.count != null) return `${result.count} 项`;
+        return '';
+      }
+
+      function taskRowHtml(task) {
+        const status = task.status || 'running';
+        const id = esc(task.id);
+        const imageCount = taskImages(task).length;
+        const summary = taskSummary(task);
+        return `<div class="pl-task-row">
+          <span class="pl-task-dot ${esc(status)}"></span>
+          <span class="pl-task-kind">${esc(TASK_KINDS[task.kind] || task.kind)}</span>
+          <div class="pl-task-main">
+            <div class="pl-task-title" title="${esc(task.title)}">${esc(task.title)}</div>
+            <div class="pl-task-meta">${esc(TASK_STATUS[status] || status)}${task.player_name ? ` · ${esc(task.player_name)}` : ''} · ${esc((task.created_at || '').slice(5, 16).replace('T', ' '))}${status === 'running' && task.progress ? ` · ${Math.round(task.progress * 100)}%` : ''}${summary ? ` · ${esc(summary)}` : ''}</div>
+          </div>
+          <div class="pl-task-actions">
+            <button type="button" data-task-log="${id}">日志</button>
+            ${imageCount ? `<button type="button" data-task-images="${id}">图片 ${imageCount}</button>` : ''}
+            ${task.player_id ? `<button type="button" data-task-player="${esc(task.player_id)}">选手</button>` : ''}
+            ${status === 'running' ? '' : `<button type="button" data-task-retry="${id}">重试</button>`}
+          </div>
+        </div>`;
+      }
+
+      function bindTaskRows() {
+        tasksList.querySelectorAll('[data-task-log]').forEach((button) => {
+          button.addEventListener('click', () => showTaskDetail(button.dataset.taskLog));
+        });
+        tasksList.querySelectorAll('[data-task-retry]').forEach((button) => {
+          button.addEventListener('click', () => retryTask(button.dataset.taskRetry, button));
+        });
+        tasksList.querySelectorAll('[data-task-player]').forEach((button) => {
+          button.addEventListener('click', () => {
+            const playerId = button.dataset.taskPlayer;
+            closeTasks();
+            setTimeout(() => openDetail(playerId), 60);
+          });
+        });
+        tasksList.querySelectorAll('[data-task-images]').forEach((button) => {
+          button.addEventListener('click', () => {
+            const task = taskItems.find((item) => item.id === button.dataset.taskImages);
+            if (!task) return;
+            const images = taskImages(task).map((url, index) => ({
+              src: url, name: task.title, file: `task-${task.id}-${index + 1}.jpg`,
+            }));
+            closeTasks();
+            setTimeout(() => openLightbox(images, 0), 60);
+          });
+        });
+      }
+
+      async function loadTasks(silent) {
+        if (!silent) tasksList.innerHTML = '<div class="pl-task-empty">加载中…</div>';
+        const params = new URLSearchParams({ limit: '200' });
+        if (tasksKind.value) params.set('kind', tasksKind.value);
+        if (tasksStatus.value) params.set('status', tasksStatus.value);
+        try {
+          const response = await fetch(`/api/tasks?${params}`, { cache: 'no-store' });
+          const data = await readJson(response);
+          if (!response.ok || !data.success) throw new Error(data.error || '加载失败');
+          taskItems = data.items || [];
+          const scroll = tasksList.scrollTop;
+          tasksList.innerHTML = taskItems.length ? taskItems.map(taskRowHtml).join('') : '<div class="pl-task-empty">还没有任务</div>';
+          tasksList.scrollTop = scroll;
+          tasksCount.textContent = `${data.total} 条`;
+          bindTaskRows();
+        } catch (error) {
+          if (!silent) tasksList.innerHTML = `<div class="pl-task-empty">${esc(error.message)}</div>`;
+        }
+      }
+
+      async function showTaskDetail(taskId) {
+        taskDetail.hidden = false;
+        taskDetailTitle.textContent = '日志';
+        taskLogs.textContent = '加载中…';
+        try {
+          const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`, { cache: 'no-store' });
+          const data = await readJson(response);
+          if (!response.ok || !data.success) throw new Error(data.error || '加载失败');
+          taskDetailTitle.textContent = `${data.task.title} · ${TASK_STATUS[data.task.status] || data.task.status}`;
+          taskLogs.textContent = data.task.logs || '暂无日志';
+          taskLogs.scrollTop = taskLogs.scrollHeight;
+        } catch (error) {
+          taskLogs.textContent = error.message;
+        }
+      }
+
+      async function retryTask(taskId, button) {
+        button.disabled = true;
+        button.textContent = '重试中…';
+        try {
+          const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/retry`, { method: 'POST' });
+          const data = await readJson(response);
+          if (!response.ok || !data.success) throw new Error(data.error || '重试失败');
+          await loadTasks(true);
+          if (data.task) showTaskDetail(data.task.id);
+        } catch (error) {
+          button.textContent = '失败';
+          setTimeout(() => { button.disabled = false; button.textContent = '重试'; }, 1500);
+        }
+      }
+
+      function openTasks() {
+        tasksModal.hidden = false;
+        taskDetail.hidden = true;
+        loadTasks(false);
+        clearInterval(tasksPoll);
+        tasksPoll = setInterval(() => { if (!tasksModal.hidden) loadTasks(true); }, 2500);
+      }
+
+      function closeTasks() {
+        tasksModal.hidden = true;
+        clearInterval(tasksPoll);
+        tasksPoll = 0;
+      }
+
+      document.getElementById('plTasksBtn').addEventListener('click', openTasks);
+      document.getElementById('plTasksClose').addEventListener('click', closeTasks);
+      document.getElementById('plTasksRefresh').addEventListener('click', () => loadTasks(false));
+      document.getElementById('plTaskDetailClose').addEventListener('click', () => { taskDetail.hidden = true; });
+      tasksKind.addEventListener('change', () => loadTasks(false));
+      tasksStatus.addEventListener('change', () => loadTasks(false));
+      tasksModal.addEventListener('click', (event) => { if (event.target === tasksModal) closeTasks(); });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !tasksModal.hidden) closeTasks();
       });
 
       load(true);

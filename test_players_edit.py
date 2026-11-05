@@ -9,14 +9,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import server
+import task_store
 from flask import Flask
 
 original_dir = server._AM_DIR
 original_file = server._AM_USER_FILE
+original_task_root = task_store._ROOT
 tmp = Path(tempfile.mkdtemp(prefix="players-edit-test-"))
 try:
     server._AM_DIR = tmp
     server._AM_USER_FILE = tmp / "player-user.json"
+    task_store.configure(tmp / "tasks")
+    task_store.clear()
     server._AM_STATE.update(mtime=0.0, cards=[], profiles={}, tags={}, comments={}, enrich={})
     (tmp / "dmm-actresses.json").write_text("[]", encoding="utf-8")
 
@@ -73,6 +77,8 @@ try:
         assert set(body["updated"]) == {"身高", "三围", "生日"}, body
         assert body["item"]["height"] == "160", body
         assert body["item"]["birthday"] == "1998-08-12", body
+        assert body.get("task_id"), body
+        assert task_store.get(body["task_id"])["status"] == "success"
         again = client.post("/api/players/refresh", json={"id": fresh["id"]}).get_json()
         assert again["updated"] == [] and ("最新" in again["message"] or "没有找到" in again["message"]), again
     finally:
@@ -80,6 +86,7 @@ try:
 finally:
     server._AM_DIR = original_dir
     server._AM_USER_FILE = original_file
+    task_store.configure(original_task_root)
     server._AM_STATE.update(mtime=0.0, cards=[], profiles={})
     shutil.rmtree(tmp, ignore_errors=True)
 

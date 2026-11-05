@@ -494,6 +494,20 @@ def _bust(measurements: str) -> int:
 
 def _am_item(card: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
     extra = (_AM_STATE.get("enrich") or {}).get(card.get("id"), {})
+    dmm_id = str(extra.get("dmm_id") or profile.get("dmmId") or "")
+    dmm = _dmm_entry(dmm_id)
+    dmm_measure = "-".join(part for part in (
+        f"B{dmm['bust']}" if dmm.get("bust") else "",
+        f"W{dmm['waist']}" if dmm.get("waist") else "",
+        f"H{dmm['hip']}" if dmm.get("hip") else "",
+    ) if part)
+    measurements = (card.get("measurements") or profile.get("measurements")
+                    or extra.get("measurements") or dmm_measure or "")
+    height = profile.get("height") or extra.get("height") or dmm.get("height") or ""
+    if card.get("card"):
+        card_image = f"/api/players/card/{card.get('id')}"
+    else:
+        card_image = profile.get("dmmImage") or extra.get("image") or dmm.get("image") or ""
     birthday = card.get("birthday") or profile.get("birthday") or ""
     age = ""
     if re.match(r"^\d{4}-\d{2}-\d{2}$", birthday):
@@ -511,19 +525,20 @@ def _am_item(card: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
         "position": card.get("position") or "",
         "overall": card.get("overall"),
         "stats": card.get("stats") or {},
-        "height": profile.get("height") or extra.get("height") or "",
+        "height": height,
         "birthday": birthday,
         "age": age,
-        "measurements": card.get("measurements") or profile.get("measurements") or extra.get("measurements") or "",
-        "bust": _bust(card.get("measurements") or profile.get("measurements") or extra.get("measurements") or ""),
+        "measurements": measurements,
+        "bust": _bust(measurements),
         "debut": profile.get("debutYear") or "",
         "agency": profile.get("agency") or "",
         "followers": card.get("totalFollowers") or 0,
         "social": profile.get("social") or {},
         "sources": profile.get("sources") or [],
-        "card_image": f"/api/players/card/{card.get('id')}" if card.get("card") else "",
+        "card_image": card_image,
+        "custom": bool(profile.get("custom")),
         "tags": _AM_STATE.get("tags", {}).get(card.get("id"), []),
-        "dmm_id": extra.get("dmm_id") or profile.get("dmmId") or "",
+        "dmm_id": dmm_id,
     }
 
 
@@ -584,7 +599,7 @@ def api_players_list() -> Response:
 
 # ---------------------------------------------------------------- 女优库检索（添加选手用）
 
-_DMM_ACTRESS_STATE: dict[str, Any] = {"stamp": None, "path": "", "entries": []}
+_DMM_ACTRESS_STATE: dict[str, Any] = {"stamp": None, "path": "", "entries": [], "by_id": {}}
 _DMM_ACTRESS_LOCK = threading.RLock()
 
 
@@ -652,8 +667,16 @@ def _dmm_actresses() -> list[dict[str, Any]]:
                                       {"name": roman, "displayName": name}),
         })
     with _DMM_ACTRESS_LOCK:
-        _DMM_ACTRESS_STATE.update(stamp=stamp, path=str(path), entries=entries)
+        _DMM_ACTRESS_STATE.update(stamp=stamp, path=str(path), entries=entries,
+                                  by_id={entry["id"]: entry for entry in entries if entry["id"]})
     return entries
+
+
+def _dmm_entry(dmm_id: str) -> dict[str, Any]:
+    if not dmm_id:
+        return {}
+    _dmm_actresses()
+    return (_DMM_ACTRESS_STATE.get("by_id") or {}).get(str(dmm_id), {})
 
 
 def _resolve_dmm_id(display_name: str, jp_name: str, roman_name: str) -> str:
@@ -749,6 +772,39 @@ def api_players_actresses() -> Response:
     return jsonify({"success": True, "query": query, "total": len(scored), "items": items})
 
 
+def _profile_extras(payload: dict[str, Any]) -> dict[str, Any]:
+    """校验可编辑的档案字段；空白表示未填写。"""
+    height = str(payload.get("height") or "").strip()
+    height = height if re.fullmatch(r"\d{2,3}", height) else ""
+    measurements = str(payload.get("measurements") or "").strip()[:60]
+    birthday = str(payload.get("birthday") or "").strip()
+    if birthday:
+        try:
+            datetime.strptime(birthday, "%Y-%m-%d")
+        except ValueError:
+            birthday = ""
+    agency = str(payload.get("agency") or "").strip()[:80]
+    debut = str(payload.get("debut") or "").strip()
+    debut = debut if re.fullmatch(r"\d{4}", debut) else ""
+    social: dict[str, str] = {}
+    for key, field in (("x", "socialX"), ("instagram", "socialInstagram")):
+        value = str(payload.get(field) or "").strip()[:300]
+        parsed = urllib.parse.urlparse(value)
+        if parsed.scheme in ("http", "https") and parsed.netloc:
+            social[key] = value
+    return {"height": height, "measurements": measurements, "birthday": birthday,
+            "agency": agency, "debut": debut, "social": social}
+
+
+def _write_user_rows(rows: list[dict[str, Any]]) -> None:
+    _AM_DIR.mkdir(parents=True, exist_ok=True)
+    temporary = _AM_USER_FILE.with_name(f"{_AM_USER_FILE.name}.tmp")
+    with _AM_LOCK:
+        temporary.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(_AM_USER_FILE)
+        _AM_STATE["mtime"] = 0.0
+
+
 def _am_add_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
     """登记一位选手；只写文字资料，不抓取任何图片。"""
     name = str(payload.get("displayName") or "").strip()
@@ -803,16 +859,79 @@ def _am_add_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, str]
     if image:
         profile["dmmImage"] = image
 
+    extras = _profile_extras(payload)
+    if extras["height"]:
+        profile["height"] = extras["height"]
+    if extras["measurements"]:
+        profile["measurements"] = extras["measurements"]
+    if extras["birthday"]:
+        profile["birthday"] = extras["birthday"]
+    if extras["agency"]:
+        profile["agency"] = extras["agency"]
+    if extras["debut"]:
+        profile["debutYear"] = extras["debut"]
+    if extras["social"]:
+        profile["social"] = extras["social"]
+
     rows = _am_user_rows()
     rows.append({"card": card, "profile": profile})
-    _AM_DIR.mkdir(parents=True, exist_ok=True)
-    temporary = _AM_USER_FILE.with_name(f"{_AM_USER_FILE.name}.tmp")
-    with _AM_LOCK:
-        temporary.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
-        temporary.replace(_AM_USER_FILE)
-        _AM_STATE["mtime"] = 0.0
+    _write_user_rows(rows)
     refreshed = _am_load()
     return _am_item(card, refreshed["profiles"].get(player_id, profile)), ""
+
+
+def _am_update_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
+    """更新手动添加选手的文字资料；导入选手只读。"""
+    player_id = str(payload.get("id") or "").strip()
+    name = str(payload.get("displayName") or "").strip()
+    if not player_id:
+        return None, "缺少选手 id"
+    if not 1 <= len(name) <= 40:
+        return None, "名字需为 1—40 个字符"
+    jp_name = str(payload.get("japaneseName") or "").strip()[:40]
+    roman = str(payload.get("romanName") or "").strip()[:60]
+    studio = str(payload.get("studio") or "").strip()[:40]
+    note = str(payload.get("note") or "").strip()[:500]
+    extras = _profile_extras(payload)
+
+    rows = _am_user_rows()
+    for row in rows:
+        card = row.get("card") or {}
+        profile = row.get("profile") or {}
+        if card.get("id") != player_id:
+            continue
+        if not profile.get("custom"):
+            return None, "只能编辑手动添加的选手"
+        card["displayName"] = name
+        card["name"] = roman
+        card["studio"] = studio
+        profile.update(displayName=name, name=roman, japaneseName=jp_name, note=note)
+        for key in ("height", "measurements", "birthday", "agency", "debutYear", "social"):
+            profile.pop(key, None)
+        if extras["height"]:
+            profile["height"] = extras["height"]
+        if extras["measurements"]:
+            profile["measurements"] = extras["measurements"]
+        if extras["birthday"]:
+            profile["birthday"] = extras["birthday"]
+        if extras["agency"]:
+            profile["agency"] = extras["agency"]
+        if extras["debut"]:
+            profile["debutYear"] = extras["debut"]
+        if extras["social"]:
+            profile["social"] = extras["social"]
+        _write_user_rows(rows)
+        refreshed = _am_load()
+        return _am_item(card, refreshed["profiles"].get(player_id, profile)), ""
+    return None, "只能编辑手动添加的选手"
+
+
+@console_bp.post("/api/players/update")
+def api_players_update() -> Response:
+    item, error = _am_update_player(request.get_json(silent=True) or {})
+    if error:
+        return jsonify({"success": False, "error": error}), 400
+    return jsonify({"success": True, "item": item})
 
 
 @console_bp.post("/api/players/create")
@@ -1530,10 +1649,19 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
             _download_update(card_id, list_page=page, list_pages=pages,
                              message=f"正在检索作品：第 {page}/{pages} 页…")
 
-        books = (dmm_books.list_books(dmm_id, on_progress=listed) if dmm_id
-                 else dmm_books.search_books(search_name, on_progress=listed))
+        books: list[dict[str, str]] = []
+        list_error = ""
+        if dmm_id:
+            try:
+                books = dmm_books.list_books(dmm_id, on_progress=listed)
+            except Exception as exc:  # noqa: BLE001
+                list_error = str(exc)
+                _download_update(card_id, message="女优作品页不可用，改用名字搜索…")
         if not books:
-            raise RuntimeError("DMM 上没有找到她的試し読み作品")
+            books = dmm_books.search_books(search_name, on_progress=listed)
+        if not books:
+            detail = f"（{list_error[:90]}）" if list_error else ""
+            raise RuntimeError(f"DMM 上没有找到可下载的试读作品{detail}")
         dest = _LOCAL_PHOTO_DIR / name
         if dest.is_dir():
             for stale in dest.glob(".*.part"):
@@ -1670,6 +1798,13 @@ def api_players_local_photo(rel: str) -> Response:
 
 @console_bp.get("/api/players/photos")
 def api_players_photos() -> Response:
+    try:
+        return _players_photos_response()
+    except Exception as exc:  # noqa: BLE001
+        return error_response(502, f"写真加载失败：{exc}")
+
+
+def _players_photos_response() -> Response:
     card_id = (request.args.get("id") or "").strip()
     if not card_id:
         return error_response(400, "缺少 id")

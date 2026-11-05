@@ -30,6 +30,8 @@
     .pl-add-box label { display: block; font-size: 12.5px; color: var(--page-muted, #7b8795); margin-bottom: 10px; }
     .pl-add-box label input { display: block; width: 100%; margin-top: 5px; padding: 8px 10px; border: 1px solid var(--page-line, #e3e9ee); border-radius: 8px; font-size: 13px; color: var(--page-text, #243242); background: var(--page-surface, #fff); }
     .pl-add-box label input:focus { outline: 0; border-color: var(--page-primary, #087f65); box-shadow: 0 0 0 3px rgba(8,127,101,.12); }
+    .pl-add-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+    @media (max-width: 520px) { .pl-add-grid { grid-template-columns: 1fr; } }
     .pl-add-search { margin: 0 0 14px; }
     .pl-add-search-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; font-size: 12.5px; color: var(--page-muted, #7b8795); }
     .pl-add-search-head small { margin-left: auto; font-size: 11px; color: #9aa6b2; }
@@ -96,6 +98,7 @@
     .pl-modal-box { position: relative; width: min(1080px, 96vw); max-height: 92vh; overflow: auto; display: grid; grid-template-columns: 300px 1fr; gap: 18px; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); border-radius: 14px; padding: 16px; box-shadow: 0 30px 80px rgba(23,32,43,.25); color: var(--page-text, #243242); }
     .pl-modal-left { position: sticky; top: 0; align-self: start; }
     .pl-modal-img { width: 100%; border-radius: 12px; background: #0f1218; border: 1px solid var(--page-line, #e3e9ee); }
+    .pl-noimg { aspect-ratio: 3 / 4; display: flex; align-items: center; justify-content: center; padding: 18px; text-align: center; color: #8fa3b8; font-size: 15px; background: linear-gradient(135deg, #1c2733, #0f1218); }
     .pl-modal-title { margin: 0 0 4px; font-size: 21px; letter-spacing: .01em; color: var(--page-text, #243242); }
     .pl-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .pl-title-chips { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -273,7 +276,16 @@
       <label>罗马字<input id="plAddRoman" maxlength="60" autocomplete="off" placeholder="如：Otani Arisa"></label>
       <label>厂牌<input id="plAddStudio" maxlength="40" autocomplete="off"></label>
       <label>备注<input id="plAddNote" maxlength="500" autocomplete="off"></label>
-      <label class="pl-add-auto"><input id="plAddAuto" type="checkbox" checked>保存后自动下载她的 DMM 写真<small>试读原图</small></label>
+      <div class="pl-add-grid">
+        <label>身高 cm<input id="plAddHeight" maxlength="3" inputmode="numeric" autocomplete="off"></label>
+        <label>出道年份<input id="plAddDebut" maxlength="4" inputmode="numeric" autocomplete="off"></label>
+        <label>三围<input id="plAddMeasurements" maxlength="60" autocomplete="off" placeholder="B92(H)-W62-H89"></label>
+        <label>生日<input id="plAddBirthday" type="date"></label>
+      </div>
+      <label>事务所<input id="plAddAgency" maxlength="80" autocomplete="off"></label>
+      <label>X / Twitter<input id="plAddSocialX" type="url" maxlength="300" autocomplete="off" placeholder="https://x.com/..."></label>
+      <label>Instagram<input id="plAddSocialIg" type="url" maxlength="300" autocomplete="off" placeholder="https://instagram.com/..."></label>
+      <label class="pl-add-auto" id="plAddAutoRow"><input id="plAddAuto" type="checkbox" checked>保存后自动下载她的 DMM 写真<small>试读原图</small></label>
       <p class="pl-add-error" id="plAddError" hidden></p>
       <div class="pl-add-actions">
         <button type="button" id="plAddCancel">取消</button>
@@ -299,6 +311,16 @@
       const modal = document.getElementById('plModal');
       const modalBox = document.getElementById('plModalBox');
       const esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      async function readJson(response) {
+        if (response.redirected) throw new Error('登录已失效，请刷新页面');
+        const text = await response.text();
+        try {
+          return JSON.parse(text);
+        } catch (error) {
+          throw new Error(response.ok ? '服务返回了非 JSON 内容' : `加载失败（HTTP ${response.status}）`);
+        }
+      }
+
 
       const PAGE = 60;
       let offset = 0;
@@ -343,7 +365,7 @@
             offset: reset ? 0 : offset,
           });
           const response = await fetch(`/api/players/list?${params}`);
-          const data = await response.json();
+          const data = await readJson(response);
           if (!response.ok || !data.success) throw new Error(data.error || '加载失败');
           if (reset) {
             items = [];
@@ -433,7 +455,7 @@
         const tick = async () => {
           try {
             const response = await fetch(`/api/players/download/status?id=${encodeURIComponent(cardId)}`);
-            const data = await response.json();
+            const data = await readJson(response);
             const job = data.job || { status: 'idle' };
             if (!job.name) job.name = name;
             renderDownloadBanner(job);
@@ -474,7 +496,7 @@
         const box = document.getElementById('plLocalPhotos');
         try {
           const response = await fetch(`/api/players/photos?id=${encodeURIComponent(id)}&kind=local`);
-          const data = await response.json();
+          const data = await readJson(response);
           if (!data.success) throw new Error(data.error || '加载失败');
           const list = data.photos || [];
           if (!list.length) { box.innerHTML = '<div class="loading">还没有本地写真</div>'; return; }
@@ -512,7 +534,7 @@
         document.body.style.overflow = 'hidden';
         try {
           const response = await fetch(`/api/players/detail?id=${encodeURIComponent(id)}`);
-          const data = await response.json();
+          const data = await readJson(response);
           if (!response.ok || !data.success) throw new Error(data.error || '加载失败');
           const item = data.item;
           const variants = data.variants || [];
@@ -531,7 +553,7 @@
           if (item.social?.instagram) socials.push(`<a href="${esc(item.social.instagram)}" target="_blank" rel="noopener">Instagram</a>`);
           modalBox.innerHTML = `
             <div class="pl-modal-left">
-              <img class="pl-modal-img" id="plModalImg" src="${esc(item.card_image)}" alt="${esc(item.name)}">
+              ${item.card_image ? `<img class="pl-modal-img" id="plModalImg" src="${esc(item.card_image)}" alt="${esc(item.name)}">` : `<div class="pl-modal-img pl-noimg">${esc(item.name)}</div>`}
               ${variantStrip}
             </div>
             <div>
@@ -545,6 +567,7 @@
                   ${item.height ? `<span>${item.height}cm</span>` : ''}
                 </div>
                 <button class="pl-photo-refresh" id="plDownloadBtn" type="button" style="margin-left:auto">下载写真</button>
+                ${item.custom ? `<button class="pl-photo-refresh" id="plEditBtn" type="button">编辑资料</button>` : ''}
                 <button class="pl-photo-refresh" id="plSearchBtn" type="button">搜索番号 / 写真集</button>
               </div>
               <p class="pl-modal-sub" id="plModalSub">${esc(item.jp_name || '')}${item.ro_name ? ' · ' + esc(item.ro_name) : ''}</p>
@@ -585,7 +608,7 @@
             box.innerHTML = `<div class="loading">正在抓取${targetKind === 'daily' ? '日常照' : '剧照'}（首次约 10-40 秒）…</div>`;
             try {
               const response = await fetch(`/api/players/photos?id=${encodeURIComponent(item.id)}${refresh ? '&refresh=1' : ''}&kind=${targetKind}`);
-              const photos = await response.json();
+              const photos = await readJson(response);
               if (!photos.success) throw new Error(photos.error || '加载失败');
               const list = photos.photos || [];
               if (!list.length) { box.innerHTML = '<div class="loading">暂无写真图</div>'; return; }
@@ -618,7 +641,7 @@
             if (!box) return;
             try {
               const response = await fetch(`/api/players/works?id=${encodeURIComponent(item.id)}`);
-              const data = await response.json();
+              const data = await readJson(response);
               if (!data.success) throw new Error(data.error || '加载失败');
               const works = data.works || [];
               if (counter) counter.textContent = `（${works.length} 部）`;
@@ -634,6 +657,7 @@
 
           document.getElementById('plClose2')?.addEventListener('click', closeModal);
           document.getElementById('plSearchBtn')?.addEventListener('click', () => openSearchModal(item));
+          document.getElementById('plEditBtn')?.addEventListener('click', () => openEdit(item, data.profile || {}));
           modalBox.querySelectorAll('.pl-photo-tabs button').forEach((btn) => {
             btn.addEventListener('click', () => {
               modalBox.querySelectorAll('.pl-photo-tabs button').forEach((node) => node.classList.toggle('active', node === btn));
@@ -712,7 +736,7 @@
             if (downloadToken !== detailDownloadToken) return;
             try {
               const response = await fetch(`/api/players/download/status?id=${encodeURIComponent(item.id)}`);
-              const data = await response.json();
+              const data = await readJson(response);
               if (downloadToken !== detailDownloadToken) return;
               applyDownloadJob(data.job || { status: 'idle' });
             } catch (error) {
@@ -734,7 +758,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: item.id }),
               });
-              const data = await response.json();
+              const data = await readJson(response);
               if (!response.ok || !data.success) throw new Error(data.error || '启动下载失败');
               if (downloadToken !== detailDownloadToken) return;
               applyDownloadJob(data.job || { status: 'running', name: item.name, phase: 'listing' });
@@ -923,7 +947,7 @@
         const query = item.jp_name || item.ro_name || item.name;
         try {
           const response = await fetch(`/api/nya/search?q=${encodeURIComponent(query)}&source=sukebei`);
-          const data = await response.json();
+          const data = await readJson(response);
           if (!data.success) throw new Error(data.error || '搜索失败');
           const coverOf = (title) => {
             const match = String(title || '').match(/([A-Za-z]{2,6})[-_ ]?0*(\d{2,5})/);
@@ -967,7 +991,7 @@
                   method: 'POST', headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(result.view_id ? { view_id: result.view_id, code: '', magnet: result.magnet } : { magnet: result.magnet }),
                 });
-                const out = await response.json();
+                const out = await readJson(response);
                 if (!response.ok || !out.success) throw new Error(out.error || '失败');
                 btn.textContent = '已发送';
               } catch (error) { btn.textContent = '失败'; }
@@ -991,7 +1015,7 @@
         searchPane.innerHTML = '<div class="pl-search-loading">正在检索写真集书目（NDL）…</div>';
         try {
           const response = await fetch(`/api/players/books?name=${encodeURIComponent(item.jp_name || item.name)}`);
-          const data = await response.json();
+          const data = await readJson(response);
           if (!data.success) throw new Error(data.error || '检索失败');
           const rows = (data.books || []).map((book) => `
             <div class="pl-search-row">
@@ -1013,7 +1037,7 @@
               btn.disabled = true; btn.textContent = '查找中…';
               try {
                 const response = await fetch(`/api/players/preview?name=${encodeURIComponent(item.jp_name || item.name)}`);
-                const data = await response.json();
+                const data = await readJson(response);
                 if (!data.success) throw new Error(data.error || '失败');
                 const images = [];
                 (data.previews || []).forEach((group) => {
@@ -1064,6 +1088,7 @@
       let addChoices = [];
       let addActive = -1;
       let addPickedItem = null;
+      let addEditId = null;
 
       function clearAddPick() {
         addPickedItem = null;
@@ -1089,6 +1114,8 @@
         addName.value = item.name;
         document.getElementById('plAddJp').value = item.name;
         document.getElementById('plAddRoman').value = item.roman || '';
+        document.getElementById('plAddHeight').value = item.height || '';
+        document.getElementById('plAddMeasurements').value = item.measurements || '';
         addResults.hidden = true;
         addActive = -1;
         addPicked.hidden = false;
@@ -1185,11 +1212,41 @@
       });
 
       function openAdd() {
+        addEditId = null;
         addForm.reset();
         addError.hidden = true;
         clearAddSearch();
+        document.getElementById('plAddTitle').textContent = '添加选手';
+        addSave.textContent = '保存';
+        document.getElementById('plAddAutoRow').hidden = false;
+        document.querySelector('.pl-add-search').hidden = false;
         addModal.hidden = false;
         addQuery.focus();
+      }
+      function openEdit(item, profile) {
+        addEditId = item.id;
+        addForm.reset();
+        addError.hidden = true;
+        clearAddSearch();
+        document.getElementById('plAddTitle').textContent = '编辑资料';
+        addSave.textContent = '保存资料';
+        document.getElementById('plAddAutoRow').hidden = true;
+        document.querySelector('.pl-add-search').hidden = true;
+        addName.value = item.name || '';
+        document.getElementById('plAddJp').value = item.jp_name || '';
+        document.getElementById('plAddRoman').value = item.ro_name || '';
+        document.getElementById('plAddStudio').value = item.studio || '';
+        document.getElementById('plAddNote').value = (profile && profile.note) || '';
+        document.getElementById('plAddHeight').value = item.height || '';
+        document.getElementById('plAddMeasurements').value = item.measurements || '';
+        document.getElementById('plAddBirthday').value = item.birthday || '';
+        document.getElementById('plAddAgency').value = item.agency || '';
+        document.getElementById('plAddDebut').value = item.debut || '';
+        const social = (profile && profile.social) || {};
+        document.getElementById('plAddSocialX').value = social.x || '';
+        document.getElementById('plAddSocialIg').value = social.instagram || '';
+        addModal.hidden = false;
+        addName.focus();
       }
       function closeAdd() { addModal.hidden = true; }
       document.getElementById('plAdd').addEventListener('click', openAdd);
@@ -1205,24 +1262,46 @@
           return;
         }
         addSave.disabled = true;
+        const fields = {
+          displayName: addName.value.trim(),
+          japaneseName: document.getElementById('plAddJp').value.trim(),
+          romanName: document.getElementById('plAddRoman').value.trim(),
+          studio: document.getElementById('plAddStudio').value.trim(),
+          note: document.getElementById('plAddNote').value.trim(),
+          height: document.getElementById('plAddHeight').value.trim(),
+          measurements: document.getElementById('plAddMeasurements').value.trim(),
+          birthday: document.getElementById('plAddBirthday').value.trim(),
+          agency: document.getElementById('plAddAgency').value.trim(),
+          debut: document.getElementById('plAddDebut').value.trim(),
+          socialX: document.getElementById('plAddSocialX').value.trim(),
+          socialInstagram: document.getElementById('plAddSocialIg').value.trim(),
+        };
         try {
+          if (addEditId) {
+            const response = await fetch('/api/players/update', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: addEditId, ...fields }),
+            });
+            const data = await readJson(response);
+            if (!response.ok || !data.success) throw new Error(data.error || '保存失败');
+            const editedId = addEditId;
+            closeAdd();
+            load(true);
+            openDetail(editedId);
+            return;
+          }
           const response = await fetch('/api/players/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              displayName: addName.value.trim(),
-              japaneseName: document.getElementById('plAddJp').value.trim(),
-              romanName: document.getElementById('plAddRoman').value.trim(),
-              studio: document.getElementById('plAddStudio').value.trim(),
-              note: document.getElementById('plAddNote').value.trim(),
+              ...fields,
               dmmId: addPickedItem ? addPickedItem.id : '',
-              height: addPickedItem ? addPickedItem.height : '',
-              measurements: addPickedItem ? addPickedItem.measurements : '',
               image: addPickedItem ? addPickedItem.image : '',
               autoDownload: document.getElementById('plAddAuto').checked,
             }),
           });
-          const data = await response.json();
+          const data = await readJson(response);
           if (!response.ok || !data.success) throw new Error(data.error || '保存失败');
           closeAdd();
           studioSelect.value = '';

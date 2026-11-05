@@ -27,6 +27,7 @@ MODULES = (
     ("idols", "选手库", "/players", "卡牌评分、档案资料、标签与评论", "users"),
     ("rewrite", "记忆仿写", "/photo/rewrite", "管理员维护共享记忆与批量仿写任务", "magic"),
     ("settings", "服务设置", "/settings", "集中维护生成服务与平台凭据", "sliders"),
+    ("tasks", "外部任务", "/tasks", "写真下载、资料刷新与外部查询的任务日志", "list-check"),
 )
 db = SQLAlchemy()
 
@@ -87,7 +88,9 @@ def route_module():
     path = request.path.rstrip("/") or "/"
     if path == "/nya" or path.startswith("/api/nya"):
         return "nya"
-    if path in ("/players", "/tasks") or path.startswith("/api/players") or path.startswith("/api/tasks"):
+    if path == "/tasks" or path.startswith("/api/tasks"):
+        return "tasks"
+    if path == "/players" or path.startswith("/api/players"):
         return "idols"
     if path in ("/player", "/video_player.html") or path.startswith("/api/player/"):
         return "player"
@@ -147,14 +150,20 @@ def init_admin(app):
         manager.add_role("Viewer")
         for position, (key, title, url, description, icon) in enumerate(MODULES):
             manager.add_permissions_view(["can_access"], f"Workspace:{key}")
-            builder.add_link(title, href=url, icon=f"fa-{icon}", category="创作工作台")
+            category = "管理与配置" if key == "tasks" else "创作工作台"
+            builder.add_link(title, href=url, icon=f"fa-{icon}", category=category)
             if not db.session.query(WorkspaceMenu).filter_by(key=key).first():
                 db.session.add(WorkspaceMenu(key=key, title=title, position=position, enabled=True))
             if new_creator and key not in {"settings", "rewrite"}:
                 manager.add_permission_role(creator, manager.find_permission_view_menu("can_access", f"Workspace:{key}"))
         db.session.commit()
         builder.add_view(WorkspaceMenuView, "菜单管理", icon="fa-bars", category="管理与配置")
-        builder.add_link("外部任务", href="/tasks", icon="fa-list-check", category="管理与配置")
+        task_permission = manager.find_permission_view_menu("can_access", "Workspace:tasks")
+        if task_permission:
+            for role_name in ("Admin", "Creator"):
+                role = manager.find_role(role_name)
+                if role:
+                    manager.add_permission_role(role, task_permission)
 
     @app.before_request
     def authorize():

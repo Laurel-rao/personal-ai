@@ -55,6 +55,7 @@
     rewrite: ["记忆仿写", "按类别管理共享记忆、仿写参数与运行日志。", "wand-magic-sparkles"],
     settings: ["服务设置", "集中维护生成引擎与密钥，安全查看当前生效配置。", "sliders"],
     "legacy-chat": ["Photo Lab 对话", "保留原有对话组件与连接状态，继续使用 Qwen 创作助手。", "comment"],
+    tasks: ["外部任务", "写真下载、资料刷新与外部查询的任务日志。", "list-check"],
     users: ["用户管理", "管理成员资料、账号状态与角色分配。", "users"],
     roles: ["角色与权限", "通过角色配置功能访问范围，授权在下次请求时生效。", "shield-halved"],
     menus: ["菜单管理", "统一管理菜单名称、显示顺序与可见状态。", "bars"],
@@ -117,7 +118,7 @@
     const sidebar = document.createElement("aside");
     sidebar.className = "workspace-sidebar";
     sidebar.id = "workspace-sidebar";
-    sidebar.innerHTML = `<a class="workspace-brand" href="/"><span>p<span class="workspace-brand-dot">.</span></span><div>Personal AI<small>创作管理工作台</small></div></a><nav aria-label="主导航"><span class="workspace-nav-label">工作空间</span><a href="/" ${path === "/" ? 'aria-current="page"' : ""}><span class="workspace-nav-icon">▤</span>工作台概览</a>${context.menus.filter(item => !["settings", "rewrite"].includes(item.key)).map(menuLink).join("")}<span class="workspace-nav-label">管理与配置</span>${context.menus.filter(item => ["settings", "rewrite"].includes(item.key)).map(menuLink).join("")}${context.admin ? `<a href="/users/list/" ${path.startsWith("/users/") ? 'aria-current="page"' : ""}><span class="workspace-nav-icon">♙</span>用户管理</a><a href="/roles/list/" ${path.startsWith("/roles/") ? 'aria-current="page"' : ""}><span class="workspace-nav-icon">◇</span>角色与权限</a><a href="/tasks" ${path.startsWith("/tasks") ? 'aria-current="page"' : ""}><span class="workspace-nav-icon">${icon("list-check")}</span>外部任务</a>` : '<p class="workspace-nav-hint">功能由管理员按角色授权</p>'}</nav><div class="workspace-sidebar-bottom"><span class="workspace-avatar">${escape(context.user.name.slice(0, 1))}</span><div><strong>${escape(context.user.name)}</strong><small>${escape(context.user.roles.join(" / ") || "待授权")}</small></div><button type="button" id="workspace-logout" aria-label="退出登录" title="退出登录">↪</button></div>`;
+    sidebar.innerHTML = `<a class="workspace-brand" href="/"><span>p<span class="workspace-brand-dot">.</span></span><div>Personal AI<small>创作管理工作台</small></div></a><nav aria-label="主导航"><span class="workspace-nav-label">工作空间</span><a href="/" ${path === "/" ? 'aria-current="page"' : ""}><span class="workspace-nav-icon">▤</span>工作台概览</a>${context.menus.filter(item => !["settings", "rewrite", "tasks"].includes(item.key)).map(menuLink).join("")}<span class="workspace-nav-label">管理与配置</span>${context.menus.filter(item => ["settings", "rewrite", "tasks"].includes(item.key)).map(menuLink).join("")}${context.admin ? `<a href="/users/list/" ${path.startsWith("/users/") ? 'aria-current="page"' : ""}><span class="workspace-nav-icon">♙</span>用户管理</a><a href="/roles/list/" ${path.startsWith("/roles/") ? 'aria-current="page"' : ""}><span class="workspace-nav-icon">◇</span>角色与权限</a>` : '<p class="workspace-nav-hint">功能由管理员按角色授权</p>'}</nav><div class="workspace-sidebar-bottom"><span class="workspace-avatar">${escape(context.user.name.slice(0, 1))}</span><div><strong>${escape(context.user.name)}</strong><small>${escape(context.user.roles.join(" / ") || "待授权")}</small></div><button type="button" id="workspace-logout" aria-label="退出登录" title="退出登录">↪</button></div>`;
     const header = document.createElement("header");
     if (context.admin) {
       const menuSettings = document.createElement("a");
@@ -126,7 +127,7 @@
       if (path.startsWith("/workspacemenuview/")) menuSettings.setAttribute("aria-current", "page");
       sidebar.querySelector("nav").append(menuSettings);
     }
-    const sidebarIcons = {"/": "table-cells-large", "/users/list/": "users", "/roles/list/": "shield-halved", "/tasks": "list-check", "/workspacemenuview/list/": "bars"};
+    const sidebarIcons = {"/": "table-cells-large", "/users/list/": "users", "/roles/list/": "shield-halved", "/workspacemenuview/list/": "bars"};
     sidebar.querySelectorAll("nav a").forEach((link) => {
       const name = sidebarIcons[link.getAttribute("href")];
       if (name) link.querySelector(".workspace-nav-icon").innerHTML = icon(name);

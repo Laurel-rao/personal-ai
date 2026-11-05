@@ -1111,6 +1111,26 @@ def api_tasks_retry(task_id: str) -> Response:
     return jsonify({"success": True, "task": task})
 
 
+@console_bp.post("/api/tasks/<task_id>/cancel")
+def api_tasks_cancel(task_id: str) -> Response:
+    task = task_store.get(task_id, with_logs=False)
+    if task is None:
+        return error_response(404, "任务不存在")
+    if task.get("status") != "running":
+        return error_response(400, "任务已结束，不能取消")
+    if task.get("kind") == "download":
+        job = _download_job(str(task.get("player_id") or ""))
+        if job and job.get("status") == "running":
+            event = _DOWNLOAD_CANCEL.get(str(task.get("player_id") or ""))
+            if event is not None:
+                event.set()
+            _download_update(str(task.get("player_id") or ""), cancel_requested=True, message="正在取消…")
+            task_store.log(task_id, "收到取消请求，正在停止…")
+            return jsonify({"success": True, "task": task_store.get(task_id, with_logs=False)})
+    task_store.cancel(task_id, "用户取消")
+    return jsonify({"success": True, "task": task_store.get(task_id, with_logs=False)})
+
+
 @console_bp.post("/api/players/update")
 def api_players_update() -> Response:
     item, error = _am_update_player(request.get_json(silent=True) or {})
@@ -1899,6 +1919,7 @@ def _task_player(card_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------- 写真下载任务
 
 _DOWNLOAD_JOBS: dict[str, dict[str, Any]] = {}
+_DOWNLOAD_CANCEL: dict[str, threading.Event] = {}
 _DOWNLOAD_LOCK = threading.RLock()
 _DOWNLOAD_WORKERS = 2
 
@@ -1924,7 +1945,7 @@ def _download_update(card_id: str, **values: Any) -> None:
             job.update(values)
 
 
-def _download_one(card_id: str, name: str, book: dict[str, str]) -> int:
+def _download_one(card_id: str, name: str, book: dict[str, str], should_stop=None) -> int:
     """下载一本书到临时目录，成功后再替换正式目录，避免半成品可见。"""
     base = _LOCAL_PHOTO_DIR / name
     target = base / book["code"]
@@ -1939,12 +1960,16 @@ def _download_one(card_id: str, name: str, book: dict[str, str]) -> int:
     last: Exception | None = None
     for attempt in range(2):
         try:
-            pages = dmm_books.download_book(book["series"], book["code"], temporary, on_page=on_page)
+            pages = dmm_books.download_book(book["series"], book["code"], temporary,
+                                            on_page=on_page, should_stop=should_stop)
             if target.exists():
                 shutil.rmtree(target)
             temporary.rename(target)
             (target / ".done").write_text(str(time.time()), encoding="utf-8")
             return pages
+        except dmm_books.DownloadCancelled:
+            shutil.rmtree(temporary, ignore_errors=True)
+            raise
         except Exception as exc:  # noqa: BLE001
             last = exc
             shutil.rmtree(temporary, ignore_errors=True)
@@ -1957,6 +1982,10 @@ def _download_one(card_id: str, name: str, book: dict[str, str]) -> int:
 def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> None:
     job = _download_job(card_id) or {}
     task_id = str(job.get("task_id") or "")
+    cancel_event = _DOWNLOAD_CANCEL.get(card_id)
+    if cancel_event is None:
+        cancel_event = threading.Event()
+        _DOWNLOAD_CANCEL[card_id] = cancel_event
 
     def tlog(message: str) -> None:
         if task_id:
@@ -1986,6 +2015,8 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
             detail = f"（{list_error[:90]}）" if list_error else ""
             raise RuntimeError(f"DMM 上没有找到可下载的试读作品{detail}")
         tlog(f"找到 {len(books)} 本作品")
+        if cancel_event.is_set():
+            raise dmm_books.DownloadCancelled("已取消")
         dest = _LOCAL_PHOTO_DIR / name
         if dest.is_dir():
             for stale in dest.glob(".*.part"):
@@ -2008,14 +2039,20 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
         finished = failed = pages = 0
         errors: list[str] = []
         with futures.ThreadPoolExecutor(max_workers=_DOWNLOAD_WORKERS) as pool:
-            jobs = {pool.submit(_download_one, card_id, name, book): book for book in pending}
+            jobs = {pool.submit(_download_one, card_id, name, book,
+                                cancel_event.is_set): book for book in pending}
             for future in futures.as_completed(jobs):
                 book = jobs[future]
+                if cancel_event.is_set():
+                    for other in jobs:
+                        other.cancel()
                 try:
                     count = future.result()
                     pages += count
                     finished += 1
                     tlog(f"完成 {book['code']}（{count} 页）")
+                except (futures.CancelledError, dmm_books.DownloadCancelled):
+                    continue
                 except Exception as exc:  # noqa: BLE001
                     failed += 1
                     errors.append(f"{book['code']}: {str(exc)[:100]}")
@@ -2025,6 +2062,15 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
                         result={"finished": finished, "failed": failed, "pages": pages,
                                 "total": len(pending)})
         _LOCAL_STATS.pop(name, None)
+        if cancel_event.is_set():
+            message = f"已取消（完成 {finished}/{len(pending)} 本，{pages} 张）"
+            _download_update(card_id, status="cancelled", message=message,
+                             errors=errors[:5], finished_at=time.time())
+            task_store.finish(task_id, "cancelled",
+                              {"finished": finished, "failed": failed, "pages": pages,
+                               "skipped": skipped, "total": len(books)},
+                              error="用户取消", progress=0.1 + 0.9 * finished / max(1, len(pending)))
+            return
         message = f"完成 {finished} 本 / {pages} 张"
         if skipped:
             message += f"，跳过已下载 {skipped} 本"
@@ -2037,10 +2083,18 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
                            "skipped": skipped, "total": len(books),
                            "photos": _local_photos(name)[:12] if finished else []},
                           error="" if finished else message, progress=1)
+    except dmm_books.DownloadCancelled:
+        _LOCAL_STATS.pop(name, None)
+        _download_update(card_id, status="cancelled", message="已取消", finished_at=time.time())
+        tlog("用户取消")
+        task_store.finish(task_id, "cancelled", error="用户取消")
     except Exception as exc:  # noqa: BLE001
         _download_update(card_id, status="error", message=str(exc)[:200], finished_at=time.time())
         tlog(f"任务失败：{exc}")
         task_store.finish(task_id, "failed", error=str(exc)[:500])
+    finally:
+        if _DOWNLOAD_CANCEL.get(card_id) is cancel_event:
+            _DOWNLOAD_CANCEL.pop(card_id, None)
 
 
 def _start_player_download(card_id: str) -> tuple[dict[str, Any] | None, str]:
@@ -2077,9 +2131,25 @@ def _start_player_download(card_id: str) -> tuple[dict[str, Any] | None, str]:
                "started_at": time.time(), "finished_at": 0, "errors": [],
                "task_id": task["id"]}
         _DOWNLOAD_JOBS[card_id] = job
+        _DOWNLOAD_CANCEL[card_id] = threading.Event()
     threading.Thread(target=_download_worker,
                      args=(card_id, name, dmm_id, jp_name or name), daemon=True).start()
     return _download_job(card_id), ""
+
+
+@console_bp.post("/api/players/download/cancel")
+def api_players_download_cancel() -> Response:
+    payload = request.get_json(silent=True) or {}
+    card_id = str(payload.get("id") or "").strip()
+    job = _download_job(card_id)
+    if not job or job.get("status") != "running":
+        return error_response(400, "当前没有正在运行的下载任务")
+    event = _DOWNLOAD_CANCEL.get(card_id)
+    if event is not None:
+        event.set()
+    _download_update(card_id, cancel_requested=True, message="正在取消…")
+    task_store.log(str(job.get("task_id") or ""), "收到取消请求，正在停止…")
+    return jsonify({"success": True, "job": _download_job(card_id)})
 
 
 @console_bp.get("/api/players/download/status")

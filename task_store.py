@@ -116,10 +116,23 @@ def update(task_id: str, **fields) -> dict | None:
     return None
 
 
+def cancel(task_id: str, message: str = "用户取消") -> dict | None:
+    if not task_id:
+        return None
+    task = update(task_id, status="cancelled", finished_at=_now(), error=message)
+    if task is not None:
+        log(task_id, f"已取消：{message}")
+    return task
+
+
 def finish(task_id: str, status: str, result: dict | None = None, error: str = "",
            progress: float | None = None) -> dict | None:
     if not task_id:
         return None
+    current = get(task_id, with_logs=False)
+    if current and current.get("status") == "cancelled" and status != "cancelled":
+        log(task_id, "任务已取消，忽略完成")
+        return current
     values = {
         "status": status,
         "finished_at": _now(),

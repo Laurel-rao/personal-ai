@@ -88,6 +88,7 @@
     .pl-task-dot.running { background: #d19a00; box-shadow: 0 0 0 3px rgba(209,154,0,.15); }
     .pl-task-dot.success { background: #087f65; }
     .pl-task-dot.failed { background: #c0392b; }
+    .pl-task-dot.cancelled { background: #9aa6b2; }
     .pl-task-kind { flex: 0 0 auto; font-size: 10.5px; color: var(--page-muted, #7b8795); background: #f3f6f8; border-radius: 999px; padding: 2px 7px; }
     .pl-task-main { flex: 1; min-width: 0; }
     .pl-task-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -310,6 +311,7 @@
           <option value="running">运行中</option>
           <option value="success">成功</option>
           <option value="failed">失败</option>
+          <option value="cancelled">已取消</option>
         </select>
         <button id="plTasksRefresh" type="button">刷新</button>
         <span class="pl-tasks-count" id="plTasksCount"></span>
@@ -627,6 +629,7 @@
                   ${item.height ? `<span>${item.height}cm</span>` : ''}
                 </div>
                 <button class="pl-photo-refresh" id="plDownloadBtn" type="button" style="margin-left:auto">下载写真</button>
+                <button class="pl-photo-refresh" id="plDownloadCancel" type="button" hidden style="color:#c0392b">取消下载</button>
                 ${item.custom ? `<button class="pl-photo-refresh" id="plRefreshBtn" type="button" title="重新获取基础信息">重取基础信息</button><button class="pl-photo-refresh" id="plEditBtn" type="button">编辑资料</button>` : ''}
                 <button class="pl-photo-refresh" id="plSearchBtn" type="button">搜索番号 / 写真集</button>
               </div>
@@ -772,6 +775,7 @@
           });
 
           const downloadBtn = document.getElementById('plDownloadBtn');
+          const downloadCancel = document.getElementById('plDownloadCancel');
           const downloadStatus = document.getElementById('plDownloadStatus');
           const downloadTextEl = document.getElementById('plDownloadText');
           const downloadBar = document.getElementById('plDownloadBar');
@@ -782,6 +786,7 @@
             if (job.status === 'running') {
               downloadBtn.disabled = true;
               downloadBtn.textContent = '下载中…';
+              downloadCancel.hidden = false;
               downloadStatus.hidden = false;
               downloadStatus.classList.remove('error');
               downloadTextEl.textContent = downloadText(job);
@@ -799,6 +804,7 @@
             } else if (job.status === 'done') {
               downloadBtn.disabled = false;
               downloadBtn.textContent = '继续下载';
+              downloadCancel.hidden = true;
               downloadStatus.hidden = false;
               downloadStatus.classList.remove('error');
               downloadTextEl.textContent = `下载完成：${job.message || ''}${job.errors && job.errors.length ? ` · ${job.errors[0]}` : ''}`;
@@ -808,9 +814,21 @@
               stopDetailDownloadPoll();
               const active = modalBox.querySelector('.pl-photo-tabs button.active');
               if (active && active.dataset.kind === 'local') loadPhotos(false, 'local');
+            } else if (job.status === 'cancelled') {
+              downloadBtn.disabled = false;
+              downloadBtn.textContent = '继续下载';
+              downloadCancel.hidden = true;
+              downloadStatus.hidden = false;
+              downloadStatus.classList.remove('error');
+              downloadTextEl.textContent = `已取消：${job.message || '用户取消'}`;
+              downloadBar.hidden = true;
+              stopDetailDownloadPoll();
+              const active = modalBox.querySelector('.pl-photo-tabs button.active');
+              if (active && active.dataset.kind === 'local') loadPhotos(false, 'local');
             } else if (job.status === 'error') {
               downloadBtn.disabled = false;
               downloadBtn.textContent = '重试下载';
+              downloadCancel.hidden = true;
               downloadStatus.hidden = false;
               downloadStatus.classList.add('error');
               downloadTextEl.textContent = `下载失败：${job.message || '未知错误'}${job.errors && job.errors.length ? ` · ${job.errors[0]}` : ''}`;
@@ -819,6 +837,7 @@
             } else {
               downloadBtn.disabled = false;
               downloadBtn.textContent = '下载写真';
+              downloadCancel.hidden = true;
               downloadStatus.hidden = true;
               downloadStatus.classList.remove('error');
               downloadBar.hidden = true;
@@ -841,6 +860,28 @@
               downloadBar.hidden = true;
             }
           }
+
+          downloadCancel?.addEventListener('click', async () => {
+            downloadCancel.disabled = true;
+            downloadCancel.textContent = '取消中…';
+            try {
+              const response = await fetch('/api/players/download/cancel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: item.id }),
+              });
+              const data = await readJson(response);
+              if (!response.ok || !data.success) throw new Error(data.error || '取消失败');
+              refreshDownload(true);
+            } catch (error) {
+              downloadStatus.hidden = false;
+              downloadStatus.classList.add('error');
+              downloadTextEl.textContent = `取消失败：${error.message}`;
+            } finally {
+              downloadCancel.disabled = false;
+              downloadCancel.textContent = '取消下载';
+            }
+          });
 
           downloadBtn?.addEventListener('click', async () => {
             downloadBtn.disabled = true;
@@ -1424,8 +1465,10 @@
         download: '写真下载', refresh: '资料刷新', photos: '写真查询',
         works: '作品查询', books: '写真集书目', preview: '写真集预览',
       };
-      const TASK_STATUS = { running: '运行中', success: '成功', failed: '失败' };
+      const TASK_STATUS = { running: '运行中', success: '成功', failed: '失败', cancelled: '已取消' };
       let tasksPoll = 0;
+      let taskLogPoll = 0;
+      let activeTaskId = '';
       let taskItems = [];
 
       function taskImages(task) {
@@ -1466,7 +1509,7 @@
             <button type="button" data-task-log="${id}">日志</button>
             ${imageCount ? `<button type="button" data-task-images="${id}">图片 ${imageCount}</button>` : ''}
             ${task.player_id ? `<button type="button" data-task-player="${esc(task.player_id)}">选手</button>` : ''}
-            ${status === 'running' ? '' : `<button type="button" data-task-retry="${id}">重试</button>`}
+            ${status === 'running' ? `<button type="button" data-task-cancel="${id}">取消</button>` : `<button type="button" data-task-retry="${id}">重试</button>`}
           </div>
         </div>`;
       }
@@ -1477,6 +1520,9 @@
         });
         tasksList.querySelectorAll('[data-task-retry]').forEach((button) => {
           button.addEventListener('click', () => retryTask(button.dataset.taskRetry, button));
+        });
+        tasksList.querySelectorAll('[data-task-cancel]').forEach((button) => {
+          button.addEventListener('click', () => cancelTask(button.dataset.taskCancel, button));
         });
         tasksList.querySelectorAll('[data-task-player]').forEach((button) => {
           button.addEventListener('click', () => {
@@ -1518,20 +1564,40 @@
         }
       }
 
-      async function showTaskDetail(taskId) {
-        taskDetail.hidden = false;
-        taskDetailTitle.textContent = '日志';
-        taskLogs.textContent = '加载中…';
+      function stopTaskLogPoll() {
+        clearInterval(taskLogPoll);
+        taskLogPoll = 0;
+        activeTaskId = '';
+      }
+
+      async function refreshTaskDetail(taskId, silent) {
+        if (activeTaskId !== taskId || taskDetail.hidden) return;
         try {
           const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`, { cache: 'no-store' });
           const data = await readJson(response);
           if (!response.ok || !data.success) throw new Error(data.error || '加载失败');
+          if (activeTaskId !== taskId) return;
           taskDetailTitle.textContent = `${data.task.title} · ${TASK_STATUS[data.task.status] || data.task.status}`;
           taskLogs.textContent = data.task.logs || '暂无日志';
           taskLogs.scrollTop = taskLogs.scrollHeight;
+          if (data.task.status !== 'running') {
+            stopTaskLogPoll();
+          }
         } catch (error) {
-          taskLogs.textContent = error.message;
+          if (!silent) taskLogs.textContent = error.message;
         }
+      }
+
+      function showTaskDetail(taskId) {
+        stopTaskLogPoll();
+        activeTaskId = taskId;
+        taskDetail.hidden = false;
+        taskDetailTitle.textContent = '日志';
+        taskLogs.textContent = '加载中…';
+        refreshTaskDetail(taskId, false).then(() => {
+          if (activeTaskId !== taskId || taskDetail.hidden) return;
+          taskLogPoll = setInterval(() => refreshTaskDetail(taskId, true), 2000);
+        });
       }
 
       async function retryTask(taskId, button) {
@@ -1549,6 +1615,21 @@
         }
       }
 
+      async function cancelTask(taskId, button) {
+        button.disabled = true;
+        button.textContent = '取消中…';
+        try {
+          const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/cancel`, { method: 'POST' });
+          const data = await readJson(response);
+          if (!response.ok || !data.success) throw new Error(data.error || '取消失败');
+          await loadTasks(true);
+          showTaskDetail(taskId);
+        } catch (error) {
+          button.textContent = '失败';
+          setTimeout(() => { button.disabled = false; button.textContent = '取消'; }, 1500);
+        }
+      }
+
       function openTasks() {
         tasksModal.hidden = false;
         taskDetail.hidden = true;
@@ -1561,12 +1642,13 @@
         tasksModal.hidden = true;
         clearInterval(tasksPoll);
         tasksPoll = 0;
+        stopTaskLogPoll();
       }
 
       document.getElementById('plTasksBtn').addEventListener('click', openTasks);
       document.getElementById('plTasksClose').addEventListener('click', closeTasks);
       document.getElementById('plTasksRefresh').addEventListener('click', () => loadTasks(false));
-      document.getElementById('plTaskDetailClose').addEventListener('click', () => { taskDetail.hidden = true; });
+      document.getElementById('plTaskDetailClose').addEventListener('click', () => { taskDetail.hidden = true; stopTaskLogPoll(); });
       tasksKind.addEventListener('change', () => loadTasks(false));
       tasksStatus.addEventListener('change', () => loadTasks(false));
       tasksModal.addEventListener('click', (event) => { if (event.target === tasksModal) closeTasks(); });

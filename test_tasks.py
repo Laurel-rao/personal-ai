@@ -29,6 +29,12 @@ try:
     assert task_store.interrupt_running() >= 1
     assert task_store.get(running["id"])["status"] == "failed"
 
+    cancel_target = task_store.create("preview", "取消测试")
+    task_store.cancel(cancel_target["id"])
+    task_store.finish(cancel_target["id"], "success", {"count": 9})
+    assert task_store.get(cancel_target["id"])["status"] == "cancelled"
+    assert task_store.get(cancel_target["id"])["result"] == {}
+
     items, total = task_store.list_tasks(kind="photos", status="success", player_id="p1")
     assert total == 1 and items[0]["id"] == task["id"], (items, total)
     assert task_store.list_tasks(kind="download")[1] == 0

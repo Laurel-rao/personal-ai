@@ -49,7 +49,7 @@ try:
     dmm_books.list_books = fake_list
     dmm_books.search_books = fake_search
 
-    def fake_download(series, code, outdir, on_page=None):
+    def fake_download(series, code, outdir, on_page=None, should_stop=None):
         outdir.mkdir(parents=True, exist_ok=True)
         (outdir / "page_001.jpg").write_bytes(b"fake-jpeg")
         if on_page is not None:
@@ -124,6 +124,32 @@ try:
         time.sleep(0.05)
         auto_job = server._download_job(payload["item"]["id"])
     assert auto_job["status"] == "done", auto_job
+
+    cancel_item, error = server._am_add_player({"displayName": "取消测试", "dmmId": "1083265"})
+    assert error == "", error
+
+    def blocking_download(series, code, outdir, on_page=None, should_stop=None):
+        deadline = time.time() + 3
+        while time.time() < deadline:
+            if should_stop is not None and should_stop():
+                raise dmm_books.DownloadCancelled("已取消")
+            time.sleep(0.05)
+        raise RuntimeError("测试超时")
+
+    dmm_books.download_book = blocking_download
+    job, error = server._start_player_download(cancel_item["id"])
+    assert error == "" and job["status"] == "running", (job, error)
+    time.sleep(0.2)
+    cancelled = client.post("/api/players/download/cancel", json={"id": cancel_item["id"]})
+    assert cancelled.status_code == 200, cancelled.data
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        job = server._download_job(cancel_item["id"])
+        if job and job["status"] != "running":
+            break
+        time.sleep(0.05)
+    assert job["status"] == "cancelled", job
+    assert task_store.get(job["task_id"])["status"] == "cancelled", task_store.get(job["task_id"])
 finally:
     server._AM_DIR = original_dir
     server._AM_USER_FILE = original_file

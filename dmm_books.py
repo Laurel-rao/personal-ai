@@ -21,6 +21,10 @@ from pathlib import Path
 from PIL import Image
 
 
+class DownloadCancelled(Exception):
+    """用户取消下载。"""
+
+
 TS = 64
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
@@ -316,10 +320,16 @@ def _trial_url(series: str, code: str) -> str:
     return match.group(1).replace("&amp;", "&")
 
 
-def download_book(series: str, code: str, outdir: Path, on_page=None) -> int:
+def download_book(series: str, code: str, outdir: Path, on_page=None, should_stop=None) -> int:
     """下载并还原一本书，返回页数；失败抛异常。"""
+    def check_stop() -> None:
+        if should_stop is not None and should_stop():
+            raise DownloadCancelled("已取消")
+
+    check_stop()
     if not re.fullmatch(r"[a-z0-9]+", series or "") or not re.fullmatch(r"[a-z0-9]+", code or ""):
         raise ValueError("非法作品编号")
+    check_stop()
     trial = _trial_url(series, code)
     query = urllib.parse.parse_qs(urllib.parse.urlparse(trial).query)
     if "cid" not in query:
@@ -327,6 +337,7 @@ def download_book(series: str, code: str, outdir: Path, on_page=None) -> int:
     cid = query["cid"][0]
     lin = query.get("lin", ["1"])[0]
 
+    check_stop()
     auth = json.loads(get(f"https://book.dmm.co.jp/viewerapi/auth/?cid={urllib.parse.quote(cid)}&lin={lin}",
                           referer=trial))
     base = auth["url"]
@@ -334,6 +345,7 @@ def download_book(series: str, code: str, outdir: Path, on_page=None) -> int:
     qs = ("Policy=" + urllib.parse.quote(info["Policy"], safe="") +
           "&Signature=" + urllib.parse.quote(info["Signature"], safe="") +
           "&Key-Pair-Id=" + (info.get("Key-Pair-Id") or info.get("key-pair-id") or ""))
+    check_stop()
     pack = json.loads(get(f"{base}configuration_pack.json?{qs}"))
     contents = (pack.get("configuration") or {}).get("contents") or []
     if not contents:
@@ -358,6 +370,7 @@ def download_book(series: str, code: str, outdir: Path, on_page=None) -> int:
             page_list = links.get("PageLinkInfoList") or []
             if index >= len(page_list):
                 break
+            check_stop()
             page = page_list[index].get("Page") or {}
             key = f"{file_key}/{page.get('No', 0)}"
             data = get(f"{base}{key}.{kind}?{qs}")
@@ -365,6 +378,7 @@ def download_book(series: str, code: str, outdir: Path, on_page=None) -> int:
                                int(page.get("DummyWidth") or 0),
                                int(page.get("DummyHeight") or 0))
             count += 1
+            check_stop()
             image.save(outdir / f"page_{count:03d}.jpg", quality=95)
             if on_page is not None:
                 on_page(count, total_pages)

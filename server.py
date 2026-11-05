@@ -2576,6 +2576,9 @@ def api_players_photos() -> Response:
     if not info:
         return error_response(404, "没有找到这位选手")
     kind = (request.args.get("kind") or "stills").lower()
+    if kind == "local":
+        result = _photos_payload(card_id, "local")
+        return jsonify({"success": True, **result})
     refresh = request.args.get("refresh") == "1"
     task = task_store.create("photos", f"写真：{info['name']} · {kind}",
                              payload={"player_id": card_id, "kind": kind, "refresh": refresh},
@@ -4053,6 +4056,7 @@ def api_chat_image(name: str) -> Response:
 
 def create_console_app(config=None) -> Flask:
     task_store.interrupt_running("服务重启，任务已中断")
+    task_store.delete_local_photo_tasks()
     threading.Thread(target=_resume_download_tasks, daemon=True).start()
     threading.Thread(target=_ensure_dmm_proxy, daemon=True).start()
     app = Flask(__name__, static_folder=None)

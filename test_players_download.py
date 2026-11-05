@@ -187,6 +187,12 @@ try:
     assert code_job["status"] == "done" and code_job["total"] == 1, code_job
     assert (server._LOCAL_PHOTO_DIR / "编号测试" / "limit2" / ".done").is_file()
     assert not (server._LOCAL_PHOTO_DIR / "编号测试" / "limit1").exists()
+
+    local_photos = client.get(f"/api/players/photos?id={limit_item['id']}&kind=local")
+    assert local_photos.status_code == 200, local_photos.data
+    assert "task_id" not in local_photos.get_json(), local_photos.get_json()
+    photo_tasks = task_store.list_tasks(kind="photos")[0]
+    assert not any((task.get("payload") or {}).get("kind") == "local" for task in photo_tasks), photo_tasks
 finally:
     server._AM_DIR = original_dir
     server._AM_USER_FILE = original_file

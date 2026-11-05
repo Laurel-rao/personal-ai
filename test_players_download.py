@@ -150,6 +150,38 @@ try:
         time.sleep(0.05)
     assert job["status"] == "cancelled", job
     assert task_store.get(job["task_id"])["status"] == "cancelled", task_store.get(job["task_id"])
+
+    space = client.get("/api/players/download/space").get_json()
+    assert space["success"] is True and space["max_books"] >= 0, space
+
+    limit_item, error = server._am_add_player({"displayName": "限制测试", "dmmId": "1083265"})
+    assert error == "", error
+    dmm_books.download_book = fake_download
+    dmm_books.list_books = lambda dmm_id, on_progress=None: [
+        {"series": "4166120", "code": f"limit{i}"} for i in range(1, 4)]
+    limited = client.post("/api/players/download", json={"id": limit_item["id"], "limit": 2})
+    assert limited.status_code == 200, limited.data
+    deadline = time.time() + 5
+    limited_job = server._download_job(limit_item["id"])
+    while time.time() < deadline and limited_job and limited_job["status"] == "running":
+        time.sleep(0.05)
+        limited_job = server._download_job(limit_item["id"])
+    assert limited_job["status"] == "done" and limited_job["total"] == 2, limited_job
+    limited_task = task_store.get(limited_job["task_id"], with_logs=False)
+    assert limited_task["result"]["total"] == 3 and limited_task["result"]["finished"] == 2, limited_task
+
+    code_item, error = server._am_add_player({"displayName": "编号测试", "dmmId": "1083265"})
+    assert error == "", error
+    coded = client.post("/api/players/download", json={"id": code_item["id"], "codes": "limit2"})
+    assert coded.status_code == 200, coded.data
+    deadline = time.time() + 5
+    code_job = server._download_job(code_item["id"])
+    while time.time() < deadline and code_job and code_job["status"] == "running":
+        time.sleep(0.05)
+        code_job = server._download_job(code_item["id"])
+    assert code_job["status"] == "done" and code_job["total"] == 1, code_job
+    assert (server._LOCAL_PHOTO_DIR / "编号测试" / "limit2" / ".done").is_file()
+    assert not (server._LOCAL_PHOTO_DIR / "编号测试" / "limit1").exists()
 finally:
     server._AM_DIR = original_dir
     server._AM_USER_FILE = original_file

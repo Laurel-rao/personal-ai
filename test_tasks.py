@@ -2,6 +2,7 @@
 
 Offline checks for the persistent external-task store and list/detail API.
 """
+import json
 import shutil
 import tempfile
 from pathlib import Path

@@ -1094,7 +1094,10 @@ def api_tasks_retry(task_id: str) -> Response:
     if old.get("status") == "running":
         return error_response(400, "任务仍在运行，不能重试")
     if old.get("kind") == "download":
-        job, error = _start_player_download(str(old.get("player_id") or ""))
+        payload = old.get("payload") or {}
+        job, error = _start_player_download(str(old.get("player_id") or ""),
+                                            limit=payload.get("limit") or 0,
+                                            codes=str(payload.get("codes") or ""))
         if error:
             return error_response(400, error)
         new_task = task_store.get(str(job.get("task_id") or ""), with_logs=False) if job else None
@@ -1147,7 +1150,8 @@ def api_players_create() -> Response:
         return jsonify({"success": False, "error": error}), 400
     result: dict[str, Any] = {"success": True, "item": item}
     if item and payload.get("autoDownload"):
-        job, download_error = _start_player_download(item["id"])
+        job, download_error = _start_player_download(item["id"],
+                                                     limit=payload.get("downloadLimit") or 0)
         if job:
             result["download"] = job
         if download_error:
@@ -1982,6 +1986,8 @@ def _download_one(card_id: str, name: str, book: dict[str, str], should_stop=Non
 def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> None:
     job = _download_job(card_id) or {}
     task_id = str(job.get("task_id") or "")
+    limit = int(job.get("limit") or 0)
+    codes = str(job.get("codes") or "")
     cancel_event = _DOWNLOAD_CANCEL.get(card_id)
     if cancel_event is None:
         cancel_event = threading.Event()
@@ -2023,11 +2029,28 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
                 if stale.is_dir():
                     shutil.rmtree(stale, ignore_errors=True)
         pending = [book for book in books if not (dest / book["code"] / ".done").is_file()]
+        wanted = {part for part in re.split(r"[,，\s]+", codes.upper()) if part}
+        if wanted:
+            pending = [book for book in pending if book["code"].upper() in wanted]
+            if not pending:
+                raise RuntimeError("指定的作品编号不在她的作品列表里，或已经下载过")
+            tlog(f"按指定编号筛选：{len(pending)} 本")
+        if limit:
+            pending = pending[:limit]
+            tlog(f"数量上限：最多 {limit} 本")
         skipped = len(books) - len(pending)
         _download_update(card_id, phase="downloading", total=len(pending), skipped=skipped,
                          message=f"共 {len(books)} 本，待下载 {len(pending)} 本")
-        tupdate(progress=0.1, result={"total": len(books), "pending": len(pending), "skipped": skipped})
-        tlog(f"共 {len(books)} 本，待下载 {len(pending)} 本，跳过已下载 {skipped} 本")
+        if pending:
+            disk_base = _LOCAL_PHOTO_DIR if _LOCAL_PHOTO_DIR.exists() else Path.home()
+            free = shutil.disk_usage(disk_base).free
+            needed = len(pending) * 30 * 1024 * 1024
+            tlog(f"磁盘剩余 {free / 1e9:.1f} GB，预计需要 {needed / 1e9:.1f} GB（按 30 MB/本）")
+            if free < needed + 1024 ** 3:
+                raise RuntimeError(f"磁盘空间不足：剩余 {free / 1e9:.1f} GB，预计需要 {needed / 1e9:.1f} GB + 1 GB 余量")
+        tupdate(progress=0.1, result={"total": len(books), "pending": len(pending), "skipped": skipped,
+                                      "limit": limit, "codes": codes})
+        tlog(f"共 {len(books)} 本，待下载 {len(pending)} 本，跳过 {skipped} 本")
         if not pending:
             _LOCAL_STATS.pop(name, None)
             _download_update(card_id, status="done", finished_at=time.time(),
@@ -2097,7 +2120,7 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
             _DOWNLOAD_CANCEL.pop(card_id, None)
 
 
-def _start_player_download(card_id: str) -> tuple[dict[str, Any] | None, str]:
+def _start_player_download(card_id: str, limit: int = 0, codes: str = "") -> tuple[dict[str, Any] | None, str]:
     """启动（或复用）一位选手的写真下载任务。"""
     state = _am_load()
     card = next((item for item in state["cards"] if item.get("id") == card_id), None)
@@ -2115,6 +2138,11 @@ def _start_player_download(card_id: str) -> tuple[dict[str, Any] | None, str]:
         return None, "没有匹配到 DMM 女优 ID，无法定位她的作品"
     if not _safe_player_folder(name):
         return None, "选手名字包含不能用于文件夹的字符"
+    try:
+        limit = max(0, min(int(limit or 0), 1000))
+    except (TypeError, ValueError):
+        limit = 0
+    codes = ",".join(part.strip().upper() for part in re.split(r"[,，\s]+", str(codes or "")) if part.strip())[:500]
     with _DOWNLOAD_LOCK:
         existing = _DOWNLOAD_JOBS.get(card_id)
         if existing and existing.get("status") == "running":
@@ -2122,14 +2150,14 @@ def _start_player_download(card_id: str) -> tuple[dict[str, Any] | None, str]:
             snapshot["errors"] = list(existing.get("errors") or [])
             return snapshot, ""
         task = task_store.create("download", f"下载写真：{name}",
-                                 payload={"player_id": card_id}, player_id=card_id,
-                                 player_name=name)
+                                 payload={"player_id": card_id, "limit": limit, "codes": codes},
+                                 player_id=card_id, player_name=name)
         job = {"id": card_id, "name": name, "status": "running", "phase": "listing",
                "total": 0, "finished": 0, "skipped": 0, "failed": 0, "pages": 0,
                "page_now": 0, "page_total": 0, "list_page": 0, "list_pages": 0,
                "current": "", "message": "正在检索她的 DMM 作品…" if dmm_id else "正在按日文名搜索作品…",
                "started_at": time.time(), "finished_at": 0, "errors": [],
-               "task_id": task["id"]}
+               "task_id": task["id"], "limit": limit, "codes": codes}
         _DOWNLOAD_JOBS[card_id] = job
         _DOWNLOAD_CANCEL[card_id] = threading.Event()
     threading.Thread(target=_download_worker,
@@ -2152,6 +2180,18 @@ def api_players_download_cancel() -> Response:
     return jsonify({"success": True, "job": _download_job(card_id)})
 
 
+@console_bp.get("/api/players/download/space")
+def api_players_download_space() -> Response:
+    base = _LOCAL_PHOTO_DIR if _LOCAL_PHOTO_DIR.exists() else Path.home()
+    usage = shutil.disk_usage(base)
+    per_book = 30 * 1024 * 1024
+    reserve = 1024 ** 3
+    max_books = max(0, int((usage.free - reserve) // per_book))
+    return jsonify({"success": True, "free": usage.free, "total": usage.total,
+                    "free_gb": round(usage.free / 1e9, 1),
+                    "per_book_mb": 30, "max_books": max_books})
+
+
 @console_bp.get("/api/players/download/status")
 def api_players_download_status() -> Response:
     card_id = (request.args.get("id") or "").strip()
@@ -2165,7 +2205,8 @@ def api_players_download() -> Response:
     card_id = str(payload.get("id") or "").strip()
     if not card_id:
         return error_response(400, "缺少 id")
-    job, error = _start_player_download(card_id)
+    job, error = _start_player_download(card_id, limit=payload.get("limit") or 0,
+                                       codes=str(payload.get("codes") or ""))
     if error:
         return error_response(400, error)
     return jsonify({"success": True, "job": job})

@@ -55,6 +55,7 @@
     .pl-add-picked button { border: 0; padding: 0; background: none; color: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; }
     .pl-add-box label.pl-add-auto { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 2px 0 12px; cursor: pointer; }
     .pl-add-box label.pl-add-auto input { display: inline-block; width: auto; margin: 0; padding: 0; accent-color: var(--page-primary, #087f65); }
+    .pl-add-box label.pl-add-auto input[type="number"] { width: 58px; margin: 0 4px; padding: 3px 6px; border-radius: 6px; }
     .pl-add-auto small { margin-left: auto; font-size: 11px; color: #9aa6b2; }
     .pl-dl-banner { display: flex; align-items: center; gap: 10px; margin: -4px 0 14px; padding: 9px 12px; border: 1px solid rgba(8,127,101,.22); border-radius: 9px; background: var(--page-primary-soft, #edf7f2); color: var(--page-primary, #087f65); font-size: 12.5px; }
     .pl-dl-banner[hidden] { display: none; }
@@ -323,6 +324,20 @@
       </div>
     </div>
   </div>
+  <div class="pl-add-overlay" id="plDlOptions" hidden role="dialog" aria-modal="true" aria-labelledby="plDlTitle">
+    <form class="pl-add-box" id="plDlForm" novalidate>
+      <h3 id="plDlTitle">下载写真</h3>
+      <p class="pl-add-hint">只下载尚未完成的试读作品；指定编号时忽略数量上限之外的作品。</p>
+      <label>最多下载几本<input id="plDlLimit" type="number" min="0" max="1000" value="20" inputmode="numeric"></label>
+      <label>指定作品编号<input id="plDlCodes" maxlength="500" autocomplete="off" placeholder="留空 = 全部；多个用逗号分隔"></label>
+      <p class="pl-add-hint" id="plDlSpace">磁盘：读取中…</p>
+      <p class="pl-add-error" id="plDlError" hidden></p>
+      <div class="pl-add-actions">
+        <button type="button" id="plDlCancel">取消</button>
+        <button type="submit" class="primary" id="plDlStart">开始下载</button>
+      </div>
+    </form>
+  </div>
   <div class="pl-add-overlay" id="plAddModal" hidden role="dialog" aria-modal="true" aria-labelledby="plAddTitle">
     <form class="pl-add-box" id="plAddForm" novalidate>
       <h3 id="plAddTitle">添加选手</h3>
@@ -347,7 +362,7 @@
       <label>事务所<input id="plAddAgency" maxlength="80" autocomplete="off"></label>
       <label>X / Twitter<input id="plAddSocialX" type="url" maxlength="300" autocomplete="off" placeholder="https://x.com/..."></label>
       <label>Instagram<input id="plAddSocialIg" type="url" maxlength="300" autocomplete="off" placeholder="https://instagram.com/..."></label>
-      <label class="pl-add-auto" id="plAddAutoRow"><input id="plAddAuto" type="checkbox" checked>保存后自动下载她的 DMM 写真<small>试读原图</small></label>
+      <label class="pl-add-auto" id="plAddAutoRow"><input id="plAddAuto" type="checkbox" checked>保存后自动下载她的 DMM 写真，最多<input id="plAddAutoLimit" type="number" min="0" max="1000" value="20" aria-label="自动下载数量上限">本<small>0 = 全部</small></label>
       <p class="pl-add-error" id="plAddError" hidden></p>
       <div class="pl-add-actions">
         <button type="button" id="plAddCancel">取消</button>
@@ -883,30 +898,7 @@
             }
           });
 
-          downloadBtn?.addEventListener('click', async () => {
-            downloadBtn.disabled = true;
-            downloadBtn.textContent = '启动中…';
-            downloadStatus.hidden = true;
-            try {
-              const response = await fetch('/api/players/download', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: item.id }),
-              });
-              const data = await readJson(response);
-              if (!response.ok || !data.success) throw new Error(data.error || '启动下载失败');
-              if (downloadToken !== detailDownloadToken) return;
-              applyDownloadJob(data.job || { status: 'running', name: item.name, phase: 'listing' });
-            } catch (error) {
-              if (downloadToken !== detailDownloadToken) return;
-              downloadBtn.disabled = false;
-              downloadBtn.textContent = '下载写真';
-              downloadStatus.hidden = false;
-              downloadStatus.classList.add('error');
-              downloadTextEl.textContent = error.message;
-              downloadBar.hidden = true;
-            }
-          });
+          downloadBtn?.addEventListener('click', () => openDownloadOptions(item.id, item.name));
           refreshDownload(true);
           loadPhotos(false);
         } catch (error) {
@@ -1384,6 +1376,59 @@
         addName.focus();
       }
       function closeAdd() { addModal.hidden = true; }
+
+      const dlOptions = document.getElementById('plDlOptions');
+      const dlForm = document.getElementById('plDlForm');
+      const dlError = document.getElementById('plDlError');
+      const dlSpace = document.getElementById('plDlSpace');
+      let dlOptionsPlayer = '';
+
+      async function openDownloadOptions(playerId, playerName) {
+        dlOptionsPlayer = playerId;
+        document.getElementById('plDlTitle').textContent = `下载写真：${playerName}`;
+        document.getElementById('plDlLimit').value = '20';
+        document.getElementById('plDlCodes').value = '';
+        dlError.hidden = true;
+        dlSpace.textContent = '磁盘：读取中…';
+        dlOptions.hidden = false;
+        try {
+          const response = await fetch('/api/players/download/space', { cache: 'no-store' });
+          const data = await readJson(response);
+          if (!response.ok || !data.success) throw new Error(data.error || '读取失败');
+          dlSpace.textContent = `磁盘剩余 ${data.free_gb} GB，按约 ${data.per_book_mb} MB/本，最多约 ${data.max_books} 本`;
+        } catch (error) {
+          dlSpace.textContent = `磁盘信息读取失败：${error.message}`;
+        }
+      }
+
+      dlForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        dlError.hidden = true;
+        const limit = Math.max(0, Math.min(1000, Number(document.getElementById('plDlLimit').value) || 0));
+        const codes = document.getElementById('plDlCodes').value.trim();
+        const start = document.getElementById('plDlStart');
+        start.disabled = true;
+        try {
+          const response = await fetch('/api/players/download', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: dlOptionsPlayer, limit, codes }),
+          });
+          const data = await readJson(response);
+          if (!response.ok || !data.success) throw new Error(data.error || '启动下载失败');
+          dlOptions.hidden = true;
+          openDetail(dlOptionsPlayer);
+        } catch (error) {
+          dlError.textContent = error.message;
+          dlError.hidden = false;
+        } finally {
+          start.disabled = false;
+        }
+      });
+      document.getElementById('plDlCancel').addEventListener('click', () => { dlOptions.hidden = true; });
+      dlOptions.addEventListener('click', (event) => { if (event.target === dlOptions) dlOptions.hidden = true; });
+      document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !dlOptions.hidden) dlOptions.hidden = true; });
+
       document.getElementById('plAdd').addEventListener('click', openAdd);
       document.getElementById('plAddCancel').addEventListener('click', closeAdd);
       addModal.addEventListener('click', (event) => { if (event.target === addModal) closeAdd(); });
@@ -1434,6 +1479,7 @@
               dmmId: addPickedItem ? addPickedItem.id : '',
               image: addPickedItem ? addPickedItem.image : '',
               autoDownload: document.getElementById('plAddAuto').checked,
+              downloadLimit: Number(document.getElementById('plAddAutoLimit').value) || 0,
             }),
           });
           const data = await readJson(response);

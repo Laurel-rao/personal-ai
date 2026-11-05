@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <meta name="description" content="外部数据任务：查看写真下载、资料刷新与查询任务的状态、进度和日志。" />
+  <title>外部数据任务 · 创作工作台</title>
+  <link rel="stylesheet" href="/ui-framework.css" />
+  <link rel="stylesheet" href="/admin.css" />
+  <link rel="stylesheet" href="/workspace-pages.css" />
+  <link rel="stylesheet" href="/tasks.css" />
+</head>
+<body class="tasks-page" data-page="idols">
+  <div class="tk-page">
+    <header class="tk-header">
+      <div class="tk-header-copy">
+        <span class="tk-eyebrow">EXTERNAL DATA</span>
+        <h1>外部数据任务</h1>
+        <p>写真下载、资料刷新与查询任务集中查看；运行中可取消，失败可重试，日志实时跟进。</p>
+      </div>
+      <a class="tk-btn tk-btn-sm" href="/players">← 返回选手库</a>
+    </header>
+
+    <section class="tk-access" id="tkDenied" hidden aria-labelledby="tkDeniedTitle">
+      <h2 id="tkDeniedTitle">没有访问权限</h2>
+      <p>外部数据任务仅对管理员或拥有「选手库」权限的账号开放。如需使用，请联系管理员调整角色授权。</p>
+      <a class="tk-btn tk-btn-primary" href="/">返回工作台</a>
+    </section>
+
+    <div id="tkContent">
+      <section class="tk-toolbar" aria-label="任务筛选">
+        <label class="tk-field">
+          <span>类型</span>
+          <select id="tkKind" name="kind">
+            <option value="">全部</option>
+            <option value="download">下载</option>
+            <option value="refresh">资料刷新</option>
+            <option value="photos">写真查询</option>
+            <option value="works">作品查询</option>
+            <option value="books">写真集书目</option>
+            <option value="preview">写真集预览</option>
+            <option value="pack">PDF 打包</option>
+          </select>
+        </label>
+        <label class="tk-field">
+          <span>状态</span>
+          <select id="tkStatus" name="status">
+            <option value="">全部</option>
+            <option value="running">运行中</option>
+            <option value="success">成功</option>
+            <option value="failed">失败</option>
+            <option value="cancelled">已取消</option>
+          </select>
+        </label>
+        <label class="tk-field tk-field-search">
+          <span>搜索</span>
+          <input id="tkSearch" type="search" name="q" placeholder="标题 / 选手名 / 编号" autocomplete="off" spellcheck="false" />
+        </label>
+        <button type="button" class="tk-btn tk-btn-primary" id="tkRefresh">刷新</button>
+        <span class="tk-count" id="tkCount" aria-live="polite">—</span>
+      </section>
+
+      <section class="tk-bulk" aria-label="批量操作">
+        <span class="tk-bulk-label">批量操作</span>
+        <button type="button" class="tk-btn tk-btn-sm" data-bulk="retry_failed">重试全部失败</button>
+        <button type="button" class="tk-btn tk-btn-sm" data-bulk="cancel_running">取消全部运行中</button>
+        <button type="button" class="tk-btn tk-btn-sm" data-bulk="clear_done">清理已完成</button>
+      </section>
+
+      <section class="tk-panel" id="tkPanel" aria-labelledby="tkListTitle">
+        <div class="tk-list-head">
+          <h2 id="tkListTitle">任务列表</h2>
+          <span class="tk-updated" id="tkUpdated"></span>
+        </div>
+        <div class="tk-list" id="tkList" role="list" aria-live="polite" aria-busy="false"></div>
+        <nav class="tk-pager" id="tkPager" aria-label="任务分页" hidden>
+          <button type="button" class="tk-btn tk-btn-sm" id="tkPrev">上一页</button>
+          <div class="tk-pages" id="tkPages"></div>
+          <button type="button" class="tk-btn tk-btn-sm" id="tkNext">下一页</button>
+          <span class="tk-range" id="tkRange"></span>
+        </nav>
+      </section>
+    </div>
+  </div>
+
+  <div class="tk-drawer-backdrop" id="tkDrawerBackdrop" hidden></div>
+  <aside class="tk-drawer" id="tkDrawer" role="dialog" aria-modal="true" aria-labelledby="tkDrawerTitle" hidden>
+    <header class="tk-drawer-head">
+      <div class="tk-drawer-copy">
+        <span class="tk-drawer-eyebrow">任务日志</span>
+        <h2 id="tkDrawerTitle">任务日志</h2>
+        <p class="tk-drawer-meta" id="tkDrawerMeta"></p>
+      </div>
+      <button type="button" class="tk-icon-btn" id="tkDrawerClose" aria-label="关闭日志面板">✕</button>
+    </header>
+    <div class="tk-drawer-status" id="tkDrawerStatus"></div>
+    <pre class="tk-logs" id="tkLogs" tabindex="0" aria-label="任务日志内容">加载中…</pre>
+    <footer class="tk-drawer-foot">
+      <button type="button" class="tk-btn tk-btn-sm" id="tkDrawerRefresh">立即刷新</button>
+      <span class="tk-drawer-hint" id="tkDrawerHint"></span>
+    </footer>
+  </aside>
+
+  <div class="tk-lightbox" id="tkLightbox" role="dialog" aria-modal="true" aria-labelledby="tkLightboxTitle" hidden>
+    <div class="tk-lightbox-top">
+      <div class="tk-lightbox-info">
+        <strong id="tkLightboxTitle">任务图片</strong>
+        <span id="tkLightboxCounter" class="tk-lightbox-counter"></span>
+      </div>
+      <div class="tk-lightbox-tools">
+        <a class="tk-btn tk-btn-sm tk-lightbox-download" id="tkLightboxDownload" href="#" download rel="noopener" target="_blank">下载原图</a>
+        <button type="button" class="tk-btn tk-btn-sm" id="tkLightboxClose" aria-label="关闭图片预览">关闭</button>
+      </div>
+    </div>
+    <div class="tk-lightbox-stage">
+      <button type="button" class="tk-lightbox-nav" id="tkLightboxPrev" aria-label="上一张图片">‹</button>
+      <img id="tkLightboxImage" alt="" />
+      <button type="button" class="tk-lightbox-nav" id="tkLightboxNext" aria-label="下一张图片">›</button>
+    </div>
+    <div class="tk-lightbox-foot">
+      <span id="tkLightboxCaption" class="tk-lightbox-caption"></span>
+      <span class="tk-lightbox-hint">← → 切换 · Esc 关闭</span>
+    </div>
+  </div>
+
+  <div class="tk-toasts" id="tkToasts" role="status" aria-live="polite"></div>
+
+  <noscript>
+    <p class="tk-noscript">外部数据任务页面需要启用 JavaScript 才能加载任务列表。</p>
+  </noscript>
+
+  <script src="/tasks.js"></script>
+</body>
+</html>

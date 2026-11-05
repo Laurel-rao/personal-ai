@@ -62,6 +62,20 @@
     .pl-dl-banner.error { border-color: #f0c6c0; background: #fdf1ef; color: #b03a2e; }
     .pl-dl-banner span { flex: 1; min-width: 0; }
     .pl-dl-banner button { border: 0; background: none; color: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; padding: 0; }
+    .pl-dl-plan { margin: 0 0 10px; }
+    .pl-dl-plan-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--page-muted, #7b8795); }
+    .pl-dl-plan-head button { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 6px; padding: 4px 8px; font-size: 11.5px; cursor: pointer; }
+    .pl-dl-plan-head button:hover { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); }
+    .pl-dl-plan-head button[hidden] { display: none; }
+    .pl-dl-plan-head span { margin-left: auto; }
+    .pl-dl-books { margin-top: 6px; max-height: 220px; overflow: auto; border: 1px solid var(--page-line, #e3e9ee); border-radius: 8px; }
+    .pl-dl-books[hidden] { display: none; }
+    .pl-dl-book { display: flex; align-items: center; gap: 8px; padding: 6px 9px; margin-bottom: 0; border-bottom: 1px solid #f1f4f6; font-size: 12px; color: var(--page-text, #243242); }
+    .pl-dl-book:last-child { border-bottom: 0; }
+    .pl-dl-book input { width: auto; margin: 0; padding: 0; }
+    .pl-dl-book code { font-size: 11.5px; }
+    .pl-dl-book .meta { margin-left: auto; color: var(--page-muted, #7b8795); font-size: 11px; }
+    .pl-dl-book .done { color: #8b93a7; }
     .pl-download-status { margin: 0 0 10px; padding: 7px 10px; border-radius: 8px; background: var(--page-primary-soft, #edf7f2); color: var(--page-primary, #087f65); font-size: 12px; }
     .pl-download-status[hidden] { display: none; }
     .pl-download-status.error { background: #fdf1ef; color: #b03a2e; }
@@ -104,6 +118,8 @@
     .pl-task-detail-head button { margin-left: auto; border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 6px; padding: 3px 8px; font-size: 11px; cursor: pointer; }
     .pl-task-logs { max-height: 220px; overflow: auto; margin: 0; padding: 9px 10px; background: #0f1218; color: #dfe6f3; border-radius: 8px; font-size: 11.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
     .pl-task-empty { padding: 30px 0; text-align: center; color: var(--page-muted, #7b8795); font-size: 12.5px; }
+    .pl-task-center-link { margin-left: auto; color: var(--page-primary, #087f65); font-size: 12px; text-decoration: none; white-space: nowrap; }
+    .pl-task-center-link:hover { text-decoration: underline; }
     .pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 14px; }
     .pl-card { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
     .pl-card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(36,50,66,.1); border-color: rgba(8,127,101,.35); }
@@ -160,6 +176,8 @@
     .pl-photo-tabs button.active { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); background: var(--page-primary-soft, #edf7f2); }
     .pl-photo-refresh { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 7px; padding: 3px 9px; font-size: 11.5px; cursor: pointer; margin-left: auto; }
     .pl-photo-refresh:hover { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); }
+    .pl-local-pack { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: var(--page-muted, #7b8795); }
+    .pl-local-pack select { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 6px; padding: 3px 6px; font-size: 11.5px; }
     .pl-chips { display: flex; gap: 6px; flex-wrap: wrap; }
     .pl-chips span { background: var(--page-primary-soft, #edf7f2); color: var(--page-primary, #087f65); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; }
     .pl-comment { border-left: 2px solid var(--page-line, #e3e9ee); padding: 4px 0 4px 10px; margin-bottom: 10px; font-size: 12.5px; }
@@ -295,6 +313,7 @@
     <div class="pl-tasks-box">
       <div class="pl-search-head">
         <h3>外部数据任务</h3>
+        <a class="pl-task-center-link" href="/tasks">打开任务中心 →</a>
         <button class="pl-search-close" id="plTasksClose" type="button" aria-label="关闭">×</button>
       </div>
       <div class="pl-tasks-bar">
@@ -306,6 +325,7 @@
           <option value="works">作品查询</option>
           <option value="books">写真集书目</option>
           <option value="preview">写真集预览</option>
+          <option value="pack">PDF 打包</option>
         </select>
         <select id="plTasksStatus" aria-label="任务状态">
           <option value="">全部状态</option>
@@ -315,6 +335,9 @@
           <option value="cancelled">已取消</option>
         </select>
         <button id="plTasksRefresh" type="button">刷新</button>
+        <button id="plTasksRetryFailed" type="button">重试失败</button>
+        <button id="plTasksCancelRunning" type="button">取消运行</button>
+        <button id="plTasksClearDone" type="button">清理完成</button>
         <span class="pl-tasks-count" id="plTasksCount"></span>
       </div>
       <div class="pl-tasks-list" id="plTasksList"><div class="pl-task-empty">加载中…</div></div>
@@ -330,6 +353,15 @@
       <p class="pl-add-hint">只下载尚未完成的试读作品；指定编号时忽略数量上限之外的作品。</p>
       <label>最多下载几本<input id="plDlLimit" type="number" min="0" max="1000" value="20" inputmode="numeric"></label>
       <label>指定作品编号<input id="plDlCodes" maxlength="500" autocomplete="off" placeholder="留空 = 全部；多个用逗号分隔"></label>
+      <div class="pl-dl-plan">
+        <div class="pl-dl-plan-head">
+          <button type="button" id="plDlLoadBooks">加载作品列表</button>
+          <button type="button" id="plDlSelectAll" hidden>全选</button>
+          <button type="button" id="plDlSelectNone" hidden>清空</button>
+          <span id="plDlPlanCount"></span>
+        </div>
+        <div class="pl-dl-books" id="plDlBooks" hidden></div>
+      </div>
       <p class="pl-add-hint" id="plDlSpace">磁盘：读取中…</p>
       <p class="pl-add-error" id="plDlError" hidden></p>
       <div class="pl-add-actions">
@@ -488,6 +520,7 @@
       function downloadText(job) {
         const elapsed = job.started_at ? Math.max(0, Math.round(Date.now() / 1000 - job.started_at)) : 0;
         const suffix = elapsed ? ` · ${elapsed}s` : '';
+        if (job.phase === 'queued') return `排队中，等待前序下载完成…${suffix}`;
         if (job.phase === 'listing') {
           const where = job.list_pages ? `第 ${job.list_page || 1}/${job.list_pages} 页` : '作品列表';
           return `正在检索作品（${where}）${suffix}`;
@@ -538,6 +571,13 @@
             renderDownloadBanner(job);
             if (job.status !== 'running') {
               stopBannerPoll();
+              if ('Notification' in window && Notification.permission === 'granted') {
+                try {
+                  new Notification(job.status === 'done' ? '写真下载完成' : '写真下载失败', {
+                    body: `「${job.name || ''}」${job.message || ''}`,
+                  });
+                } catch (error) { /* ignore */ }
+              }
               if (job.status === 'done') {
                 load(true);
                 setTimeout(() => { if (!dlBannerPoll) dlBanner.hidden = true; }, 6000);
@@ -565,11 +605,48 @@
           <div style="grid-column:1/-1">
             <button class="pl-close" id="plLocalClose" type="button" aria-label="关闭">×</button>
             <h2 class="pl-modal-title">${esc(item.name)} · 本地写真 <small id="plLocalCount" style="font-size:13px;color:#7b8795"></small></h2>
+            <div class="pl-local-pack">
+              <button class="pl-photo-refresh" id="plLocalPack" type="button">生成 PDF / 打包</button>
+              <select id="plLocalLayout" aria-label="PDF 版面">
+                <option value="auto">自动（优先对开）</option>
+                <option value="spread">对开</option>
+                <option value="page">单页</option>
+              </select>
+              <span id="plLocalPackStatus"></span>
+            </div>
             <div class="pl-photos" id="plLocalPhotos"><div class="loading">加载中…</div></div>
           </div>`;
         modal.hidden = false;
         document.body.style.overflow = 'hidden';
         document.getElementById('plLocalClose').addEventListener('click', closeModal);
+        const packButton = document.getElementById('plLocalPack');
+        const packStatus = document.getElementById('plLocalPackStatus');
+        packButton.addEventListener('click', async () => {
+          packButton.disabled = true;
+          packButton.textContent = '打包中…';
+          packStatus.textContent = '正在生成 PDF，可能较慢…';
+          try {
+            const response = await fetch('/api/players/pack', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id, layout: document.getElementById('plLocalLayout').value }),
+            });
+            const data = await readJson(response);
+            if (!response.ok || !data.success) throw new Error(data.error || '打包失败');
+            packStatus.innerHTML = '';
+            const link = document.createElement('a');
+            link.href = data.pdf_url;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            link.textContent = `下载 PDF（${data.stats.books} 本 / ${data.stats.pages} 页）`;
+            packStatus.appendChild(link);
+          } catch (error) {
+            packStatus.textContent = `打包失败：${error.message}`;
+          } finally {
+            packButton.disabled = false;
+            packButton.textContent = '生成 PDF / 打包';
+          }
+        });
         const box = document.getElementById('plLocalPhotos');
         try {
           const response = await fetch(`/api/players/photos?id=${encodeURIComponent(id)}&kind=local`);
@@ -806,8 +883,8 @@
               downloadStatus.classList.remove('error');
               downloadTextEl.textContent = downloadText(job);
               downloadBar.hidden = false;
-              downloadBar.classList.toggle('indeterminate', job.phase === 'listing');
-              if (job.phase === 'listing') {
+              downloadBar.classList.toggle('indeterminate', job.phase === 'listing' || job.phase === 'queued');
+              if (job.phase === 'listing' || job.phase === 'queued') {
                 downloadBarFill.style.width = '';
               } else {
                 const percent = job.total ? Math.max(4, Math.min(100, Math.round((job.finished || 0) / job.total * 100))) : 5;
@@ -1382,6 +1459,43 @@
       const dlError = document.getElementById('plDlError');
       const dlSpace = document.getElementById('plDlSpace');
       let dlOptionsPlayer = '';
+      let dlPlanBooks = [];
+      let dlPlanLoaded = false;
+      const dlBooksBox = document.getElementById('plDlBooks');
+
+      function renderDlPlan() {
+        dlBooksBox.innerHTML = dlPlanBooks.map((book) => `
+          <label class="pl-dl-book">
+            <input type="checkbox" data-code="${esc(book.code)}" ${book.done ? '' : 'checked'}>
+            <code>${esc(book.code)}</code>
+            <span class="meta ${book.done ? 'done' : ''}">${book.done ? '已下载' : '未下载'}${book.pages ? ` · ${book.pages} 页` : ''}${book.spreads ? ` / ${book.spreads} 对开` : ''}</span>
+          </label>`).join('');
+        const done = dlPlanBooks.filter((book) => book.done).length;
+        document.getElementById('plDlPlanCount').textContent = `${dlPlanBooks.length} 本 · 已下载 ${done}`;
+        document.getElementById('plDlSelectAll').hidden = false;
+        document.getElementById('plDlSelectNone').hidden = false;
+        dlBooksBox.hidden = false;
+      }
+
+      async function loadDlPlan() {
+        const button = document.getElementById('plDlLoadBooks');
+        button.disabled = true;
+        button.textContent = '加载中…';
+        document.getElementById('plDlPlanCount').textContent = '正在检索作品…';
+        try {
+          const response = await fetch(`/api/players/download/books?id=${encodeURIComponent(dlOptionsPlayer)}`, { cache: 'no-store' });
+          const data = await readJson(response);
+          if (!response.ok || !data.success) throw new Error(data.error || '加载失败');
+          dlPlanBooks = data.books || [];
+          dlPlanLoaded = true;
+          renderDlPlan();
+        } catch (error) {
+          document.getElementById('plDlPlanCount').textContent = error.message;
+        } finally {
+          button.disabled = false;
+          button.textContent = '加载作品列表';
+        }
+      }
 
       async function openDownloadOptions(playerId, playerName) {
         dlOptionsPlayer = playerId;
@@ -1389,6 +1503,13 @@
         document.getElementById('plDlLimit').value = '20';
         document.getElementById('plDlCodes').value = '';
         dlError.hidden = true;
+        dlPlanBooks = [];
+        dlPlanLoaded = false;
+        dlBooksBox.innerHTML = '';
+        dlBooksBox.hidden = true;
+        document.getElementById('plDlPlanCount').textContent = '';
+        document.getElementById('plDlSelectAll').hidden = true;
+        document.getElementById('plDlSelectNone').hidden = true;
         dlSpace.textContent = '磁盘：读取中…';
         dlOptions.hidden = false;
         try {
@@ -1405,7 +1526,16 @@
         event.preventDefault();
         dlError.hidden = true;
         const limit = Math.max(0, Math.min(1000, Number(document.getElementById('plDlLimit').value) || 0));
-        const codes = document.getElementById('plDlCodes').value.trim();
+        let codes = document.getElementById('plDlCodes').value.trim();
+        if (dlPlanLoaded) {
+          const checked = [...dlBooksBox.querySelectorAll('input[type="checkbox"]:checked')].map((node) => node.dataset.code);
+          if (!checked.length) {
+            dlError.textContent = '请至少勾选一本作品；要手动填编号请先关闭再重新打开下载窗口';
+            dlError.hidden = false;
+            return;
+          }
+          codes = checked.join(',');
+        }
         const start = document.getElementById('plDlStart');
         start.disabled = true;
         try {
@@ -1424,6 +1554,13 @@
         } finally {
           start.disabled = false;
         }
+      });
+      document.getElementById('plDlLoadBooks').addEventListener('click', loadDlPlan);
+      document.getElementById('plDlSelectAll').addEventListener('click', () => {
+        dlBooksBox.querySelectorAll('input[type="checkbox"]').forEach((node) => { node.checked = true; });
+      });
+      document.getElementById('plDlSelectNone').addEventListener('click', () => {
+        dlBooksBox.querySelectorAll('input[type="checkbox"]').forEach((node) => { node.checked = false; });
       });
       document.getElementById('plDlCancel').addEventListener('click', () => { dlOptions.hidden = true; });
       dlOptions.addEventListener('click', (event) => { if (event.target === dlOptions) dlOptions.hidden = true; });
@@ -1509,7 +1646,7 @@
       const taskLogs = document.getElementById('plTaskLogs');
       const TASK_KINDS = {
         download: '写真下载', refresh: '资料刷新', photos: '写真查询',
-        works: '作品查询', books: '写真集书目', preview: '写真集预览',
+        works: '作品查询', books: '写真集书目', preview: '写真集预览', pack: 'PDF 打包',
       };
       const TASK_STATUS = { running: '运行中', success: '成功', failed: '失败', cancelled: '已取消' };
       let tasksPoll = 0;
@@ -1534,6 +1671,9 @@
         }
         if (task.kind === 'refresh') {
           return (result.updated || []).length ? `更新 ${result.updated.join('、')}` : (result.message || '');
+        }
+        if (task.kind === 'pack') {
+          return result.books != null ? `${result.books} 本 / ${result.pages || 0} 页` : '';
         }
         if (result.count != null) return `${result.count} 项`;
         return '';
@@ -1694,6 +1834,24 @@
       document.getElementById('plTasksBtn').addEventListener('click', openTasks);
       document.getElementById('plTasksClose').addEventListener('click', closeTasks);
       document.getElementById('plTasksRefresh').addEventListener('click', () => loadTasks(false));
+      async function bulkTasks(action) {
+        try {
+          const response = await fetch('/api/tasks/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action }),
+          });
+          const data = await readJson(response);
+          if (!response.ok || !data.success) throw new Error(data.error || '操作失败');
+          await loadTasks(true);
+          tasksCount.textContent = `${data.count} 条已处理`;
+        } catch (error) {
+          tasksCount.textContent = error.message;
+        }
+      }
+      document.getElementById('plTasksRetryFailed').addEventListener('click', () => bulkTasks('retry_failed'));
+      document.getElementById('plTasksCancelRunning').addEventListener('click', () => bulkTasks('cancel_running'));
+      document.getElementById('plTasksClearDone').addEventListener('click', () => bulkTasks('clear_done'));
       document.getElementById('plTaskDetailClose').addEventListener('click', () => { taskDetail.hidden = true; stopTaskLogPoll(); });
       tasksKind.addEventListener('change', () => loadTasks(false));
       tasksStatus.addEventListener('change', () => loadTasks(false));
@@ -1702,7 +1860,10 @@
         if (event.key === 'Escape' && !tasksModal.hidden) closeTasks();
       });
 
-      load(true);
+      load(true).then(() => {
+        const playerId = new URLSearchParams(location.search).get('player_id');
+        if (playerId) openDetail(playerId);
+      });
     })();
   </script>
 </body>

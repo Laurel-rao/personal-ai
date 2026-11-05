@@ -162,7 +162,8 @@ def _products(html: str) -> list[tuple[str, str]]:
     return re.findall(r"/product/([a-z0-9]+)/([a-z0-9]+)/", html)
 
 
-def list_books(dmm_id: str, max_pages: int = MAX_PAGES, on_progress=None) -> list[dict[str, str]]:
+def list_books(dmm_id: str, max_pages: int = MAX_PAGES, on_progress=None,
+               errors: list[int] | None = None) -> list[dict[str, str]]:
     """DMM 女优页的全部作品（按 code 去重）；后续页并发抓取。"""
     dmm_id = str(dmm_id or "").strip()
     if not re.fullmatch(r"\d{1,12}", dmm_id):
@@ -187,6 +188,8 @@ def list_books(dmm_id: str, max_pages: int = MAX_PAGES, on_progress=None) -> lis
                     body = future.result()
                 except Exception:  # noqa: BLE001
                     body = ""
+                    if errors is not None:
+                        errors.append(page)
                 for series, code in _products(body):
                     found.setdefault(code, series)
                 if on_progress is not None:

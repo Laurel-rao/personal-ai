@@ -87,7 +87,7 @@ def route_module():
     path = request.path.rstrip("/") or "/"
     if path == "/nya" or path.startswith("/api/nya"):
         return "nya"
-    if path == "/players" or path.startswith("/api/players") or path.startswith("/api/tasks"):
+    if path in ("/players", "/tasks") or path.startswith("/api/players") or path.startswith("/api/tasks"):
         return "idols"
     if path in ("/player", "/video_player.html") or path.startswith("/api/player/"):
         return "player"

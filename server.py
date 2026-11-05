@@ -16,6 +16,7 @@ import mimetypes
 import os
 import re
 import shutil
+import socket
 import ssl
 import subprocess
 import threading
@@ -31,6 +32,7 @@ from pathlib import Path
 from typing import Any
 
 import dmm_books
+import profile_enrich
 import task_store
 
 from flask import Blueprint, Flask, Response, jsonify, render_template_string, request, send_file, stream_with_context
@@ -69,6 +71,10 @@ STATIC_FILES = {
     "/nya.html": ROOT / "nya.html",
     "/players": ROOT / "players.html",
     "/players.html": ROOT / "players.html",
+    "/tasks": ROOT / "tasks.html",
+    "/tasks.html": ROOT / "tasks.html",
+    "/tasks.js": ROOT / "tasks.js",
+    "/tasks.css": ROOT / "tasks.css",
     "/video_player.css": ROOT / "video_player.css",
     "/video_player.js": ROOT / "video_player.js",
     "/templates/warring-states-ref2va.txt": ROOT / "templates" / "warring-states-ref2va.txt",
@@ -198,6 +204,51 @@ def env_token(name: str) -> str:
 # ---------------------------------------------------------------- 设置存取（.env）
 
 ENV_FILE = ROOT / ".env"
+
+
+def _public_proxy(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        parsed = urllib.parse.urlparse(text if "://" in text else "http://" + text)
+        if parsed.username:
+            host = parsed.hostname or ""
+            port = f":{parsed.port}" if parsed.port else ""
+            return f"{parsed.scheme}://{parsed.username}:***@{host}{port}"
+    except ValueError:
+        pass
+    return text
+
+
+def _ensure_dmm_proxy() -> None:
+    """If DMM_PROXY points at the local 7898 listener and it is down, start it."""
+    proxy = os.environ.get("DMM_PROXY", "").strip()
+    if not proxy:
+        return
+    try:
+        parsed = urllib.parse.urlparse(proxy if "://" in proxy else "http://" + proxy)
+        host = parsed.hostname or ""
+        port = parsed.port or 80
+    except ValueError:
+        return
+    if host not in {"127.0.0.1", "localhost"} or port != 7898:
+        return
+    try:
+        with socket.create_connection((host, port), timeout=1):
+            return
+    except OSError:
+        pass
+    script = ROOT / "tools" / "dmm_jp_proxy.sh"
+    if not script.is_file():
+        return
+    try:
+        result = subprocess.run(["bash", str(script)], capture_output=True, text=True, timeout=30)
+        print(f"[dmm-proxy] start: {result.stdout.strip() or result.stderr.strip()}", flush=True)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[dmm-proxy] start failed: {exc}", flush=True)
+
+
 DEFAULT_COMFY_URL = "https://u288331-788499bf7eab.bjb1.seetacloud.com:8443"
 
 
@@ -950,12 +1001,21 @@ def _am_refresh_profile(player_id: str) -> tuple[dict[str, Any] | None, list[str
             f"W{dmm['waist']}" if dmm.get("waist") else "",
             f"H{dmm['hip']}" if dmm.get("hip") else "",
         ) if part)
-        idol = _idolbase_profile(roman)
-        source_height = str(dmm.get("height") or "") or str(idol.get("height") or "")
-        source_measurements = dmm_measurements or str(idol.get("measurements") or "")
-        source_birthday = str(idol.get("birthday") or "")
+        try:
+            external = profile_enrich.enrich(roman, jp_name, name) if roman else {}
+        except Exception:  # noqa: BLE001
+            external = {}
+        idol = {} if external.get("height") or external.get("birthday") else _idolbase_profile(roman)
+        source_height = str(dmm.get("height") or "") or str(external.get("height") or "") or str(idol.get("height") or "")
+        source_measurements = (dmm_measurements or str(external.get("measurements") or "")
+                               or str(idol.get("measurements") or ""))
+        source_birthday = str(external.get("birthday") or "") or str(idol.get("birthday") or "")
+        source_agency = str(external.get("agency") or "")
+        source_debut = str(external.get("debut") or "")
+        source_social = external.get("social") if isinstance(external.get("social"), dict) else {}
         available = [label for label, value in (
-            ("身高", source_height), ("三围", source_measurements), ("生日", source_birthday)) if value]
+            ("身高", source_height), ("三围", source_measurements), ("生日", source_birthday),
+            ("事务所", source_agency), ("出道", source_debut), ("社媒", source_social)) if value]
         found: list[tuple[str, str, str]] = []
         if not profile.get("dmmId") and dmm_id:
             found.append(("dmmId", dmm_id, "DMM ID"))
@@ -967,11 +1027,31 @@ def _am_refresh_profile(player_id: str) -> tuple[dict[str, Any] | None, list[str
             found.append(("measurements", source_measurements, "三围"))
         if not profile.get("birthday") and source_birthday:
             found.append(("birthday", source_birthday, "生日"))
+        if not profile.get("agency") and source_agency:
+            found.append(("agency", source_agency, "事务所"))
+        if not profile.get("debutYear") and source_debut:
+            found.append(("debutYear", source_debut, "出道"))
         changed: list[str] = []
         for field, value, label in found:
             profile[field] = value
             changed.append(label)
-        if changed:
+        social = dict(profile.get("social") or {})
+        for key in ("x", "instagram"):
+            if source_social.get(key) and not social.get(key):
+                social[key] = str(source_social[key])[:300]
+                if "社媒" not in changed:
+                    changed.append("社媒")
+        if social:
+            profile["social"] = social
+        sources = list(profile.get("sources") or [])
+        sources_changed = False
+        for url in external.get("sources") or []:
+            if url and url not in sources:
+                sources.append(url)
+                sources_changed = True
+        if sources:
+            profile["sources"] = sources
+        if changed or sources_changed:
             _write_user_rows(rows)
             refreshed = _am_load()
             return _am_item(card, refreshed["profiles"].get(player_id, profile)), changed, ""
@@ -992,7 +1072,7 @@ def api_players_refresh() -> Response:
                              payload={"player_id": card_id}, player_id=card_id,
                              player_name=info["name"])
     task_id = task["id"]
-    task_store.log(task_id, "从 DMM 索引与 theidolbase 获取基础信息…")
+    task_store.log(task_id, "从 DMM 索引与外部资料源（theidolbase / actorbase / javdatabase）获取…")
     item, changed, error = _am_refresh_profile(card_id)
     if item is None:
         task_store.log(task_id, f"失败：{error}")
@@ -1068,6 +1148,7 @@ def api_tasks_list() -> Response:
         kind=(request.args.get("kind") or "").strip(),
         status=(request.args.get("status") or "").strip(),
         player_id=(request.args.get("player_id") or "").strip(),
+        q=(request.args.get("q") or "").strip(),
         limit=limit, offset=offset,
     )
     for item in items:
@@ -1086,32 +1167,72 @@ def api_tasks_detail(task_id: str) -> Response:
     return jsonify({"success": True, "task": task})
 
 
-@console_bp.post("/api/tasks/<task_id>/retry")
-def api_tasks_retry(task_id: str) -> Response:
-    old = task_store.get(task_id, with_logs=False)
-    if old is None:
-        return error_response(404, "任务不存在")
+def _retry_task_record(old: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
     if old.get("status") == "running":
-        return error_response(400, "任务仍在运行，不能重试")
+        return None, "任务仍在运行，不能重试"
     if old.get("kind") == "download":
         payload = old.get("payload") or {}
         job, error = _start_player_download(str(old.get("player_id") or ""),
                                             limit=payload.get("limit") or 0,
                                             codes=str(payload.get("codes") or ""))
         if error:
-            return error_response(400, error)
-        new_task = task_store.get(str(job.get("task_id") or ""), with_logs=False) if job else None
-        return jsonify({"success": True, "task": new_task})
+            return None, error
+        return (task_store.get(str(job.get("task_id") or ""), with_logs=False) if job else None), ""
     title = old.get("title") or old.get("kind") or "任务"
     if not title.startswith("重试："):
         title = "重试：" + title
     task = task_store.create(
         old.get("kind") or "unknown", title, payload=old.get("payload") or {},
         player_id=old.get("player_id") or "", player_name=old.get("player_name") or "",
-        retry_of=task_id,
+        retry_of=str(old.get("id") or ""),
     )
     threading.Thread(target=_run_retry_task, args=(task,), daemon=True).start()
+    return task, ""
+
+
+@console_bp.post("/api/tasks/<task_id>/retry")
+def api_tasks_retry(task_id: str) -> Response:
+    old = task_store.get(task_id, with_logs=False)
+    if old is None:
+        return error_response(404, "任务不存在")
+    task, error = _retry_task_record(old)
+    if error:
+        return error_response(400, error)
     return jsonify({"success": True, "task": task})
+
+
+@console_bp.post("/api/tasks/bulk")
+def api_tasks_bulk() -> Response:
+    payload = request.get_json(silent=True) or {}
+    action = str(payload.get("action") or "").strip()
+    count = 0
+    if action == "retry_failed":
+        items, _ = task_store.list_tasks(status="failed", limit=20)
+        for item in items:
+            task, error = _retry_task_record(item)
+            if task and not error:
+                count += 1
+    elif action == "cancel_running":
+        items, _ = task_store.list_tasks(status="running", limit=50)
+        for item in items:
+            if item.get("kind") == "download":
+                player_id = str(item.get("player_id") or "")
+                job = _download_job(player_id)
+                if job and job.get("status") == "running":
+                    event = _DOWNLOAD_CANCEL.get(player_id)
+                    if event is not None:
+                        event.set()
+                    _download_update(player_id, cancel_requested=True, message="正在取消…")
+                    task_store.log(str(item.get("id")), "收到取消请求，正在停止…")
+                    count += 1
+                    continue
+            task_store.cancel(str(item.get("id")), "用户取消")
+            count += 1
+    elif action == "clear_done":
+        count = task_store.delete_finished()
+    else:
+        return error_response(400, "不支持的操作")
+    return jsonify({"success": True, "count": count})
 
 
 @console_bp.post("/api/tasks/<task_id>/cancel")
@@ -1925,6 +2046,7 @@ def _task_player(card_id: str) -> dict[str, Any]:
 _DOWNLOAD_JOBS: dict[str, dict[str, Any]] = {}
 _DOWNLOAD_CANCEL: dict[str, threading.Event] = {}
 _DOWNLOAD_LOCK = threading.RLock()
+_DOWNLOAD_SEMAPHORE = threading.Semaphore(2)
 _DOWNLOAD_WORKERS = 2
 
 
@@ -1977,6 +2099,8 @@ def _download_one(card_id: str, name: str, book: dict[str, str], should_stop=Non
         except Exception as exc:  # noqa: BLE001
             last = exc
             shutil.rmtree(temporary, ignore_errors=True)
+            if "404" in str(exc) or "410" in str(exc):
+                break
             if attempt == 0:
                 temporary.mkdir(parents=True, exist_ok=True)
                 time.sleep(3)
@@ -2001,7 +2125,15 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
         if task_id:
             task_store.update(task_id, **values)
 
+    _download_update(card_id, phase="queued", message="等待前序下载完成…")
+    tlog("排队中，等待空闲下载槽…")
+    _DOWNLOAD_SEMAPHORE.acquire()
     try:
+        if cancel_event.is_set():
+            raise dmm_books.DownloadCancelled("已取消")
+        _download_update(card_id, phase="listing",
+                         message="正在检索她的 DMM 作品…" if dmm_id else "正在按日文名搜索作品…")
+
         def listed(page: int, pages: int) -> None:
             _download_update(card_id, list_page=page, list_pages=pages,
                              message=f"正在检索作品：第 {page}/{pages} 页…")
@@ -2009,9 +2141,10 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
 
         books: list[dict[str, str]] = []
         list_error = ""
+        page_errors: list[int] = []
         if dmm_id:
             try:
-                books = dmm_books.list_books(dmm_id, on_progress=listed)
+                books = dmm_books.list_books(dmm_id, on_progress=listed, errors=page_errors)
             except Exception as exc:  # noqa: BLE001
                 list_error = str(exc)
                 _download_update(card_id, message="女优作品页不可用，改用名字搜索…")
@@ -2020,6 +2153,8 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
         if not books:
             detail = f"（{list_error[:90]}）" if list_error else ""
             raise RuntimeError(f"DMM 上没有找到可下载的试读作品{detail}")
+        if page_errors:
+            tlog(f"警告：作品列表第 {', '.join(map(str, page_errors))} 页抓取失败，可能缺少作品")
         tlog(f"找到 {len(books)} 本作品")
         if cancel_event.is_set():
             raise dmm_books.DownloadCancelled("已取消")
@@ -2057,6 +2192,7 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
                              message=f"共 {len(books)} 本，已全部下载过")
             task_store.finish(task_id, "success",
                               {"total": len(books), "skipped": skipped,
+                               "warnings": page_errors,
                                "photos": _local_photos(name)[:12]}, progress=1)
             return
         finished = failed = pages = 0
@@ -2104,6 +2240,7 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
         task_store.finish(task_id, "success" if finished else "failed",
                           {"finished": finished, "failed": failed, "pages": pages,
                            "skipped": skipped, "total": len(books),
+                           "warnings": page_errors,
                            "photos": _local_photos(name)[:12] if finished else []},
                           error="" if finished else message, progress=1)
     except dmm_books.DownloadCancelled:
@@ -2116,6 +2253,8 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
         tlog(f"任务失败：{exc}")
         task_store.finish(task_id, "failed", error=str(exc)[:500])
     finally:
+        _BOOK_PLAN_CACHE.pop(card_id, None)
+        _DOWNLOAD_SEMAPHORE.release()
         if _DOWNLOAD_CANCEL.get(card_id) is cancel_event:
             _DOWNLOAD_CANCEL.pop(card_id, None)
 
@@ -2138,6 +2277,14 @@ def _start_player_download(card_id: str, limit: int = 0, codes: str = "") -> tup
         return None, "没有匹配到 DMM 女优 ID，无法定位她的作品"
     if not _safe_player_folder(name):
         return None, "选手名字包含不能用于文件夹的字符"
+    current_key = _person_key(card, profile)
+    for other in state["cards"]:
+        if other.get("id") == card_id:
+            continue
+        other_profile = state["profiles"].get(other.get("id"), {})
+        other_name = other.get("displayName") or other_profile.get("displayName") or ""
+        if other_name == name and _person_key(other, other_profile) != current_key:
+            return None, f"存在同名选手「{name}」，写真目录会冲突，请先修改显示名"
     try:
         limit = max(0, min(int(limit or 0), 1000))
     except (TypeError, ValueError):
@@ -2180,6 +2327,82 @@ def api_players_download_cancel() -> Response:
     return jsonify({"success": True, "job": _download_job(card_id)})
 
 
+def _resume_download_tasks() -> None:
+    """Restart downloads that were interrupted by the previous process."""
+    try:
+        tasks, _ = task_store.list_tasks(kind="download", status="failed", limit=20)
+    except Exception:  # noqa: BLE001
+        return
+    seen: set[str] = set()
+    for task in tasks:
+        if task.get("error") != "服务重启，任务已中断":
+            continue
+        player_id = str(task.get("player_id") or "")
+        if not player_id or player_id in seen:
+            continue
+        seen.add(player_id)
+        payload = task.get("payload") or {}
+        job, error = _start_player_download(player_id, limit=payload.get("limit") or 0,
+                                            codes=str(payload.get("codes") or ""))
+        if job:
+            task_store.log(str(job.get("task_id") or ""), "服务重启后自动恢复下载")
+        if len(seen) >= 5:
+            break
+
+
+_BOOK_PLAN_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+_BOOK_PLAN_TTL = 600.0
+
+
+def _download_book_plan(card_id: str) -> dict[str, Any]:
+    info = _task_player(card_id)
+    if not info:
+        raise LookupError("没有找到这位选手")
+    now = time.time()
+    cached = _BOOK_PLAN_CACHE.get(card_id)
+    if cached and now - cached[0] < _BOOK_PLAN_TTL:
+        books = cached[1]
+    else:
+        state = _am_load()
+        card = next((item for item in state["cards"] if item.get("id") == card_id), {})
+        profile = state["profiles"].get(card_id, {})
+        extra = (state.get("enrich") or {}).get(card_id, {})
+        dmm_id = str(extra.get("dmm_id") or profile.get("dmmId") or "")
+        if not dmm_id:
+            dmm_id = _resolve_dmm_id(info["name"], info["jp"], info["roman"])
+        try:
+            found = dmm_books.list_books(dmm_id) if dmm_id else []
+        except Exception:  # noqa: BLE001
+            found = []
+        if not found:
+            found = dmm_books.search_books(info["jp"] or info["name"])
+        dest = _LOCAL_PHOTO_DIR / info["name"]
+        books = []
+        for book in found:
+            folder = dest / book["code"]
+            books.append({
+                "code": book["code"],
+                "series": book["series"],
+                "done": (folder / ".done").is_file(),
+                "pages": len(list(folder.glob("page_*.jpg"))),
+                "spreads": len(list((folder / "spreads").glob("spread_*.jpg"))),
+            })
+        _BOOK_PLAN_CACHE[card_id] = (now, books)
+    return {"name": info["name"], "books": books, "total": len(books),
+            "done": sum(1 for book in books if book["done"])}
+
+
+@console_bp.get("/api/players/download/books")
+def api_players_download_books() -> Response:
+    card_id = (request.args.get("id") or "").strip()
+    if not card_id:
+        return error_response(400, "缺少 id")
+    try:
+        return jsonify({"success": True, **_download_book_plan(card_id)})
+    except Exception as exc:  # noqa: BLE001
+        return error_response(502, f"作品列表获取失败：{exc}")
+
+
 @console_bp.get("/api/players/download/space")
 def api_players_download_space() -> Response:
     base = _LOCAL_PHOTO_DIR if _LOCAL_PHOTO_DIR.exists() else Path.home()
@@ -2210,6 +2433,56 @@ def api_players_download() -> Response:
     if error:
         return error_response(400, error)
     return jsonify({"success": True, "job": job})
+
+
+@console_bp.post("/api/players/pack")
+def api_players_pack() -> Response:
+    payload = request.get_json(silent=True) or {}
+    card_id = str(payload.get("id") or "").strip()
+    info = _task_player(card_id)
+    if not info:
+        return error_response(404, "没有找到这位选手")
+    folder = _LOCAL_PHOTO_DIR / info["name"]
+    if not folder.is_dir():
+        return error_response(400, "还没有本地写真，先下载")
+    layout = str(payload.get("layout") or "auto").lower()
+    if layout not in {"auto", "spread", "page"}:
+        layout = "auto"
+    task = task_store.create("pack", f"打包：{info['name']}",
+                             payload={"player_id": card_id, "layout": layout},
+                             player_id=card_id, player_name=info["name"])
+    task_id = task["id"]
+    task_store.log(task_id, f"打包 {folder}（layout={layout}）…")
+    try:
+        import player_pack
+        stats = player_pack.pack_player(folder, layout=layout)
+        pdf = Path(str(stats.get("pdf") or ""))
+        pdf_url = ""
+        if pdf.is_file():
+            try:
+                rel = pdf.relative_to(folder).as_posix()
+            except ValueError:
+                rel = pdf.name
+            pdf_url = "/api/players/pack-file/" + urllib.parse.quote(f"{info['name']}/{rel}", safe="/")
+        task_store.log(task_id, f"完成：{stats.get('books')} 本 / {stats.get('pages')} 页")
+        task_store.finish(task_id, "success", {
+            "books": stats.get("books"), "pages": stats.get("pages"),
+            "layout": stats.get("layout"), "pdf_url": pdf_url,
+        })
+        return jsonify({"success": True, "stats": stats, "pdf_url": pdf_url, "task_id": task_id})
+    except Exception as exc:  # noqa: BLE001
+        task_store.log(task_id, f"失败：{exc}")
+        task_store.finish(task_id, "failed", error=str(exc)[:300])
+        return error_response(500, f"打包失败：{exc}")
+
+
+@console_bp.get("/api/players/pack-file/<path:rel>")
+def api_players_pack_file(rel: str) -> Response:
+    target = (_LOCAL_PHOTO_DIR / rel).resolve()
+    base = _LOCAL_PHOTO_DIR.resolve()
+    if not str(target).startswith(str(base)) or target.suffix.lower() != ".pdf" or not target.is_file():
+        return error_response(404, "PDF 不存在")
+    return send_file(target, mimetype="application/pdf", max_age=0)
 
 
 _LOCAL_THUMB_DIR = DATA_DIR / "amxiaolin" / "thumbs"
@@ -3019,8 +3292,8 @@ def api_settings_get() -> Response:
             "autodl_token_masked": mask_secret(autodl_token),
             "azt_key_set": bool(azt_key),
             "azt_key_masked": mask_secret(azt_key),
-            "dmm_proxy": effective_setting("DMM_PROXY", ""),
-            "dmm_proxy_candidates": dmm_books.proxy_candidates(),
+            "dmm_proxy": _public_proxy(effective_setting("DMM_PROXY", "")),
+            "dmm_proxy_candidates": [_public_proxy(item) for item in dmm_books.proxy_candidates()],
             "env_file": str(ENV_FILE),
         }
     )
@@ -3037,9 +3310,9 @@ def api_settings_dmm_proxy() -> Response:
     script = ROOT / "tools" / "dmm_jp_proxy.sh"
     return jsonify({
         "success": True,
-        "proxy": effective_setting("DMM_PROXY", ""),
-        "candidates": dmm_books.proxy_candidates(),
-        "results": results,
+        "proxy": _public_proxy(effective_setting("DMM_PROXY", "")),
+        "candidates": [_public_proxy(item) for item in dmm_books.proxy_candidates()],
+        "results": [{**item, "proxy": _public_proxy(str(item.get("proxy") or ""))} for item in results],
         "script_exists": script.is_file(),
     })
 
@@ -3052,8 +3325,8 @@ def api_settings_dmm_proxy_save() -> Response:
         proxy = dmm_books.normalize_proxy(str(data.get("proxy") or ""))
         save_env_values({"DMM_PROXY": proxy})
         os.environ["DMM_PROXY"] = proxy
-        return jsonify({"success": True, "proxy": proxy,
-                        "candidates": dmm_books.proxy_candidates()})
+        return jsonify({"success": True, "proxy": _public_proxy(proxy),
+                        "candidates": [_public_proxy(item) for item in dmm_books.proxy_candidates()]})
     except Exception as exc:  # noqa: BLE001
         return error_response(400, str(exc))
 
@@ -3768,6 +4041,8 @@ def api_chat_image(name: str) -> Response:
 
 def create_console_app(config=None) -> Flask:
     task_store.interrupt_running("服务重启，任务已中断")
+    threading.Thread(target=_resume_download_tasks, daemon=True).start()
+    threading.Thread(target=_ensure_dmm_proxy, daemon=True).start()
     app = Flask(__name__, static_folder=None)
     if config:
         app.config.update(config)

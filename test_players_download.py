@@ -157,8 +157,10 @@ try:
     limit_item, error = server._am_add_player({"displayName": "限制测试", "dmmId": "1083265"})
     assert error == "", error
     dmm_books.download_book = fake_download
-    dmm_books.list_books = lambda dmm_id, on_progress=None: [
-        {"series": "4166120", "code": f"limit{i}"} for i in range(1, 4)]
+    def limit_list(dmm_id, on_progress=None, errors=None, **kwargs):
+        return [{"series": "4166120", "code": f"limit{i}"} for i in range(1, 4)]
+
+    dmm_books.list_books = limit_list
     limited = client.post("/api/players/download", json={"id": limit_item["id"], "limit": 2})
     assert limited.status_code == 200, limited.data
     deadline = time.time() + 5
@@ -169,6 +171,9 @@ try:
     assert limited_job["status"] == "done" and limited_job["total"] == 2, limited_job
     limited_task = task_store.get(limited_job["task_id"], with_logs=False)
     assert limited_task["result"]["total"] == 3 and limited_task["result"]["finished"] == 2, limited_task
+    plan = client.get(f"/api/players/download/books?id={limit_item['id']}").get_json()
+    assert plan["success"] is True and plan["total"] == 3, plan
+    assert [book["code"] for book in plan["books"]] == ["limit1", "limit2", "limit3"], plan
 
     code_item, error = server._am_add_player({"displayName": "编号测试", "dmmId": "1083265"})
     assert error == "", error

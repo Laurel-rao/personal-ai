@@ -256,10 +256,14 @@ def get(task_id: str, with_logs: bool = True) -> dict | None:
     return task
 
 
-def list_tasks(kind: str = "", status: str = "", player_id: str = "",
+def list_tasks(kind: str = "", status: str = "", player_id: str = "", q: str = "",
                limit: int = 100, offset: int = 0) -> tuple[list[dict], int]:
     clauses = []
     values: list = []
+    if q:
+        clauses.append("(title LIKE ? OR player_name LIKE ? OR id LIKE ?)")
+        like = f"%{q}%"
+        values.extend([like, like, like])
     if kind:
         clauses.append("kind = ?")
         values.append(kind)
@@ -294,6 +298,16 @@ def interrupt_running(message: str = "服务重启，任务已中断") -> int:
                     (message, _now(), row["id"]))
                 _insert_log(connection, row["id"], f"失败：{message}")
         return len(rows)
+
+
+def delete_finished() -> int:
+    """Delete all non-running tasks; used by the task center bulk cleanup."""
+    with _LOCK:
+        connection = _connection()
+        with connection:
+            cursor = connection.execute("DELETE FROM tasks WHERE status != 'running'")
+            connection.execute("DELETE FROM task_logs WHERE task_id NOT IN (SELECT id FROM tasks)")
+            return cursor.rowcount
 
 
 def clear() -> None:

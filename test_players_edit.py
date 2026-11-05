@@ -15,12 +15,14 @@ from flask import Flask
 original_dir = server._AM_DIR
 original_file = server._AM_USER_FILE
 original_task_root = task_store._ROOT
+original_enrich = server.profile_enrich.enrich
 tmp = Path(tempfile.mkdtemp(prefix="players-edit-test-"))
 try:
     server._AM_DIR = tmp
     server._AM_USER_FILE = tmp / "player-user.json"
     task_store.configure(tmp / "tasks")
     task_store.clear()
+    server.profile_enrich.enrich = lambda *args, **kwargs: {}
     server._AM_STATE.update(mtime=0.0, cards=[], profiles={}, tags={}, comments={}, enrich={})
     (tmp / "dmm-actresses.json").write_text("[]", encoding="utf-8")
 
@@ -86,6 +88,7 @@ try:
 finally:
     server._AM_DIR = original_dir
     server._AM_USER_FILE = original_file
+    server.profile_enrich.enrich = original_enrich
     task_store.configure(original_task_root)
     server._AM_STATE.update(mtime=0.0, cards=[], profiles={})
     shutil.rmtree(tmp, ignore_errors=True)

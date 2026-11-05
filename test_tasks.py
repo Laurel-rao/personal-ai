@@ -49,6 +49,11 @@ try:
     assert detail["success"] is True and detail["task"]["logs"], detail
     assert client.get("/api/tasks/nope").status_code == 404
 
+    local_task = task_store.create("photos", "本地写真", payload={"kind": "local"})
+    still_task = task_store.create("photos", "剧照", payload={"kind": "stills"})
+    assert task_store.delete_local_photo_tasks() == 1
+    assert task_store.get(local_task["id"]) is None
+    assert task_store.get(still_task["id"]) is not None
 finally:
     task_store.configure(original_root)
     shutil.rmtree(tmp, ignore_errors=True)

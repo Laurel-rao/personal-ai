@@ -192,7 +192,15 @@ try:
     assert local_photos.status_code == 200, local_photos.data
     assert "task_id" not in local_photos.get_json(), local_photos.get_json()
     photo_tasks = task_store.list_tasks(kind="photos")[0]
-    assert not any((task.get("payload") or {}).get("kind") == "local" for task in photo_tasks), photo_tasks
+    assert photo_tasks == [], photo_tasks
+    original_photos = server._player_photos
+    server._player_photos = lambda *args, **kwargs: []
+    try:
+        stills = client.get(f"/api/players/photos?id={limit_item['id']}&kind=stills")
+        assert stills.status_code == 200 and "task_id" not in stills.get_json(), stills.get_json()
+        assert task_store.list_tasks(kind="photos")[0] == []
+    finally:
+        server._player_photos = original_photos
 finally:
     server._AM_DIR = original_dir
     server._AM_USER_FILE = original_file

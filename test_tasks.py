@@ -51,9 +51,9 @@ try:
 
     local_task = task_store.create("photos", "本地写真", payload={"kind": "local"})
     still_task = task_store.create("photos", "剧照", payload={"kind": "stills"})
-    assert task_store.delete_local_photo_tasks() == 1
+    assert task_store.delete_photo_tasks() == 3
     assert task_store.get(local_task["id"]) is None
-    assert task_store.get(still_task["id"]) is not None
+    assert task_store.get(still_task["id"]) is None
 finally:
     task_store.configure(original_root)
     shutil.rmtree(tmp, ignore_errors=True)

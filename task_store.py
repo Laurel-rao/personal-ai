@@ -300,24 +300,17 @@ def interrupt_running(message: str = "服务重启，任务已中断") -> int:
         return len(rows)
 
 
-def delete_local_photo_tasks() -> int:
-    """Local photo reads are not external tasks; drop old rows from the task list."""
+def delete_photo_tasks() -> int:
+    """Photo tab reads are interactive/local; they are not external tasks."""
     with _LOCK:
         connection = _connection()
-        rows = connection.execute("SELECT id, payload FROM tasks WHERE kind = 'photos'").fetchall()
-        stale = []
-        for row in rows:
-            try:
-                payload = json.loads(row["payload"] or "{}")
-            except (TypeError, ValueError):
-                continue
-            if payload.get("kind") == "local":
-                stale.append(row["id"])
+        rows = connection.execute("SELECT id FROM tasks WHERE kind = 'photos'").fetchall()
+        ids = [row["id"] for row in rows]
         with connection:
-            for task_id in stale:
+            for task_id in ids:
                 connection.execute("DELETE FROM task_logs WHERE task_id = ?", (task_id,))
                 connection.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
-        return len(stale)
+        return len(ids)
 
 
 def delete_finished() -> int:

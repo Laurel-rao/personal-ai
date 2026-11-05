@@ -179,6 +179,9 @@ def init_admin(app):
         if module:
             modules = (module,) if isinstance(module, str) else module
             granted = any(allowed(item) for item in modules)
+            if not granted and is_admin() and (
+                    request.path == "/tasks" or request.path.startswith("/api/tasks")):
+                granted = True
             if module in ("rewrite", "settings"):
                 granted = granted and is_admin()
             if not granted:

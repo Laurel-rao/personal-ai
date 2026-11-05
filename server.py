@@ -1489,6 +1489,18 @@ def _all4jp_images(roman_name: str) -> list[str]:
     return images
 
 
+def _javdatabase_covers(roman_name: str, limit: int = 6) -> list[bytes]:
+    """按女优名取作品封面字节，作为无剧照时的兜底。"""
+    covers: list[bytes] = []
+    for slug in _javdatabase_codes(roman_name, limit=limit):
+        data = _nya_cover_bytes(slug, full=True)
+        if data:
+            covers.append(data)
+        if len(covers) >= limit:
+            break
+    return covers
+
+
 def _javdatabase_codes(roman_name: str, limit: int = 6) -> list[str]:
     """按女优名在 javdatabase 搜作品列表，返回番号（用于取官方剧照）。"""
     tokens = [t for t in re.split(r"[^A-Za-z0-9]+", roman_name or "") if t]

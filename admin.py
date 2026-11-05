@@ -154,6 +154,7 @@ def init_admin(app):
                 manager.add_permission_role(creator, manager.find_permission_view_menu("can_access", f"Workspace:{key}"))
         db.session.commit()
         builder.add_view(WorkspaceMenuView, "菜单管理", icon="fa-bars", category="管理与配置")
+        builder.add_link("外部任务", href="/tasks", icon="fa-list-check", category="管理与配置")
 
     @app.before_request
     def authorize():

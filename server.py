@@ -926,6 +926,69 @@ def _am_update_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, s
     return None, "只能编辑手动添加的选手"
 
 
+def _am_refresh_profile(player_id: str) -> tuple[dict[str, Any] | None, list[str], str]:
+    """从 DMM 索引和 theidolbase 补全手动选手的空白基础字段。"""
+    rows = _am_user_rows()
+    for row in rows:
+        card = row.get("card") or {}
+        profile = row.get("profile") or {}
+        if card.get("id") != player_id:
+            continue
+        if not profile.get("custom"):
+            return None, [], "只能补充手动添加的选手"
+        name = card.get("displayName") or profile.get("displayName") or ""
+        jp_name = profile.get("japaneseName") or ""
+        roman = card.get("name") or profile.get("name") or ""
+        dmm_id = str(profile.get("dmmId") or "")
+        if not dmm_id:
+            dmm_id = _resolve_dmm_id(name, jp_name, roman)
+        dmm = _dmm_entry(dmm_id)
+        dmm_measurements = "-".join(part for part in (
+            f"B{dmm['bust']}" if dmm.get("bust") else "",
+            f"W{dmm['waist']}" if dmm.get("waist") else "",
+            f"H{dmm['hip']}" if dmm.get("hip") else "",
+        ) if part)
+        idol = _idolbase_profile(roman)
+        source_height = str(dmm.get("height") or "") or str(idol.get("height") or "")
+        source_measurements = dmm_measurements or str(idol.get("measurements") or "")
+        source_birthday = str(idol.get("birthday") or "")
+        available = [label for label, value in (
+            ("身高", source_height), ("三围", source_measurements), ("生日", source_birthday)) if value]
+        found: list[tuple[str, str, str]] = []
+        if not profile.get("dmmId") and dmm_id:
+            found.append(("dmmId", dmm_id, "DMM ID"))
+        if not profile.get("dmmImage") and dmm.get("image"):
+            found.append(("dmmImage", str(dmm["image"]), "DMM 头像"))
+        if not profile.get("height") and source_height:
+            found.append(("height", source_height, "身高"))
+        if not profile.get("measurements") and source_measurements:
+            found.append(("measurements", source_measurements, "三围"))
+        if not profile.get("birthday") and source_birthday:
+            found.append(("birthday", source_birthday, "生日"))
+        changed: list[str] = []
+        for field, value, label in found:
+            profile[field] = value
+            changed.append(label)
+        if changed:
+            _write_user_rows(rows)
+            refreshed = _am_load()
+            return _am_item(card, refreshed["profiles"].get(player_id, profile)), changed, ""
+        if available:
+            return _am_item(card, profile), [], f"资料已是最新（{'、'.join(available)}）"
+        return _am_item(card, profile), [], "没有找到更多基础信息，可点「编辑资料」手动补全"
+    return None, [], "只能补充手动添加的选手"
+
+
+@console_bp.post("/api/players/refresh")
+def api_players_refresh() -> Response:
+    payload = request.get_json(silent=True) or {}
+    item, changed, error = _am_refresh_profile(str(payload.get("id") or "").strip())
+    if item is None:
+        return error_response(400, error)
+    return jsonify({"success": True, "item": item, "updated": changed,
+                    "message": error or (f"已更新：{'、'.join(changed)}" if changed else "")})
+
+
 @console_bp.post("/api/players/update")
 def api_players_update() -> Response:
     item, error = _am_update_player(request.get_json(silent=True) or {})
@@ -979,6 +1042,50 @@ def _idolbase_images(roman_name: str, sources: list[str]) -> list[str]:
             seen.add(item)
             images.append(item)
     return images
+
+
+def _html_lines(markup: str) -> list[str]:
+    text = re.sub(r"<script.*?</script>", " ", markup, flags=re.S | re.I)
+    text = re.sub(r"<style.*?</style>", " ", text, flags=re.S | re.I)
+    text = re.sub(r"<[^>]+>", "\n", text)
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+
+def _idolbase_profile(roman_name: str) -> dict[str, str]:
+    """从 theidolbase 人物页提取身高/三围/生日（拿不到就返回空）。"""
+    tokens = [token for token in re.split(r"[^A-Za-z0-9]+", (roman_name or "").lower()) if token]
+    if not tokens:
+        return {}
+    slugs = list(dict.fromkeys(["-".join(tokens), "-".join(reversed(tokens))]))
+    for slug in slugs:
+        try:
+            html_text = _nya_fetch(f"https://www.theidolbase.com/actress/{slug}", timeout=25).decode("utf-8", "ignore")
+        except Exception:  # noqa: BLE001
+            continue
+        if "人物信息" not in html_text:
+            continue
+        lines = _html_lines(html_text)
+
+        def after(label: str, count: int = 1) -> list[str]:
+            for index, line in enumerate(lines):
+                if line == label:
+                    return lines[index + 1:index + 1 + count]
+            return []
+
+        birth = after("出生日期", 3)
+        year = re.search(r"(\d{4})年", " ".join(birth))
+        month_day = re.search(r"(\d{1,2})月(\d{1,2})日", " ".join(birth))
+        birthday = ""
+        if year and month_day:
+            birthday = f"{year.group(1)}-{int(month_day.group(1)):02d}-{int(month_day.group(2)):02d}"
+        height_match = re.search(r"(\d{3})\s*cm", " ".join(after("身高", 1)), re.I)
+        measure_match = re.search(r"B\s*\d+[^\s]*?[-\(]?W\s*\d+[^\s]*?H\s*\d+", " ".join(after("三围", 1)), re.I)
+        measurements = measure_match.group(0).replace(" ", "") if measure_match else ""
+        result = {"birthday": birthday, "height": height_match.group(1) if height_match else "",
+                  "measurements": measurements}
+        if any(result.values()):
+            return result
+    return {}
 
 
 _ACTORBASE_ALIASES = {

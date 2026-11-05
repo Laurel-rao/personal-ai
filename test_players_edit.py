@@ -59,6 +59,24 @@ try:
     missing = client.post("/api/players/update", json={"id": "nope", "displayName": "x"})
     assert missing.status_code == 400, missing.data
     assert client.post("/api/players/update", json={"id": item["id"], "displayName": ""}).status_code == 400
+
+    fresh, error = server._am_add_player({"displayName": "刷新测试", "romanName": "Refresh Test"})
+    assert error == "", error
+    original_idolbase = server._idolbase_profile
+    server._idolbase_profile = lambda roman: {
+        "birthday": "1998-08-12", "height": "160", "measurements": "B82-W55-H82",
+    }
+    try:
+        refreshed = client.post("/api/players/refresh", json={"id": fresh["id"]})
+        assert refreshed.status_code == 200, refreshed.data
+        body = refreshed.get_json()
+        assert set(body["updated"]) == {"身高", "三围", "生日"}, body
+        assert body["item"]["height"] == "160", body
+        assert body["item"]["birthday"] == "1998-08-12", body
+        again = client.post("/api/players/refresh", json={"id": fresh["id"]}).get_json()
+        assert again["updated"] == [] and ("最新" in again["message"] or "没有找到" in again["message"]), again
+    finally:
+        server._idolbase_profile = original_idolbase
 finally:
     server._AM_DIR = original_dir
     server._AM_USER_FILE = original_file

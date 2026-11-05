@@ -567,7 +567,7 @@
                   ${item.height ? `<span>${item.height}cm</span>` : ''}
                 </div>
                 <button class="pl-photo-refresh" id="plDownloadBtn" type="button" style="margin-left:auto">下载写真</button>
-                ${item.custom ? `<button class="pl-photo-refresh" id="plEditBtn" type="button">编辑资料</button>` : ''}
+                ${item.custom ? `<button class="pl-photo-refresh" id="plRefreshBtn" type="button" title="重新获取基础信息">重取基础信息</button><button class="pl-photo-refresh" id="plEditBtn" type="button">编辑资料</button>` : ''}
                 <button class="pl-photo-refresh" id="plSearchBtn" type="button">搜索番号 / 写真集</button>
               </div>
               <p class="pl-modal-sub" id="plModalSub">${esc(item.jp_name || '')}${item.ro_name ? ' · ' + esc(item.ro_name) : ''}</p>
@@ -575,6 +575,7 @@
                 <div class="pl-download-text" id="plDownloadText"></div>
                 <div class="pl-download-bar" id="plDownloadBar" hidden><i id="plDownloadBarFill"></i></div>
               </div>
+              <div class="pl-download-status" id="plRefreshStatus" hidden></div>
               <div class="pl-stat-grid" id="plStatsBig">${statCards}</div>
               <dl class="pl-kv">
                 <dt>生日</dt><dd>${esc(item.birthday || '—')}${item.age ? `（${item.age} 岁）` : ''}</dd>
@@ -658,6 +659,39 @@
           document.getElementById('plClose2')?.addEventListener('click', closeModal);
           document.getElementById('plSearchBtn')?.addEventListener('click', () => openSearchModal(item));
           document.getElementById('plEditBtn')?.addEventListener('click', () => openEdit(item, data.profile || {}));
+          const refreshBtn = document.getElementById('plRefreshBtn');
+          const refreshStatus = document.getElementById('plRefreshStatus');
+          refreshBtn?.addEventListener('click', async () => {
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = '获取中…';
+            refreshStatus.hidden = false;
+            refreshStatus.classList.remove('error');
+            refreshStatus.textContent = '正在获取基础信息…';
+            try {
+              const response = await fetch('/api/players/refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: item.id }),
+              });
+              const payload = await readJson(response);
+              if (!response.ok || !payload.success) throw new Error(payload.error || '获取失败');
+              const changed = payload.updated || [];
+              refreshStatus.textContent = changed.length
+                ? `已更新：${changed.join('、')}`
+                : (payload.message || '没有找到更多基础信息');
+              if (changed.length) {
+                setTimeout(() => {
+                  if (downloadToken === detailDownloadToken) openDetail(item.id);
+                }, 1500);
+              }
+            } catch (error) {
+              refreshStatus.classList.add('error');
+              refreshStatus.textContent = `获取失败：${error.message}`;
+            } finally {
+              refreshBtn.disabled = false;
+              refreshBtn.textContent = '重取基础信息';
+            }
+          });
           modalBox.querySelectorAll('.pl-photo-tabs button').forEach((btn) => {
             btn.addEventListener('click', () => {
               modalBox.querySelectorAll('.pl-photo-tabs button').forEach((node) => node.classList.toggle('active', node === btn));

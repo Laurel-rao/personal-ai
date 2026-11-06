@@ -541,6 +541,7 @@
       <label>显示名（必填）<input id="plAddName" maxlength="40" required autocomplete="off" placeholder="如：小谷アリサ"></label>
       <label>日文名<input id="plAddJp" maxlength="40" autocomplete="off"></label>
       <label>罗马字<input id="plAddRoman" maxlength="60" autocomplete="off" placeholder="如：Otani Arisa"></label>
+      <label>DMM ID<input id="plAddDmmId" maxlength="12" inputmode="numeric" autocomplete="off" placeholder="可选；同名女优可手动指定，如 1086062"></label>
       <label>厂牌<input id="plAddStudio" maxlength="40" autocomplete="off"></label>
       <label>备注<input id="plAddNote" maxlength="500" autocomplete="off"></label>
       <div class="pl-add-grid">
@@ -1934,9 +1935,17 @@
       let addActive = -1;
       let addPickedItem = null;
       let addEditId = null;
+      document.getElementById('plAddDmmId').addEventListener('input', (event) => {
+        if (addPickedItem && String(addPickedItem.id) !== event.target.value.trim()) {
+          addPickedItem = null;
+          addPicked.hidden = true;
+          addPicked.innerHTML = '';
+        }
+      });
 
       function clearAddPick() {
         addPickedItem = null;
+        document.getElementById('plAddDmmId').value = '';
         addPicked.hidden = true;
         addPicked.innerHTML = '';
       }
@@ -1956,6 +1965,7 @@
         const item = addChoices[index];
         if (!item) return;
         addPickedItem = item;
+        document.getElementById('plAddDmmId').value = item.id || '';
         addName.value = item.name;
         document.getElementById('plAddJp').value = item.name;
         document.getElementById('plAddRoman').value = item.roman || '';
@@ -2002,7 +2012,7 @@
               return;
             }
             addResults.innerHTML = addChoices.map((item, index) => {
-              const sub = [item.kana, item.roman, item.height ? `${item.height}cm` : '']
+              const sub = [`DMM #${item.id}`, item.kana, item.roman, item.height ? `${item.height}cm` : '']
                 .filter(Boolean).map(esc).join(' · ') || '—';
               return `
                 <button type="button" class="pl-add-result" data-index="${index}">
@@ -2080,6 +2090,7 @@
         addName.value = item.name || '';
         document.getElementById('plAddJp').value = item.jp_name || '';
         document.getElementById('plAddRoman').value = item.ro_name || '';
+        document.getElementById('plAddDmmId').value = (profile && profile.dmmId) || item.dmm_id || '';
         document.getElementById('plAddStudio').value = item.studio || '';
         document.getElementById('plAddNote').value = (profile && profile.note) || '';
         document.getElementById('plAddHeight').value = item.height || '';
@@ -2224,6 +2235,7 @@
           displayName: addName.value.trim(),
           japaneseName: document.getElementById('plAddJp').value.trim(),
           romanName: document.getElementById('plAddRoman').value.trim(),
+          dmmId: document.getElementById('plAddDmmId').value.trim(),
           studio: document.getElementById('plAddStudio').value.trim(),
           note: document.getElementById('plAddNote').value.trim(),
           height: document.getElementById('plAddHeight').value.trim(),
@@ -2254,7 +2266,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               ...fields,
-              dmmId: addPickedItem ? addPickedItem.id : '',
+              dmmId: document.getElementById('plAddDmmId').value.trim() || (addPickedItem ? addPickedItem.id : ''),
               image: addPickedItem ? addPickedItem.image : '',
               autoDownload: document.getElementById('plAddAuto').checked,
               downloadLimit: Number(document.getElementById('plAddAutoLimit').value) || 0,

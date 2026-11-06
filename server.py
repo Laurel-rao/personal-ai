@@ -927,6 +927,8 @@ def _am_add_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, str]
         image = ""
     if not dmm_id:
         dmm_id = _resolve_dmm_id(name, jp_name, roman)
+    if dmm_id and not image:
+        image = str((_dmm_entry(dmm_id) or {}).get("image") or "")
 
     state = _am_load()
     wanted_key = _person_key({"name": roman, "displayName": name}, {"name": roman, "displayName": name})
@@ -993,6 +995,13 @@ def _am_update_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, s
     roman = str(payload.get("romanName") or "").strip()[:60]
     studio = str(payload.get("studio") or "").strip()[:40]
     note = str(payload.get("note") or "").strip()[:500]
+    dmm_id_supplied = "dmmId" in payload
+    dmm_id = str(payload.get("dmmId") or "").strip()
+    if not re.fullmatch(r"\d{1,12}", dmm_id):
+        dmm_id = ""
+    image = str(payload.get("image") or "").strip()[:300]
+    if not re.match(r"https://awsimgsrc\.dmm\.co\.jp/", image):
+        image = ""
     extras = _profile_extras(payload)
 
     rows = _am_user_rows()
@@ -1007,6 +1016,19 @@ def _am_update_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, s
         card["name"] = roman
         card["studio"] = studio
         profile.update(displayName=name, name=roman, japaneseName=jp_name, note=note)
+        if dmm_id_supplied:
+            if dmm_id:
+                profile["dmmId"] = dmm_id
+                derived_image = str((_dmm_entry(dmm_id) or {}).get("image") or "")
+                if image:
+                    profile["dmmImage"] = image
+                elif derived_image:
+                    profile["dmmImage"] = derived_image
+                else:
+                    profile.pop("dmmImage", None)
+            else:
+                profile.pop("dmmId", None)
+                profile.pop("dmmImage", None)
         for key in ("height", "measurements", "birthday", "agency", "debutYear", "social"):
             profile.pop(key, None)
         if extras["height"]:

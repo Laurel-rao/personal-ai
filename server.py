@@ -3613,14 +3613,39 @@ def player_cover() -> Response:
     return send_file(target, conditional=True, max_age=300)
 
 
+OFFICIAL_THUMB_DIR = DATA_DIR / "player" / "official-thumbs"
+
+
+def _official_thumb_bytes(code: str, data: bytes) -> bytes:
+    key = re.sub(r"[^A-Za-z0-9_-]+", "-", code or "").strip("-").upper() or "cover"
+    target = OFFICIAL_THUMB_DIR / f"{key}.jpg"
+    if target.is_file() and target.stat().st_size > 0:
+        return target.read_bytes()
+    try:
+        from PIL import Image  # 项目 venv 自带 Pillow
+        import io
+        image = Image.open(io.BytesIO(data)).convert("RGB")
+        image.thumbnail((480, 480))
+        OFFICIAL_THUMB_DIR.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_name(f"{target.name}.tmp")
+        image.save(temporary, "JPEG", quality=84, optimize=True)
+        temporary.replace(target)
+        return target.read_bytes()
+    except Exception:  # noqa: BLE001
+        return data
+
+
 @console_bp.get("/api/player/official-cover")
 def player_official_cover() -> Response:
     code = (request.args.get("code") or "").strip()
     if not code:
         return error_response(400, "缺少 code")
-    data = _nya_cover_bytes(code, full=(request.args.get("size") or "thumb") == "full")
+    full = (request.args.get("size") or "small") == "full"
+    data = _nya_cover_bytes(code, full=full)
     if not data:
         return error_response(404, "没有官方封面")
+    if not full:
+        data = _official_thumb_bytes(code, data)
     return Response(data, mimetype="image/jpeg",
                     headers={"Cache-Control": "private, max-age=86400"})
 

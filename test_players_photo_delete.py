@@ -51,6 +51,12 @@ try:
     assert deleted.status_code == 200 and deleted.get_json()["deleted"] == 1, deleted.data
     assert not (book / "page_001.jpg").exists() and (book / "page_002.jpg").exists()
     assert (book / ".done").exists()
+    batch = deleted.get_json().get("batch")
+    assert batch, deleted.get_json()
+    restored = client.post("/api/players/photos/restore", json={"id": player["id"], "batch": batch})
+    assert restored.status_code == 200 and restored.get_json()["restored"] == 1, restored.data
+    assert (book / "page_001.jpg").exists()
+    client.post("/api/players/photos/delete", json={"id": player["id"], "paths": [first]})
 
     remaining = client.get(f"/api/players/photos?id={player['id']}&kind=local").get_json()
     assert remaining["photos"], remaining

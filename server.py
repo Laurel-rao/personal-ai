@@ -2154,6 +2154,14 @@ def api_players_video_codes() -> Response:
     return jsonify({"success": True, "codes": codes})
 
 
+@console_bp.post("/api/players/covers/run")
+def api_players_covers_run() -> Response:
+    task = _start_cover_task()
+    if task is None:
+        return error_response(409, "封面更新正在进行中")
+    return jsonify({"success": True, "task": task})
+
+
 @console_bp.get("/api/players/works")
 def api_players_works() -> Response:
     card_id = (request.args.get("id") or "").strip()
@@ -2747,6 +2755,48 @@ def api_players_local_photo(rel: str) -> Response:
     return send_file(target, mimetype="image/jpeg", max_age=86400)
 
 
+_PHOTO_JOBS: dict[str, dict[str, Any]] = {}
+_PHOTO_JOBS_LOCK = threading.RLock()
+
+
+def _photo_cache(card_id: str, kind: str) -> tuple[list[str], str, int]:
+    key = re.sub(r"[^A-Za-z0-9_-]+", "-", card_id)[:80] or "player"
+    if kind == "daily":
+        key += "~daily"
+    elif kind == "covers":
+        key += "~covers"
+    folder = _PLAYER_PHOTO_DIR / key
+    manifest = {}
+    try:
+        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    files = sorted(p.name for p in folder.glob("*.jpg")) if folder.is_dir() else []
+    photos = [f"/api/players/photo/{key}/{name}" for name in files]
+    return photos, str(manifest.get("source") or ""), int(manifest.get("limit") or 12)
+
+
+def _start_photo_job(card_id: str, kind: str) -> bool:
+    key = f"{card_id}:{kind}"
+    with _PHOTO_JOBS_LOCK:
+        job = _PHOTO_JOBS.get(key)
+        if job and job.get("status") == "running":
+            return False
+        job = {"status": "running", "error": ""}
+        _PHOTO_JOBS[key] = job
+
+    def run() -> None:
+        try:
+            _photos_payload(card_id, kind, True)
+            job["status"] = "done"
+        except Exception as exc:  # noqa: BLE001
+            job["status"] = "failed"
+            job["error"] = str(exc)[:300]
+
+    threading.Thread(target=run, daemon=True).start()
+    return True
+
+
 def _photos_payload(card_id: str, kind: str, refresh: bool = False) -> dict[str, Any]:
     state = _am_load()
     name = roman_name = jp_name = ""
@@ -2792,8 +2842,29 @@ def api_players_photos() -> Response:
     kind = (request.args.get("kind") or "stills").lower()
     refresh = request.args.get("refresh") == "1"
     try:
-        result = _photos_payload(card_id, kind, refresh)
-        return jsonify({"success": True, **result})
+        if kind == "local":
+            return jsonify({"success": True, **_photos_payload(card_id, kind, refresh)})
+        photos, source, cached_limit = _photo_cache(card_id, kind)
+        key = f"{card_id}:{kind}"
+        with _PHOTO_JOBS_LOCK:
+            job = dict(_PHOTO_JOBS.get(key) or {})
+        if job.get("status") == "failed" and not refresh:
+            if not photos:
+                return error_response(502, f"写真加载失败：{job.get('error') or '未知错误'}")
+            return jsonify({"success": True, "name": info["name"], "photos": photos,
+                            "source": source, "pending": False,
+                            "error": job.get("error") or "上次抓取失败，可点换一批重试"})
+        needs_job = refresh or not photos or cached_limit < 30
+        if needs_job and job.get("status") != "running":
+            _start_photo_job(card_id, kind)
+            with _PHOTO_JOBS_LOCK:
+                job = dict(_PHOTO_JOBS.get(key) or {})
+        pending = job.get("status") == "running"
+        if job.get("status") == "failed" and not photos:
+            return error_response(502, f"写真加载失败：{job.get('error') or '未知错误'}")
+        return jsonify({"success": True, "name": info["name"], "photos": photos,
+                        "source": source, "pending": pending,
+                        "error": job.get("error") if job.get("status") == "failed" else ""})
     except Exception as exc:  # noqa: BLE001
         return error_response(502, f"写真加载失败：{exc}")
 
@@ -2815,6 +2886,8 @@ def api_players_photos_delete() -> Response:
     failed: list[str] = []
     affected_books: set[Path] = set()
     suffixes = {".jpg", ".jpeg", ".png", ".webp"}
+    batch = f"{int(time.time() * 1000)}"
+    trash_root = (_LOCAL_PHOTO_DIR / ".trash" / info["name"] / batch).resolve()
     for raw in raw_paths[:500]:
         relative = str(raw or "").strip()
         if not relative or relative.startswith("/") or "\\" in relative or "\x00" in relative:
@@ -2832,7 +2905,12 @@ def api_players_photos_delete() -> Response:
             failed.append(relative)
             continue
         try:
-            target.unlink()
+            trash_target = (trash_root / relative).resolve()
+            if trash_root not in trash_target.parents:
+                failed.append(relative)
+                continue
+            trash_target.parent.mkdir(parents=True, exist_ok=True)
+            target.rename(trash_target)
             deleted.append(relative)
             affected_books.add(target.parent.parent if target.parent.name == "spreads" else target.parent)
         except OSError:
@@ -2845,7 +2923,8 @@ def api_players_photos_delete() -> Response:
                 (book / ".done").unlink(missing_ok=True)
         except OSError:
             pass
-    return jsonify({"success": True, "deleted": len(deleted), "files": deleted, "failed": failed})
+    return jsonify({"success": True, "deleted": len(deleted), "files": deleted,
+                    "failed": failed, "batch": batch if deleted else ""})
 
 
 @console_bp.post("/api/players/photos/discard")
@@ -2894,6 +2973,43 @@ def api_players_photos_discard() -> Response:
         except (OSError, ValueError):
             pass
     return jsonify({"success": True, "deleted": len(deleted), "files": deleted, "failed": failed})
+
+
+@console_bp.post("/api/players/photos/restore")
+def api_players_photos_restore() -> Response:
+    payload = request.get_json(silent=True) or {}
+    card_id = str(payload.get("id") or "").strip()
+    info = _task_player(card_id)
+    if not info:
+        return error_response(404, "没有找到这位选手")
+    batch = str(payload.get("batch") or "").strip()
+    if not re.fullmatch(r"[0-9A-Za-z_-]{1,80}", batch):
+        return error_response(400, "无效的回收批次")
+    base = (_LOCAL_PHOTO_DIR / info["name"]).resolve()
+    trash = (_LOCAL_PHOTO_DIR / ".trash" / info["name"] / batch).resolve()
+    if trash.parent != (_LOCAL_PHOTO_DIR / ".trash" / info["name"]).resolve() or not trash.is_dir():
+        return error_response(404, "回收批次不存在")
+    restored = 0
+    failed = 0
+    for source in sorted(trash.rglob("*")):
+        if not source.is_file():
+            continue
+        relative = source.relative_to(trash)
+        leaf = relative.name.lower()
+        if not (leaf.startswith("page_") or leaf.startswith("spread_")):
+            continue
+        target = (base / relative).resolve()
+        if base not in target.parents:
+            failed += 1
+            continue
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            source.rename(target)
+            restored += 1
+        except OSError:
+            failed += 1
+    shutil.rmtree(trash, ignore_errors=True)
+    return jsonify({"success": True, "restored": restored, "failed": failed})
 
 
 @console_bp.get("/api/players/photo/<path:name>")
@@ -3356,6 +3472,25 @@ def _nya_cover_bytes(code: str, full: bool = False) -> bytes | None:
     return data
 
 
+def _resize_cover(data: bytes, cache_dir: Path, key: str, max_side: int = 640) -> bytes:
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", key or "").strip("-").upper() or "cover"
+    target = cache_dir / f"{safe}.jpg"
+    if target.is_file() and target.stat().st_size > 0:
+        return target.read_bytes()
+    try:
+        from PIL import Image
+        import io
+        image = Image.open(io.BytesIO(data)).convert("RGB")
+        image.thumbnail((max_side, max_side))
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+        image.save(temporary, "JPEG", quality=86, optimize=True)
+        temporary.replace(target)
+        return target.read_bytes()
+    except Exception:  # noqa: BLE001
+        return data
+
+
 _RELEASE_CACHE_FILE = DATA_DIR / "nya-release.json"
 _RELEASE_CACHE: dict[str, dict[str, Any]] = {}
 _RELEASE_LOCK = threading.Lock()
@@ -3507,9 +3642,12 @@ def api_nya_cover() -> Response:
     code = (request.args.get("code") or "").strip()
     if not code:
         return error_response(400, "缺少 code")
-    data = _nya_cover_bytes(code, full=(request.args.get("size") or "thumb") == "full")
+    size = request.args.get("size") or "thumb"
+    data = _nya_cover_bytes(code, full=size in {"full", "medium"})
     if not data:
         return error_response(404, "没有封面")
+    if size == "medium":
+        data = _resize_cover(data, NYAA_COVER_DIR / "medium", code)
     return Response(data, mimetype="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 
 
@@ -3727,6 +3865,32 @@ def _cover_last_refresh() -> float:
         return 0.0
 
 
+_COVER_TASK_LOCK = threading.RLock()
+
+
+def _run_cover_task(task_id: str) -> None:
+    task_store.log(task_id, "开始扫描本地视频并更新封面…")
+    try:
+        result = _warm_video_covers()
+        task_store.log(task_id, f"完成：官方 {result['official']}，截帧 {result['frame']}，缺失 {result['missing']}")
+        task_store.finish(task_id, "success", result)
+        COVER_REFRESH_STATE.parent.mkdir(parents=True, exist_ok=True)
+        COVER_REFRESH_STATE.write_text(json.dumps({"at": time.time()}), encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001
+        task_store.log(task_id, f"失败：{exc}")
+        task_store.finish(task_id, "failed", error=str(exc)[:300])
+
+
+def _start_cover_task() -> dict[str, Any] | None:
+    with _COVER_TASK_LOCK:
+        running, _ = task_store.list_tasks(kind="covers", status="running", limit=1)
+        if running:
+            return None
+        task = task_store.create("covers", "更新视频封面")
+        threading.Thread(target=_run_cover_task, args=(task["id"],), daemon=True).start()
+        return task
+
+
 def _video_cover_scheduler() -> None:
     try:
         interval = int(os.environ.get("VIDEO_COVER_REFRESH_SECONDS") or 86400)
@@ -3740,18 +3904,7 @@ def _video_cover_scheduler() -> None:
         if wait > 0:
             time.sleep(min(wait, 3600))
             continue
-        task = task_store.create("covers", "更新视频封面")
-        task_id = task["id"]
-        task_store.log(task_id, "开始扫描本地视频并更新封面…")
-        try:
-            result = _warm_video_covers()
-            task_store.log(task_id, f"完成：官方 {result['official']}，截帧 {result['frame']}，缺失 {result['missing']}")
-            task_store.finish(task_id, "success", result)
-            COVER_REFRESH_STATE.parent.mkdir(parents=True, exist_ok=True)
-            COVER_REFRESH_STATE.write_text(json.dumps({"at": time.time()}), encoding="utf-8")
-        except Exception as exc:  # noqa: BLE001
-            task_store.log(task_id, f"失败：{exc}")
-            task_store.finish(task_id, "failed", error=str(exc)[:300])
+        _start_cover_task()
         time.sleep(interval)
 
 
@@ -3787,11 +3940,14 @@ def player_official_cover() -> Response:
     code = (request.args.get("code") or "").strip()
     if not code:
         return error_response(400, "缺少 code")
+    size = request.args.get("size") or "medium"
     data = _nya_cover_bytes(code, full=True)
     if not data:
         data = _nya_cover_bytes(code, full=False)
     if not data:
         return error_response(404, "没有官方封面")
+    if size != "full":
+        data = _resize_cover(data, DATA_DIR / "player" / "official-thumbs", f"m3-{code}")
     return Response(data, mimetype="image/jpeg",
                     headers={"Cache-Control": "private, max-age=86400"})
 

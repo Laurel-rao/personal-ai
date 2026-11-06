@@ -1057,6 +1057,28 @@
     }
   }
 
+  async function runCoverUpdate(button) {
+    if (bulkBusy) return;
+    bulkBusy = true;
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = "提交中…";
+    try {
+      const data = await api("/api/players/covers/run", { method: "POST" });
+      toast(data.task?.id ? "已开始更新视频封面" : "已提交", "success");
+      state.signature = "";
+      await loadTasks({ silent: true, force: true });
+      await syncRunning();
+    } catch (error) {
+      if (error.status === 403) showAccessDenied();
+      toast(error.message || "提交失败", "error");
+    } finally {
+      bulkBusy = false;
+      button.disabled = false;
+      button.textContent = original;
+    }
+  }
+
   async function runBulk(action, button) {
     const config = BULK_ACTIONS[action];
     if (!config || bulkBusy) return;
@@ -1151,6 +1173,7 @@
     document.querySelectorAll("[data-bulk]").forEach((button) => {
       button.addEventListener("click", () => runBulk(button.dataset.bulk, button));
     });
+    document.getElementById("tkRunCovers")?.addEventListener("click", (event) => runCoverUpdate(event.currentTarget));
 
     els.drawerBackdrop.addEventListener("click", closeLogs);
     els.drawerClose.addEventListener("click", closeLogs);

@@ -967,6 +967,42 @@ def _set_dmm_override(player_id: str, dmm_id: str) -> None:
     _write_am_overrides(overrides)
 
 
+_STAT_KEYS = ("FAC", "BDY", "SKL", "POP", "CHA", "PRF")
+
+
+def _stats_from_payload(payload: dict[str, Any]) -> tuple[dict[str, int], str]:
+    raw = payload.get("stats")
+    if raw is None:
+        return {}, ""
+    if not isinstance(raw, dict):
+        return {}, "评分格式无效"
+    stats: dict[str, int] = {}
+    for key in _STAT_KEYS:
+        value = raw.get(key)
+        if value in (None, ""):
+            continue
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            return {}, f"{key} 必须是整数"
+        if not 0 <= number <= 100:
+            return {}, f"{key} 需在 0–100 之间"
+        stats[key] = number
+    return stats, ""
+
+
+def _set_stats_override(player_id: str, stats: dict[str, int]) -> None:
+    overrides = _am_overrides()
+    patch = overrides.setdefault(player_id, {})
+    if stats:
+        patch["stats"] = stats
+    else:
+        patch.pop("stats", None)
+    if not patch:
+        overrides.pop(player_id, None)
+    _write_am_overrides(overrides)
+
+
 def _am_add_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
     """登记一位选手；只写文字资料，不抓取任何图片。"""
     name = str(payload.get("displayName") or "").strip()
@@ -990,6 +1026,9 @@ def _am_add_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, str]
         dmm_id = _resolve_dmm_id(name, jp_name, roman)
     if dmm_id and not image:
         image = str((_dmm_entry(dmm_id) or {}).get("image") or "")
+    stats, stats_error = _stats_from_payload(payload)
+    if stats_error:
+        return None, stats_error
 
     state = _am_load()
     wanted_key = _person_key({"name": roman, "displayName": name}, {"name": roman, "displayName": name})
@@ -1012,6 +1051,8 @@ def _am_add_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, str]
     while player_id in used:
         player_id, index = f"user-{base}-{index}", index + 1
     card = {"id": player_id, "displayName": name, "name": roman, "studio": studio, "variant": 1}
+    if stats:
+        card["stats"] = stats
     profile = {"displayName": name, "name": roman, "japaneseName": jp_name, "aliases": [],
                "sources": [], "note": note, "custom": True}
     if dmm_id:
@@ -1063,6 +1104,10 @@ def _am_update_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, s
     image = str(payload.get("image") or "").strip()[:300]
     if not re.match(r"https://awsimgsrc\.dmm\.co\.jp/", image):
         image = ""
+    stats_supplied = "stats" in payload
+    stats, stats_error = _stats_from_payload(payload)
+    if stats_error:
+        return None, stats_error
     extras = _profile_extras(payload)
 
     rows = _am_user_rows()
@@ -1076,6 +1121,8 @@ def _am_update_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, s
         card["displayName"] = name
         card["name"] = roman
         card["studio"] = studio
+        if stats_supplied:
+            card["stats"] = stats
         profile.update(displayName=name, name=roman, japaneseName=jp_name, note=note)
         if dmm_id_supplied:
             if dmm_id:
@@ -1107,6 +1154,8 @@ def _am_update_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, s
         _write_user_rows(rows)
         if dmm_id_supplied:
             _set_dmm_override(player_id, dmm_id)
+        if stats_supplied:
+            _set_stats_override(player_id, stats)
         refreshed = _am_load()
         return _am_item(card, refreshed["profiles"].get(player_id, profile)), ""
     return None, "只能编辑手动添加的选手"

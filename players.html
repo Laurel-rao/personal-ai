@@ -32,6 +32,13 @@
     .pl-add-box label input:focus { outline: 0; border-color: var(--page-primary, #087f65); box-shadow: 0 0 0 3px rgba(8,127,101,.12); }
     .pl-add-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
     @media (max-width: 520px) { .pl-add-grid { grid-template-columns: 1fr; } }
+    .pl-add-stats { margin: 0 0 12px; padding: 10px; border: 1px solid var(--page-line, #e3e9ee); border-radius: 10px; background: #f8fafb; }
+    .pl-add-stats-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 7px; color: var(--page-text, #243242); font-size: 12.5px; font-weight: 600; }
+    .pl-add-stats-head small { color: var(--page-muted, #7b8795); font-weight: 400; font-size: 11px; }
+    .pl-add-stats-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0 6px; }
+    .pl-add-stats-grid label { margin: 0; text-align: center; }
+    .pl-add-stats-grid input { margin-top: 4px; padding: 6px 2px; text-align: center; }
+    @media (max-width: 520px) { .pl-add-stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; } }
     .pl-add-search { margin: 0 0 14px; }
     .pl-add-search-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; font-size: 12.5px; color: var(--page-muted, #7b8795); }
     .pl-add-search-head small { margin-left: auto; font-size: 11px; color: #9aa6b2; }
@@ -556,6 +563,17 @@
         <label>出道年份<input id="plAddDebut" maxlength="4" inputmode="numeric" autocomplete="off"></label>
         <label>三围<input id="plAddMeasurements" maxlength="60" autocomplete="off" placeholder="B92(H)-W62-H89"></label>
         <label>生日<input id="plAddBirthday" type="date"></label>
+      </div>
+      <div class="pl-add-stats">
+        <div class="pl-add-stats-head">六维评分 <small>0–100，可留空</small></div>
+        <div class="pl-add-stats-grid">
+          <label>FAC<input id="plAddFac" type="number" min="0" max="100" step="1" inputmode="numeric" autocomplete="off"></label>
+          <label>BDY<input id="plAddBdy" type="number" min="0" max="100" step="1" inputmode="numeric" autocomplete="off"></label>
+          <label>SKL<input id="plAddSkl" type="number" min="0" max="100" step="1" inputmode="numeric" autocomplete="off"></label>
+          <label>POP<input id="plAddPop" type="number" min="0" max="100" step="1" inputmode="numeric" autocomplete="off"></label>
+          <label>CHA<input id="plAddCha" type="number" min="0" max="100" step="1" inputmode="numeric" autocomplete="off"></label>
+          <label>PRF<input id="plAddPrf" type="number" min="0" max="100" step="1" inputmode="numeric" autocomplete="off"></label>
+        </div>
       </div>
       <label>事务所<input id="plAddAgency" maxlength="80" autocomplete="off"></label>
       <label>X / Twitter<input id="plAddSocialX" type="url" maxlength="300" autocomplete="off" placeholder="https://x.com/..."></label>
@@ -2288,6 +2306,11 @@
         document.getElementById('plAddBirthday').value = item.birthday || '';
         document.getElementById('plAddAgency').value = item.agency || '';
         document.getElementById('plAddDebut').value = item.debut || '';
+        const statValues = item.stats || {};
+        for (const key of ['FAC', 'BDY', 'SKL', 'POP', 'CHA', 'PRF']) {
+          const id = `plAdd${key[0]}${key.slice(1).toLowerCase()}`;
+          document.getElementById(id).value = statValues[key] ?? '';
+        }
         const social = (profile && profile.social) || {};
         document.getElementById('plAddSocialX').value = social.x || '';
         document.getElementById('plAddSocialIg').value = social.instagram || '';
@@ -2420,6 +2443,19 @@
           addError.hidden = false;
           return;
         }
+        const stats = {};
+        for (const key of ['FAC', 'BDY', 'SKL', 'POP', 'CHA', 'PRF']) {
+          const input = document.getElementById(`plAdd${key[0]}${key.slice(1).toLowerCase()}`);
+          const raw = input.value.trim();
+          if (!raw) continue;
+          const number = Number(raw);
+          if (!Number.isInteger(number) || number < 0 || number > 100) {
+            addError.textContent = `${key} 评分需为 0–100 的整数`;
+            addError.hidden = false;
+            return;
+          }
+          stats[key] = number;
+        }
         addSave.disabled = true;
         const fields = {
           displayName: addName.value.trim(),
@@ -2428,6 +2464,7 @@
           dmmId: document.getElementById('plAddDmmId').value.trim(),
           studio: document.getElementById('plAddStudio').value.trim(),
           note: document.getElementById('plAddNote').value.trim(),
+          stats,
           height: document.getElementById('plAddHeight').value.trim(),
           measurements: document.getElementById('plAddMeasurements').value.trim(),
           birthday: document.getElementById('plAddBirthday').value.trim(),

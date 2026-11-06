@@ -2057,6 +2057,23 @@ def _works_payload(card_id: str) -> dict[str, Any]:
     return {"name": info["name"], "works": works}
 
 
+@console_bp.get("/api/players/video-codes")
+def api_players_video_codes() -> Response:
+    """Map local video codes to their files, for search-result download badges."""
+    items, _ = _all_videos()
+    codes: dict[str, dict[str, Any]] = {}
+    for item in items:
+        metadata = item.get("metadata") or {}
+        code = str(metadata.get("code") or "").strip()
+        if not code:
+            continue
+        codes.setdefault(code.upper(), {
+            "id": item.get("id"), "code": code, "title": item.get("title"),
+            "thumb_url": metadata.get("thumb_url") or "",
+        })
+    return jsonify({"success": True, "codes": codes})
+
+
 @console_bp.get("/api/players/works")
 def api_players_works() -> Response:
     card_id = (request.args.get("id") or "").strip()

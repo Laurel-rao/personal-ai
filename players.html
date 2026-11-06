@@ -360,8 +360,11 @@
     .pl-search-group { display: contents; }
     .pl-search-card { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--page-line, #e3e9ee); border-radius: 10px; background: var(--page-surface, #fff); overflow: hidden; }
     .pl-search-card.variant { background: #fafbfc; }
-    .pl-search-card .pl-search-cover { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; flex: none; border: 0; border-radius: 0; }
+    .pl-search-cover-wrap { position: relative; }
+    .pl-search-card .pl-search-cover { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; flex: none; border: 0; border-radius: 0; }
     .pl-search-cover-empty { background: #0f1218; }
+    .pl-search-downloaded { position: absolute; top: 6px; left: 6px; z-index: 2; display: inline-flex; align-items: center; gap: 2px; padding: 2px 7px; border-radius: 999px; background: var(--page-primary, #087f65); color: #fff; font-size: 10px; font-weight: 600; text-decoration: none; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+    .pl-search-downloaded:hover { color: #fff; filter: brightness(.95); }
     .pl-search-card-body { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; padding: 7px 8px; }
     .pl-search-card .pl-search-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 0; font-size: 12px; line-height: 1.35; }
     .pl-search-card .pl-search-meta { display: flex; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; font-size: 9.5px; line-height: 1.3; gap: 5px; margin-top: 0; }
@@ -1629,19 +1632,47 @@
         document.body.style.overflow = '';
       }
 
+      const CODE_SKIP_PREFIXES = new Set(["HD", "FHD", "UHD", "SD", "PPV", "HEVC", "AVC", "H264", "H265", "X264", "X265", "VR", "MP4", "MKV", "AVI"]);
+      function extractCode(title) {
+        const text = String(title || "").replace(/\[[^\]]*\]/g, " ");
+        const fc2 = text.match(/FC2[-_ ]?PPV[-_ ]?(\d{5,8})/i);
+        if (fc2) return `FC2-PPV-${fc2[1]}`;
+        const pattern = /([A-Za-z]{2,6})[-_ ]?(\d{2,7})/g;
+        let match;
+        while ((match = pattern.exec(text))) {
+          const prefix = match[1].toUpperCase();
+          if (CODE_SKIP_PREFIXES.has(prefix)) continue;
+          let digits = match[2];
+          if (digits.length === 2) digits = digits.padStart(3, "0");
+          return `${prefix}-${digits}`;
+        }
+        return "";
+      }
+      function codeKey(value) {
+        return String(value || "").toUpperCase().replace(/^([A-Z]+)-0*(\d+)$/, "$1-$2");
+      }
+
       async function loadCodeTab(item) {
         searchPane.innerHTML = '<div class="pl-search-loading">正在搜索番号（sukebei）…</div>';
         const query = item.jp_name || item.ro_name || item.name;
         try {
-          const response = await fetch(`/api/nya/search?q=${encodeURIComponent(query)}&source=sukebei`);
+          const [response, localResponse] = await Promise.all([
+            fetch(`/api/nya/search?q=${encodeURIComponent(query)}&source=sukebei`),
+            fetch('/api/players/video-codes').catch(() => null),
+          ]);
           const data = await readJson(response);
           if (!data.success) throw new Error(data.error || '搜索失败');
-          const coverOf = (title) => {
-            const match = String(title || '').match(/([A-Za-z]{2,6})[-_ ]?0*(\d{2,5})/);
-            return match ? `${match[1]}-${match[2]}` : '';
-          };
+          const localByKey = {};
+          try {
+            if (localResponse && localResponse.ok) {
+              const localData = await localResponse.json();
+              Object.entries(localData.codes || {}).forEach(([code, info]) => {
+                localByKey[codeKey(code)] = info;
+              });
+            }
+          } catch (error) { /* local badges are optional */ }
           const results = Array.isArray(data.results) ? data.results : [];
-          const entries = results.map((result, index) => ({ result, index, code: coverOf(result.title) }));
+          const entries = results.map((result, index) => ({ result, index, code: extractCode(result.title) }));
           const seenCoverCodes = new Set();
           const coverItems = [];
           entries.forEach((entry) => {
@@ -1671,13 +1702,22 @@
 
           function resultRow(entry, options = {}) {
             const { result, index, code } = entry;
+            const local = localByKey[codeKey(code)];
             const cover = code ? `/api/nya/cover?code=${encodeURIComponent(code)}&size=full` : '';
+            const localThumb = local?.thumb_url || '';
+            const coverSrc = cover || localThumb;
+            const localBadge = local
+              ? `<a class="pl-search-downloaded" href="/player?video=${encodeURIComponent(local.id)}" target="_blank" rel="noopener" title="已下载，播放本地">▶ 已下载</a>`
+              : '';
             const groupToggle = options.groupKey && options.groupCount > 1
               ? `<button type="button" class="pl-search-group-toggle" data-group-toggle="${esc(options.groupKey)}" data-group-extra="${options.groupCount - 1}" title="${options.open ? '收起同番号资源' : `展开另外 ${options.groupCount - 1} 个资源`}">${options.open ? '收起' : `+${options.groupCount - 1}`}</button>`
               : '';
             return `
             <div class="pl-search-card${options.variant ? ' variant' : ''}">
-              ${cover ? `<img class="pl-search-cover" loading="lazy" src="${cover}" alt="${esc(code)}" data-cover="${esc(cover)}" data-code="${esc(code)}" data-result-index="${index}">` : '<div class="pl-search-cover pl-search-cover-empty"></div>'}
+              <div class="pl-search-cover-wrap">
+                ${coverSrc ? `<img class="pl-search-cover" loading="lazy" src="${esc(coverSrc)}" alt="${esc(code)}" data-cover="${esc(cover)}" data-code="${esc(code)}" data-result-index="${index}"${cover && localThumb ? ` data-local-thumb="${esc(localThumb)}"` : ''}>` : '<div class="pl-search-cover pl-search-cover-empty"></div>'}
+                ${localBadge}
+              </div>
               <div class="pl-search-card-body">
                 <div class="pl-search-title" title="${esc(result.title)}">${esc(result.title)}</div>
                 <div class="pl-search-meta"><span class="pl-search-code">${esc(code || '')}${code ? `<button type="button" class="pl-code-copy" data-copy-code="${esc(code)}" title="复制番号" aria-label="复制番号">⧉</button>` : ''}</span><span>${esc(String(result.size || '—').replace(/\s*(GiB|GB)\b/i, 'G').replace(/\s*(MiB|MB)\b/i, 'M'))}</span><span>${esc((result.uploaded_at || '').slice(0, 10))}</span></div>
@@ -1727,7 +1767,15 @@
 
           function bindRows() {
             searchPane.querySelectorAll('img.pl-search-cover').forEach((img) => {
-              img.addEventListener('error', () => { img.dataset.failed = '1'; img.style.opacity = '0'; });
+              img.addEventListener('error', () => {
+                if (img.dataset.localThumb) {
+                  img.src = img.dataset.localThumb;
+                  img.removeAttribute('data-local-thumb');
+                  return;
+                }
+                img.dataset.failed = '1';
+                img.style.opacity = '0';
+              });
               img.addEventListener('contextmenu', (event) => {
                 event.preventDefault();
                 showCoverMenu(event, Number(img.dataset.resultIndex), img.dataset.code || '');

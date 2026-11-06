@@ -833,6 +833,19 @@ def _library_name_index() -> dict[str, dict[str, str]]:
     return index
 
 
+def _player_for_actress(actress: str, index: dict[str, dict[str, str]] | None = None) -> dict[str, str] | None:
+    if index is None:
+        index = _library_name_index()
+    for part in re.split(r"[/,、|&]+", str(actress or "")):
+        key = _name_key(part)
+        if not key:
+            continue
+        player = index.get("name:" + key) or index.get(_person_key({"name": part}, {}))
+        if player:
+            return player
+    return None
+
+
 def _actress_score(entry: dict[str, Any], query_name: str, query_l: str,
                    query_tokens: set[str]) -> int | None:
     if query_name == entry["name_fold"] or query_name == entry["kana_fold"] or query_l == entry["roman_l"]:
@@ -3455,14 +3468,7 @@ def api_nya_releases() -> Response:
     with futures.ThreadPoolExecutor(max_workers=12) as pool:
         for code, info in pool.map(fetch, codes):
             actress = str(info.get("actress") or "")
-            player = None
-            for part in re.split(r"[/,、|&]+", actress):
-                key = _name_key(part)
-                if not key:
-                    continue
-                player = name_index.get("name:" + key) or name_index.get(_person_key({"name": part}, {}))
-                if player:
-                    break
+            player = _player_for_actress(actress, name_index)
             if player:
                 info = {**info, "player_id": player["id"], "player_name": player["name"]}
             result[code.upper()] = info
@@ -4172,6 +4178,19 @@ def player_videos() -> Response:
         "catalog_warning": warning,
         "hidden_count": len(hidden),
     })
+
+
+@console_bp.get("/api/player/cast")
+def api_player_cast() -> Response:
+    code = (request.args.get("code") or "").strip()
+    if not code:
+        return error_response(400, "缺少 code")
+    info = _release_date(code)
+    actress = str(info.get("actress") or "")
+    player = _player_for_actress(actress) if actress else None
+    return jsonify({"success": True, "code": code, "actress": actress,
+                    "player_id": player["id"] if player else "",
+                    "player_name": player["name"] if player else ""})
 
 
 @console_bp.post("/api/player/videos/hide")

@@ -333,3 +333,9 @@ body.player-body #searchInput::placeholder { color: #9aa89f; }
 .video-context-menu button { display:block; width:100%; border:0; border-radius:5px; background:none; color:var(--player-text); text-align:left; padding:7px 9px; font-size:11px; cursor:pointer; }
 .video-context-menu button:hover { background:#2e3933; color:var(--player-accent); }
 .video-context-menu button.danger { color:#ff9b8d; }
+
+.video-cast { display: flex; align-items: center; gap: 6px; margin-top: 7px; color: var(--player-muted); font-size: 11px; }
+.video-cast[hidden] { display: none !important; }
+.video-cast-label { padding: 1px 6px; border-radius: 999px; background: #20332b; color: var(--player-accent); font-size: 9px; letter-spacing: .04em; }
+.video-cast a { color: var(--player-accent); text-decoration: none; font-weight: 600; }
+.video-cast a:hover { text-decoration: underline; }

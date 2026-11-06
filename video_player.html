@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./ui-framework.css">
-  <link rel="stylesheet" href="./video_player.css?v=20261107-1">
+  <link rel="stylesheet" href="./video_player.css?v=20261107-2">
 </head>
 <body class="player-body" data-page="player">
   <header class="player-topbar">
@@ -49,6 +49,7 @@
       <div class="player-info">
         <div class="player-info-heading"><div><p class="player-kicker">当前视频 · <span id="currentIndex">0 / 0</span></p><h1 id="videoTitle">未选择视频</h1><p id="videoMeta">从右侧片库选择视频，播放器会记住上次播放位置。</p></div><div class="player-actions"><button id="playlistToggle" type="button" aria-controls="playlistPanel" aria-expanded="true">收起列表</button><button id="favoriteButton" type="button">♡ 收藏</button><details class="file-menu" id="fileMenu"><summary aria-label="更多文件操作">更多</summary><div class="file-menu-options"><button id="copyPathButton" type="button">复制路径</button><a id="downloadButton" href="#" download>下载原文件</a></div></details></div></div>
         <div class="player-tags"><span id="videoTypeTag">LOCAL FILE</span><span id="videoResolutionTag">原生播放</span><span id="videoSizeTag">--</span></div>
+        <div class="video-cast" id="videoCast" hidden></div>
         <details class="film-disclosure" id="filmDisclosure" hidden><summary>影片资料与技术信息</summary>
         <section class="film-details" id="filmDetails" aria-label="影片资料" hidden>
           <div class="film-cover" id="filmCover"></div>
@@ -85,6 +86,6 @@
     <button id="videoMenuHide" type="button">不展示</button>
     <button id="videoMenuDelete" type="button" class="danger">删除文件</button>
   </div>
-  <script src="./video_player.js?v=20261107-3"></script>
+  <script src="./video_player.js?v=20261107-4"></script>
 </body>
 </html>

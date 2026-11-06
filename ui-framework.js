@@ -133,10 +133,34 @@
       if (name) link.querySelector(".workspace-nav-icon").innerHTML = icon(name);
     });
     header.className = "workspace-header";
-    header.innerHTML = `<div><button class="workspace-menu-toggle" aria-label="切换侧栏" aria-controls="workspace-sidebar" aria-expanded="true">☰</button><h1>${escape(title)}</h1></div>`;
+    header.innerHTML = `<div><button class="workspace-menu-toggle" aria-label="切换侧栏" aria-controls="workspace-sidebar" aria-expanded="true">☰</button><h1>${escape(title)}</h1></div><div class="workspace-header-right" id="workspaceHeaderRight"></div>`;
+    const headerRight = header.querySelector("#workspaceHeaderRight");
     const pageHeading = document.querySelector("[data-page-heading]");
     const pageActions = pageHeading?.querySelector(".page-heading-actions");
-    if (pageActions?.querySelector('[id], button')) header.append(pageActions);
+    if (pageActions?.querySelector('[id], button')) headerRight.append(pageActions);
+    const taskPill = document.createElement("a");
+    taskPill.className = "workspace-task-pill";
+    taskPill.href = "/tasks";
+    taskPill.hidden = true;
+    taskPill.title = "查看运行中的任务";
+    taskPill.innerHTML = '<span class="workspace-task-spinner" aria-hidden="true"></span><span class="workspace-task-text">0 个任务运行中</span>';
+    headerRight.append(taskPill);
+    let taskPillTimer = 0;
+    const refreshTaskPill = async () => {
+      try {
+        const response = await fetch("/api/tasks?status=running&limit=1", { cache: "no-store" });
+        if (!response.ok) { taskPill.hidden = true; return; }
+        const data = await response.json();
+        const count = Number(data.total) || 0;
+        taskPill.hidden = count <= 0;
+        taskPill.querySelector(".workspace-task-text").textContent = `${count} 个任务运行中`;
+      } catch (_) {
+        taskPill.hidden = true;
+      }
+    };
+    refreshTaskPill();
+    taskPillTimer = window.setInterval(refreshTaskPill, 15000);
+    window.addEventListener("beforeunload", () => window.clearInterval(taskPillTimer));
     pageHeading?.remove();
     if (page === "video") {
       const connection = document.querySelector(".connection-band");

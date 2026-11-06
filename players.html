@@ -348,6 +348,8 @@
     .pl-search-box { width: min(1480px, 94vw); max-height: 86vh; overflow: auto; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 70px rgba(23,32,43,.25); color: var(--page-text, #243242); }
     .pl-search-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
     .pl-search-head h3 { margin: 0; font-size: 17px; flex: 1; color: var(--page-text, #243242); }
+    .pl-search-resource-link { color: var(--page-primary, #087f65); font-size: 11.5px; text-decoration: none; white-space: nowrap; }
+    .pl-search-resource-link:hover { text-decoration: underline; }
     .pl-search-close { border: 0; background: #eef1f4; color: var(--page-text, #243242); width: 34px; height: 34px; border-radius: 50%; font-size: 17px; cursor: pointer; }
     .pl-search-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
     .pl-search-tabs button { border: 1px solid var(--page-line, #e3e9ee); background: transparent; color: var(--page-muted, #7b8795); border-radius: 999px; padding: 6px 14px; font-size: 12.5px; cursor: pointer; }
@@ -472,6 +474,7 @@
     <div class="pl-search-box">
       <div class="pl-search-head">
         <h3 id="plSearchTitle">搜索</h3>
+        <a class="pl-search-resource-link" id="plSearchResource" href="/nya" target="_blank" rel="noopener">在资源页搜索 ↗</a>
         <button class="pl-search-close" id="plSearchClose" type="button" aria-label="关闭">×</button>
       </div>
       <div class="pl-search-tabs">
@@ -590,7 +593,7 @@
     <div class="pl-modal-box" id="plModalBox"></div>
   </div>
 
-  <script src="/ui-framework.js"></script>
+  <script src="/ui-framework.js?v=20261107-2"></script>
   <script>
     (function () {
       const grid = document.getElementById('plGrid');
@@ -1820,6 +1823,8 @@
         searchModal.hidden = false;
         document.body.style.overflow = 'hidden';
         searchTitle.textContent = `搜索：${item.name}`;
+        const resourceQuery = item.jp_name || item.ro_name || item.name || '';
+        document.getElementById('plSearchResource').href = `/nya?q=${encodeURIComponent(resourceQuery)}`;
         loadCodeTab(item);
         searchModal.querySelectorAll('.pl-search-tabs button').forEach((btn) => {
           btn.classList.toggle('active', btn.dataset.tab === 'code');

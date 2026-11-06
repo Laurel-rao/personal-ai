@@ -172,6 +172,39 @@
     renderList();
   }
 
+  let castToken = 0;
+  async function loadVideoCast(item) {
+    const node = $('videoCast');
+    if (!node) return;
+    const token = ++castToken;
+    node.hidden = true;
+    node.replaceChildren();
+    const code = item?.metadata?.code || '';
+    if (!code) return;
+    try {
+      const response = await fetch(`/api/player/cast?code=${encodeURIComponent(code)}`, { cache: 'no-store' });
+      const data = await response.json();
+      if (token !== castToken || !data.success) return;
+      if (!data.actress && !data.player_id) return;
+      const label = document.createElement('span');
+      label.className = 'video-cast-label';
+      label.textContent = '女优';
+      node.append(label);
+      if (data.player_id) {
+        const link = document.createElement('a');
+        link.href = `/players?player_id=${encodeURIComponent(data.player_id)}`;
+        link.textContent = `${data.player_name || data.actress} ↗`;
+        link.title = `查看 ${data.player_name || data.actress} 的选手详情`;
+        node.append(link);
+      } else {
+        const name = document.createElement('span');
+        name.textContent = data.actress;
+        node.append(name);
+      }
+      node.hidden = false;
+    } catch (_) { /* 保持隐藏 */ }
+  }
+
   function renderItem() {
     const item = state.activeItem;
     $('stageEmpty').hidden = Boolean(item);
@@ -190,6 +223,7 @@
     $('favoriteButton').textContent = favorite ? '♥ 已收藏' : '♡ 收藏';
     $('favoriteButton').setAttribute('aria-pressed', String(favorite));
     renderMetadata(item);
+    loadVideoCast(item);
     renderNavigation();
     renderPlayback();
   }

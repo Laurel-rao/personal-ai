@@ -980,6 +980,45 @@
               const gridSrc = (src) => (photos.source === 'local' ? `${src}?w=420` : src);
               box.innerHTML = list.map((src, index) => `<a href="${esc(src)}" data-index="${index}" title="查看第 ${index + 1} 张"><img loading="lazy" src="${esc(gridSrc(src))}" alt="图片 ${index + 1}"><span class="pl-photo-check">✓</span></a>`).join('');
               box.querySelectorAll('a[data-index]').forEach((link) => {
+                link.addEventListener('contextmenu', async (event) => {
+                  event.preventDefault();
+                  const index = Number(link.dataset.index);
+                  if (photoIsLocal) {
+                    const file = photoFiles[index];
+                    if (!file) return;
+                    if (!window.confirm('删除这张本地图片？删除后不可恢复。')) return;
+                    try {
+                      const response = await fetch('/api/players/photos/delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: item.id, paths: [file] }),
+                      });
+                      const result = await readJson(response);
+                      if (!response.ok || !result.success) throw new Error(result.error || '删除失败');
+                      await loadPhotos(false, 'local');
+                      load(true);
+                    } catch (error) {
+                      window.alert(`删除失败：${error.message}`);
+                    }
+                    return;
+                  }
+                  const src = list[index] || '';
+                  const name = decodeURIComponent((src.split('?')[0].split('/').pop() || ''));
+                  if (!name) return;
+                  if (!window.confirm('从缓存移除这张图片？刷新后可能重新抓取。')) return;
+                  try {
+                    const response = await fetch('/api/players/photos/discard', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ id: item.id, kind: photoKind, files: [name] }),
+                    });
+                    const result = await readJson(response);
+                    if (!response.ok || !result.success) throw new Error(result.error || '移除失败');
+                    await loadPhotos(false, photoKind);
+                  } catch (error) {
+                    window.alert(`移除失败：${error.message}`);
+                  }
+                });
                 link.addEventListener('click', (event) => {
                   event.preventDefault();
                   if (photoSelecting) {

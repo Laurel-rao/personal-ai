@@ -2713,6 +2713,52 @@ def api_players_photos_delete() -> Response:
     return jsonify({"success": True, "deleted": len(deleted), "files": deleted, "failed": failed})
 
 
+@console_bp.post("/api/players/photos/discard")
+def api_players_photos_discard() -> Response:
+    payload = request.get_json(silent=True) or {}
+    card_id = str(payload.get("id") or "").strip()
+    info = _task_player(card_id)
+    if not info:
+        return error_response(404, "没有找到这位选手")
+    kind = str(payload.get("kind") or "stills").lower()
+    if kind not in {"stills", "daily"}:
+        return error_response(400, "只能移除剧照或日常照缓存")
+    raw_files = payload.get("files")
+    if not isinstance(raw_files, list) or not raw_files:
+        return error_response(400, "请选择要移除的图片")
+    key = re.sub(r"[^A-Za-z0-9_-]+", "-", card_id)[:80] or "player"
+    if kind == "daily":
+        key += "~daily"
+    folder = (_PLAYER_PHOTO_DIR / key).resolve()
+    if not folder.is_dir():
+        return error_response(400, "没有图片缓存")
+    deleted: list[str] = []
+    failed: list[str] = []
+    for raw in raw_files[:200]:
+        name = str(raw or "").strip()
+        if not re.fullmatch(r"\d{1,3}\.jpg", name):
+            failed.append(name)
+            continue
+        target = (folder / name).resolve()
+        if folder not in target.parents or not target.is_file():
+            failed.append(name)
+            continue
+        try:
+            target.unlink()
+            deleted.append(name)
+        except OSError:
+            failed.append(name)
+    manifest_file = folder / "manifest.json"
+    if manifest_file.is_file():
+        try:
+            manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+            manifest["count"] = len(list(folder.glob("*.jpg")))
+            manifest_file.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+        except (OSError, ValueError):
+            pass
+    return jsonify({"success": True, "deleted": len(deleted), "files": deleted, "failed": failed})
+
+
 @console_bp.get("/api/players/photo/<path:name>")
 def api_players_photo(name: str) -> Response:
     safe = re.sub(r"[^A-Za-z0-9._/-]+", "-", name)

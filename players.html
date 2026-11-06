@@ -1405,8 +1405,7 @@
         lbImg.onclick = () => {
           lbImg.src = entry.src + (entry.src.includes('?') ? '&' : '?') + '_=' + Date.now();
         };
-        const stamp = Date.now();
-        lbImg.src = `${entry.src}${entry.src.includes('?') ? '&' : '?'}_t=${stamp}`;
+        lbImg.src = entry.src;
         lbImg.alt = entry.name || '';
         lbTitle.textContent = `${entry.name || ''}（${lbIndex + 1} / ${lbList.length}）`;
         lbDownload.href = entry.src;
@@ -1545,7 +1544,7 @@
           }).filter(Boolean);
           const rows = (data.results || []).map((result, index) => {
             const code = coverOf(result.title);
-            const cover = code ? `/api/nya/cover?code=${encodeURIComponent(code)}` : '';
+            const cover = code ? `/api/nya/cover?code=${encodeURIComponent(code)}&size=full` : '';
             return `
             <div class="pl-search-row">
               <div style="display:flex;gap:10px;align-items:flex-start;min-width:0">
@@ -1563,7 +1562,9 @@
           }).join('');
           searchPane.innerHTML = rows || '<div class="pl-search-loading">没有找到相关番号</div>';
           searchPane.querySelectorAll('img.pl-search-cover').forEach((img) => {
+            img.addEventListener('error', () => { img.dataset.failed = '1'; img.style.opacity = '0'; });
             img.addEventListener('click', () => {
+              if (img.dataset.failed || !img.naturalWidth) return;
               const idx = coverItems.findIndex((entry) => entry.name === img.dataset.code);
               openLightbox(coverItems, idx >= 0 ? idx : 0);
             });

@@ -262,13 +262,17 @@
     .pl-video-list { display: grid; gap: 8px; }
     .pl-video-row { display: flex; align-items: center; gap: 12px; border: 1px solid var(--page-line, #e3e9ee); border-radius: 10px; padding: 8px; text-decoration: none; color: var(--page-text, #243242); background: #fff; }
     .pl-video-row:hover { border-color: var(--page-primary, #087f65); background: #f7fbf9; }
-    .pl-video-thumb { width: 92px; flex: 0 0 92px; aspect-ratio: 16 / 10; border-radius: 7px; overflow: hidden; background: #0f1218; display: flex; align-items: center; justify-content: center; }
+    .pl-video-thumb { width: 92px; flex: 0 0 92px; aspect-ratio: 16 / 10; border-radius: 7px; overflow: hidden; background: #0f1218; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; cursor: zoom-in; }
+    .pl-video-thumb:focus-visible { outline: 2px solid var(--page-primary, #087f65); outline-offset: 2px; }
+    .pl-video-thumb img { transition: opacity .15s ease; }
+    .pl-video-thumb:hover img { opacity: .84; }
     .pl-video-thumb img { width: 100%; height: 100%; object-fit: cover; }
     .pl-video-placeholder { color: #8fa3b8; font-size: 18px; }
     .pl-video-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
     .pl-video-copy b { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pl-video-copy small { color: var(--page-muted, #7b8795); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pl-video-play { flex: 0 0 auto; color: var(--page-primary, #087f65); font-size: 12px; font-weight: 600; }
+    .pl-video-play { flex: 0 0 auto; color: var(--page-primary, #087f65); font-size: 12px; font-weight: 600; text-decoration: none; padding: 6px 8px; border-radius: 6px; }
+    .pl-video-play:hover { background: var(--page-primary-soft, #edf7f2); }
     .pl-video-empty { padding: 28px; text-align: center; color: var(--page-muted, #7b8795); border: 1px dashed var(--page-line, #e3e9ee); border-radius: 10px; }
     .pl-video-count { display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; font-size: 11px; color: var(--page-primary, #087f65); background: var(--page-primary-soft, #edf7f2); border-radius: 999px; padding: 2px 7px; align-self: flex-start; }
     @media (max-width: 780px) {
@@ -843,17 +847,19 @@
           if (item.social?.instagram) socials.push(`<a href="${esc(item.social.instagram)}" target="_blank" rel="noopener">Instagram</a>`);
           const videoCount = data.video_count || (data.videos || []).length;
           const videos = data.videos || [];
-          const videoHtml = videos.map((video) => {
+          const videoHtml = videos.map((video, videoIndex) => {
             const duration = Number(video.duration) || 0;
             const meta = [video.code, (video.actors || []).join('、'), (video.release_date || '').slice(0, 7), duration ? formatDuration(duration) : '']
               .filter(Boolean).join(' · ');
             const coverSrc = video.cover_url || video.official_cover_url || video.thumb_url;
             const coverFallback = video.thumb_url && video.thumb_url !== coverSrc ? video.thumb_url : '';
-            return `<a class="pl-video-row" href="/player?video=${encodeURIComponent(video.id)}" target="_blank" rel="noopener">
-              <span class="pl-video-thumb">${coverSrc ? `<img loading="lazy" src="${esc(coverSrc)}" data-fallback="${esc(coverFallback)}" alt="">` : '<span class="pl-video-placeholder">▶</span>'}</span>
+            return `<div class="pl-video-row">
+              <button type="button" class="pl-video-thumb" data-video-index="${videoIndex}" title="查看封面" aria-label="查看 ${esc(video.code || video.title)} 封面">
+                ${coverSrc ? `<img loading="lazy" src="${esc(coverSrc)}" data-fallback="${esc(coverFallback)}" alt="">` : '<span class="pl-video-placeholder">▶</span>'}
+              </button>
               <span class="pl-video-copy"><b>${esc(video.full_title || video.title)}</b><small>${esc(meta || video.filename || '')}</small></span>
-              <span class="pl-video-play">播放</span>
-            </a>`;
+              <a class="pl-video-play" href="/player?video=${encodeURIComponent(video.id)}" target="_blank" rel="noopener">播放</a>
+            </div>`;
           }).join('') || '<div class="pl-video-empty">还没有本地视频</div>';
           modalBox.classList.add('pl-detail-box');
           modalBox.innerHTML = `
@@ -950,6 +956,15 @@
               } else {
                 img.remove();
               }
+            });
+          });
+          modalBox.querySelectorAll('.pl-video-thumb[data-video-index]').forEach((button) => {
+            button.addEventListener('click', () => {
+              const video = videos[Number(button.dataset.videoIndex)];
+              const image = button.querySelector('img');
+              const src = image?.currentSrc || image?.src;
+              if (!video || !src) return;
+              openLightbox([{ src, name: `${video.code || video.title} 封面`, file: `${video.code || 'cover'}.jpg` }], 0);
             });
           });
           let photoKind = 'stills';

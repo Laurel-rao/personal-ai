@@ -1729,6 +1729,7 @@ def _javdatabase_codes(roman_name: str, limit: int = 6) -> list[str]:
 
 
 _DMM_ONE_PREFIX = {
+    "DLDSS", "DASS", "DASD",
     "START", "STARS", "SODS", "SDDE", "SDMU", "SDAB", "SDNM", "SDHS", "SDJS",
     "SDMS", "SDMT", "SDPT", "SDSI", "SDTM", "SDVA", "SDWD", "SDMF", "SDNT",
     "SDOG", "SDOS", "SDPP", "SDSH", "SDSL", "SDST", "SDTB", "SDTS", "SDVD",
@@ -3742,7 +3743,7 @@ def api_nya_cover() -> Response:
     if not code:
         return error_response(400, "缺少 code")
     size = request.args.get("size") or "thumb"
-    data = _nya_cover_bytes(code, full=size in {"full", "medium"}, timeout=8)
+    data = _nya_cover_bytes(code, full=size in {"full", "medium"}, timeout=10)
     if not data:
         return error_response(404, "没有封面")
     if size == "medium":

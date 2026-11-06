@@ -364,7 +364,8 @@
     .pl-search-card { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--page-line, #e3e9ee); border-radius: 10px; background: var(--page-surface, #fff); overflow: hidden; }
     .pl-search-card.variant { background: #fafbfc; }
     .pl-search-cover-wrap { position: relative; }
-    .pl-search-card .pl-search-cover { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; flex: none; border: 0; border-radius: 0; }
+    .pl-search-cover-fallback { position: relative; display: grid; place-items: center; aspect-ratio: 3 / 2; padding: 8px; background: #f1f4f7; color: #8b93a7; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-align: center; word-break: break-all; }
+    .pl-search-card .pl-search-cover { position: absolute; inset: 0; z-index: 1; display: block; width: 100%; height: 100%; aspect-ratio: 3 / 2; object-fit: cover; flex: none; border: 0; border-radius: 0; }
     .pl-search-cover-empty { background: #0f1218; }
     .pl-search-downloaded { position: absolute; top: 6px; left: 6px; z-index: 2; display: inline-flex; align-items: center; gap: 2px; padding: 2px 7px; border-radius: 999px; background: var(--page-primary, #087f65); color: #fff; font-size: 10px; font-weight: 600; text-decoration: none; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
     .pl-search-downloaded:hover { color: #fff; filter: brightness(.95); }
@@ -1862,8 +1863,8 @@
             if (!entry.code || seenCoverCodes.has(entry.code)) return;
             seenCoverCodes.add(entry.code);
             coverItems.push({
-              src: `/api/nya/cover?code=${encodeURIComponent(entry.code)}&size=medium&v=2`,
-              full: `/api/nya/cover?code=${encodeURIComponent(entry.code)}&size=full&v=2`,
+              src: `/api/nya/cover?code=${encodeURIComponent(entry.code)}&size=medium&v=3`,
+              full: `/api/nya/cover?code=${encodeURIComponent(entry.code)}&size=full&v=3`,
               name: entry.code,
               file: `${entry.code}.jpg`,
               resultIndex: entry.index,
@@ -1887,7 +1888,7 @@
           function resultRow(entry, options = {}) {
             const { result, index, code } = entry;
             const local = localByKey[codeKey(code)];
-            const cover = code ? `/api/nya/cover?code=${encodeURIComponent(code)}&size=medium&v=2` : '';
+            const cover = code ? `/api/nya/cover?code=${encodeURIComponent(code)}&size=medium&v=3` : '';
             const localThumb = local?.thumb_url || '';
             const coverSrc = cover || localThumb;
             const localBadge = local
@@ -1899,7 +1900,8 @@
             return `
             <div class="pl-search-card${options.variant ? ' variant' : ''}">
               <div class="pl-search-cover-wrap">
-                ${coverSrc ? `<img class="pl-search-cover" loading="lazy" src="${esc(coverSrc)}" alt="${esc(code)}" data-cover="${esc(cover)}" data-code="${esc(code)}" data-result-index="${index}"${cover && localThumb ? ` data-local-thumb="${esc(localThumb)}"` : ''}>` : '<div class="pl-search-cover pl-search-cover-empty"></div>'}
+                <div class="pl-search-cover-fallback">${esc(code || '无番号')}</div>
+                ${coverSrc ? `<img class="pl-search-cover" loading="lazy" src="${esc(coverSrc)}" alt="${esc(code)}" data-cover="${esc(cover)}" data-code="${esc(code)}" data-result-index="${index}"${cover && localThumb ? ` data-local-thumb="${esc(localThumb)}"` : ''}>` : ''}
                 ${localBadge}
               </div>
               <div class="pl-search-card-body">

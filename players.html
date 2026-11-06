@@ -1302,7 +1302,7 @@
         clearTimeout(timer);
         timer = setTimeout(() => load(true), 350);
       });
-      [sortSelect, orderSelect, studioSelect].forEach((el) => el.addEventListener('change', () => load(true)));
+      [sortSelect, orderSelect, studioSelect, showHidden].forEach((el) => el.addEventListener('change', () => load(true)));
       moreBtn.addEventListener('click', () => load(false));
 
       const addModal = document.getElementById('plAddModal');

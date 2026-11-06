@@ -132,6 +132,8 @@
     .pl-variant-badge { position: absolute; top: 6px; right: 6px; background: var(--page-primary, #087f65); color: #fff; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 1px 7px; }
     .pl-local-badge { position: absolute; top: 6px; left: 6px; border: 0; font: inherit; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 2px 7px; background: rgba(15,18,24,.72); color: #fff; cursor: pointer; }
     .pl-local-badge:hover { background: var(--page-primary, #087f65); }
+    .pl-video-badge { position: absolute; top: 6px; left: 6px; background: rgba(15,18,24,.72); color: #fff; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 2px 7px; line-height: 1.35; }
+    .pl-local-badge ~ .pl-video-badge { top: 32px; }
     .pl-hide-toggle { position: absolute; right: 6px; bottom: 6px; z-index: 2; border: 0; border-radius: 999px; padding: 2px 8px; font: inherit; font-size: 10.5px; font-weight: 700; background: rgba(15,18,24,.72); color: #fff; cursor: pointer; opacity: 0; transition: opacity .15s ease, background .15s ease; }
     .pl-card:hover .pl-hide-toggle, .pl-card.is-hidden .pl-hide-toggle, .pl-hide-toggle:focus-visible { opacity: 1; }
     .pl-hide-toggle:hover { background: #b03a2e; }
@@ -555,7 +557,7 @@
           .map((key) => `<span title="${key}">${stats[key]}</span>`).join('');
         return `
         <article class="pl-card${item.hidden ? ' is-hidden' : ''}" data-id="${esc(item.id)}">
-          <div class="pl-cover">${item.card_image ? `<img loading="lazy" src="${esc(item.card_image)}" alt="${esc(item.name)}">` : ''}${item.local_books ? `<button type="button" class="pl-local-badge" data-local="1" title="本地写真 ${item.local_books} 本 · ${item.local_pages} 张">写真 ${item.local_books}</button>` : ''}${item.hidden ? '<span class="pl-hidden-badge">已隐藏</span>' : ''}${item.group_size > 1 ? `<span class="pl-variant-badge">×${item.group_size}</span>` : ''}<button type="button" class="pl-hide-toggle" data-hidden="${item.hidden ? '1' : '0'}" aria-pressed="${item.hidden ? 'true' : 'false'}" title="${item.hidden ? '取消隐藏，恢复到默认列表' : '隐藏，默认列表不再展示'}">${item.hidden ? '取消隐藏' : '隐藏'}</button></div>
+          <div class="pl-cover">${item.card_image ? `<img loading="lazy" src="${esc(item.card_image)}" alt="${esc(item.name)}">` : ''}${item.local_books ? `<button type="button" class="pl-local-badge" data-local="1" title="本地写真 ${item.local_books} 本 · ${item.local_pages} 张">写真 ${item.local_books}</button>` : ''}${item.video_count ? `<span class="pl-video-badge" title="本地视频 ${item.video_count} 部">视频 ${item.video_count}</span>` : ''}${item.hidden ? '<span class="pl-hidden-badge">已隐藏</span>' : ''}${item.group_size > 1 ? `<span class="pl-variant-badge">×${item.group_size}</span>` : ''}<button type="button" class="pl-hide-toggle" data-hidden="${item.hidden ? '1' : '0'}" aria-pressed="${item.hidden ? 'true' : 'false'}" title="${item.hidden ? '取消隐藏，恢复到默认列表' : '隐藏，默认列表不再展示'}">${item.hidden ? '取消隐藏' : '隐藏'}</button></div>
           <div class="pl-name" title="${esc(item.name)}">${esc(item.name)}</div>
           <div class="pl-meta">
             <span class="ov">${item.overall != null ? item.overall : '—'}</span>
@@ -564,7 +566,6 @@
             ${item.debut ? `<span>${esc(item.debut)}出道</span>` : ''}
           </div>
           <div class="pl-stats">${mini}</div>
-          ${item.video_count ? `<div class="pl-video-count">▶ 本地视频 ${item.video_count} 部</div>` : ''}
         </article>`;
       }
 

@@ -16,7 +16,7 @@ def warm(item: dict) -> tuple[str, str]:
     code = str((item.get("metadata") or {}).get("code") or "")
     if code:
         try:
-            data = server._nya_cover_bytes(code, full=False)
+            data = server._nya_cover_bytes(code, full=True)
             if data:
                 server._official_thumb_bytes(code, data)
                 return code, "official"

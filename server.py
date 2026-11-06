@@ -3451,7 +3451,7 @@ def _all_videos() -> tuple[list[dict[str, Any]], str]:
         code = str(item["metadata"].get("code") or "")
         if code:
             item["metadata"]["official_cover_url"] = (
-                "/api/player/official-cover?code=" + urllib.parse.quote(code)
+                "/api/player/official-cover?code=" + urllib.parse.quote(code) + "&v=2"
             )
         items.append(item)
     items.sort(key=lambda item: item["modified_at"], reverse=True)
@@ -3617,7 +3617,7 @@ OFFICIAL_THUMB_DIR = DATA_DIR / "player" / "official-thumbs"
 
 
 def _official_thumb_bytes(code: str, data: bytes) -> bytes:
-    key = re.sub(r"[^A-Za-z0-9_-]+", "-", code or "").strip("-").upper() or "cover"
+    key = "v2-" + (re.sub(r"[^A-Za-z0-9_-]+", "-", code or "").strip("-").upper() or "cover")
     target = OFFICIAL_THUMB_DIR / f"{key}.jpg"
     if target.is_file() and target.stat().st_size > 0:
         return target.read_bytes()
@@ -3641,7 +3641,9 @@ def player_official_cover() -> Response:
     if not code:
         return error_response(400, "缺少 code")
     full = (request.args.get("size") or "small") == "full"
-    data = _nya_cover_bytes(code, full=full)
+    data = _nya_cover_bytes(code, full=True)
+    if not data:
+        data = _nya_cover_bytes(code, full=False)
     if not data:
         return error_response(404, "没有官方封面")
     if not full:

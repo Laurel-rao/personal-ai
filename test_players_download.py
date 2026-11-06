@@ -97,7 +97,7 @@ try:
     search_item, error = server._am_add_player({"displayName": "搜索选手", "japaneseName": "検索用ダミー"})
     assert error == "", error
     assert not search_item["dmm_id"]
-    job, error = server._start_player_download(search_item["id"])
+    job, error = server._start_player_download(search_item["id"], codes="b092agwrk02412")
     assert error == "" and job["status"] == "running", (job, error)
     deadline = time.time() + 5
     while time.time() < deadline:

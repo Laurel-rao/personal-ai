@@ -2221,8 +2221,13 @@ def _download_worker(card_id: str, name: str, dmm_id: str, search_name: str) -> 
                 books = dmm_books.list_books(dmm_id, on_progress=listed, errors=page_errors)
             except Exception as exc:  # noqa: BLE001
                 list_error = str(exc)
-                _download_update(card_id, message="女优作品页不可用，改用名字搜索…")
+                _download_update(card_id, message="女优作品页不可用…")
         if not books:
+            if not codes:
+                detail = f"（{list_error[:90]}）" if list_error else ""
+                raise RuntimeError(
+                    f"DMM 女优作品页不可用或没有作品{detail}；为避免按名字搜索到同名漫画，已停止。"
+                    "如需补下，请指定作品编号。")
             books = dmm_books.search_books(search_name, on_progress=listed)
         if not books:
             detail = f"（{list_error[:90]}）" if list_error else ""
@@ -2364,6 +2369,8 @@ def _start_player_download(card_id: str, limit: int = 0, codes: str = "") -> tup
     except (TypeError, ValueError):
         limit = 0
     codes = ",".join(part.strip().upper() for part in re.split(r"[,，\s]+", str(codes or "")) if part.strip())[:500]
+    if not dmm_id and not codes:
+        return None, "没有匹配到 DMM 女优 ID；请先补 DMM ID，或用指定作品编号下载"
     with _DOWNLOAD_LOCK:
         existing = _DOWNLOAD_JOBS.get(card_id)
         if existing and existing.get("status") == "running":
@@ -2444,11 +2451,12 @@ def _download_book_plan(card_id: str) -> dict[str, Any]:
         dmm_id = str(extra.get("dmm_id") or profile.get("dmmId") or "")
         if not dmm_id:
             dmm_id = _resolve_dmm_id(info["name"], info["jp"], info["roman"])
-        try:
-            found = dmm_books.list_books(dmm_id) if dmm_id else []
-        except Exception:  # noqa: BLE001
-            found = []
-        if not found:
+        if dmm_id:
+            try:
+                found = dmm_books.list_books(dmm_id)
+            except Exception as exc:  # noqa: BLE001
+                raise LookupError(f"DMM 女优作品页不可用（{str(exc)[:80]}），未按名字搜索以免混入同名漫画") from exc
+        else:
             found = dmm_books.search_books(info["jp"] or info["name"])
         dest = _LOCAL_PHOTO_DIR / info["name"]
         books = []

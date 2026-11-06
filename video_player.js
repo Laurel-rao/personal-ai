@@ -173,36 +173,51 @@
   }
 
   let castToken = 0;
+  let castAbort = null;
+  const castCache = new Map();
+  function renderVideoCast(node, data) {
+    node.replaceChildren();
+    if (!data || (!data.actress && !data.player_id)) return false;
+    const label = document.createElement('span');
+    label.className = 'video-cast-label';
+    label.textContent = '女优';
+    node.append(label);
+    if (data.player_id) {
+      const link = document.createElement('a');
+      link.href = `/players?player_id=${encodeURIComponent(data.player_id)}`;
+      link.textContent = `${data.player_name || data.actress} ↗`;
+      link.title = `查看 ${data.player_name || data.actress} 的选手详情`;
+      node.append(link);
+    } else {
+      const name = document.createElement('span');
+      name.textContent = data.actress;
+      node.append(name);
+    }
+    node.hidden = false;
+    return true;
+  }
   async function loadVideoCast(item) {
     const node = $('videoCast');
     if (!node) return;
     const token = ++castToken;
+    castAbort?.abort();
     node.hidden = true;
     node.replaceChildren();
     const code = item?.metadata?.code || '';
     if (!code) return;
+    if (castCache.has(code)) { renderVideoCast(node, castCache.get(code)); return; }
+    castAbort = new AbortController();
     try {
-      const response = await fetch(`/api/player/cast?code=${encodeURIComponent(code)}`, { cache: 'no-store' });
+      const response = await fetch(`/api/player/cast?code=${encodeURIComponent(code)}`, {
+        cache: 'no-store', signal: castAbort.signal,
+      });
       const data = await response.json();
       if (token !== castToken || !data.success) return;
-      if (!data.actress && !data.player_id) return;
-      const label = document.createElement('span');
-      label.className = 'video-cast-label';
-      label.textContent = '女优';
-      node.append(label);
-      if (data.player_id) {
-        const link = document.createElement('a');
-        link.href = `/players?player_id=${encodeURIComponent(data.player_id)}`;
-        link.textContent = `${data.player_name || data.actress} ↗`;
-        link.title = `查看 ${data.player_name || data.actress} 的选手详情`;
-        node.append(link);
-      } else {
-        const name = document.createElement('span');
-        name.textContent = data.actress;
-        node.append(name);
-      }
-      node.hidden = false;
-    } catch (_) { /* 保持隐藏 */ }
+      castCache.set(code, data);
+      renderVideoCast(node, data);
+    } catch (error) {
+      if (error.name !== 'AbortError') { /* 保持隐藏 */ }
+    }
   }
 
   function renderItem() {
@@ -216,8 +231,10 @@
     $('downloadButton').download = item?.filename || 'video';
     const resourceLink = $('videoResourceLink');
     const resourceCode = item?.metadata?.code || '';
-    resourceLink.hidden = !resourceCode;
-    if (resourceCode) resourceLink.href = `/nya?q=${encodeURIComponent(resourceCode)}`;
+    if (resourceLink) {
+      resourceLink.hidden = !resourceCode;
+      if (resourceCode) resourceLink.href = `/nya?q=${encodeURIComponent(resourceCode)}`;
+    }
     $('downloadButton').setAttribute('aria-disabled', String(!item));
     $('downloadButton').tabIndex = item ? 0 : -1;
     $('copyPathButton').disabled = !item || !navigator.clipboard?.writeText;

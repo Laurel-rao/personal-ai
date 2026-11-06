@@ -233,6 +233,14 @@
     .pl-detail-section-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
     .pl-detail-section-head small { color: var(--page-muted, #7b8795); font-weight: 400; }
     .pl-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: 20px; align-items: start; }
+    .pl-detail-panel[data-detail-panel="overview"] .pl-stat-grid { gap: 4px; margin-bottom: 8px; }
+    .pl-detail-panel[data-detail-panel="overview"] .pl-stat { padding: 3px 6px; border-radius: 7px; }
+    .pl-detail-panel[data-detail-panel="overview"] .pl-stat-label { font-size: 8.5px; letter-spacing: .04em; }
+    .pl-detail-panel[data-detail-panel="overview"] .pl-stat-value { font-size: 13px; margin: 0 0 2px; }
+    .pl-detail-panel[data-detail-panel="overview"] .pl-stat-bar { height: 2px; }
+    .pl-detail-panel[data-detail-panel="overview"] .pl-kv { font-size: 11px; gap: 2px 8px; grid-template-columns: 66px minmax(0, 1fr); }
+    .pl-detail-panel[data-detail-panel="overview"] .pl-kv dt { font-size: 10.5px; }
+    .pl-detail-panel[data-detail-panel="overview"] .pl-detail-section-head h3 { font-size: 12px; }
     .pl-overview-grid .pl-kv { border-top: 0; padding-top: 0; margin: 0; }
     .pl-detail-works { min-width: 0; }
     .pl-detail-works .pl-works { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 240px; }

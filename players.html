@@ -916,7 +916,7 @@
                 </div>
                 <div class="pl-detail-panel" data-detail-panel="photos" hidden>
                   <div class="pl-detail-section-head"><h3>写真</h3><small id="plPhotoCount"></small>
-                    <span class="pl-photo-tabs"><button type="button" data-kind="stills" class="active">剧照</button><button type="button" data-kind="daily">日常照</button><button type="button" data-kind="local">本地写真</button></span>
+                    <span class="pl-photo-tabs"><button type="button" data-kind="stills" class="active">剧照</button><button type="button" data-kind="daily">日常照</button><button type="button" data-kind="covers">封面</button><button type="button" data-kind="local">本地写真</button></span>
                     <button class="pl-photo-refresh" id="plPhotoRefresh" type="button">换一批</button>
                   </div>
                   <div class="pl-photo-toolbar" id="plPhotoToolbar" hidden>
@@ -957,7 +957,10 @@
             box.classList.remove('selecting');
             const toolbar = document.getElementById('plPhotoToolbar');
             if (toolbar) toolbar.hidden = true;
-            box.innerHTML = `<div class="loading">正在抓取${targetKind === 'daily' ? '日常照' : '剧照'}（首次约 30-90 秒，之后读缓存）…</div>`;
+            const kindLabel = targetKind === 'daily' ? '日常照'
+              : targetKind === 'covers' ? '作品封面'
+              : targetKind === 'local' ? '本地写真' : '剧照';
+            box.innerHTML = `<div class="loading">正在抓取${kindLabel}（首次约 30-90 秒，之后读缓存）…</div>`;
             try {
               const response = await fetch(`/api/players/photos?id=${encodeURIComponent(item.id)}${refresh ? '&refresh=1' : ''}&kind=${targetKind}`);
               const photos = await readJson(response);
@@ -1041,6 +1044,7 @@
                 : photos.source === 'javdatabase-covers' ? '作品封面'
                 : photos.source === 'actorbase' ? '日常照'
                 : photos.source === 'theidolbase' ? '写真画廊'
+                : photos.source === 'dmm-covers' ? '作品封面'
                 : photos.source === 'local' ? '本地写真集' : '图片';
               if (counter) counter.textContent = `（${list.length} 张 · ${sourceLabel} · 点击看原图）`;
             } catch (error) {

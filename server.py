@@ -1660,6 +1660,8 @@ def _player_photos(card_id: str, name: str, roman_name: str = "", sources: list[
     key = re.sub(r"[^A-Za-z0-9_-]+", "-", card_id)[:80] or "player"
     if kind == "daily":
         key += "~daily"
+    elif kind == "covers":
+        key += "~covers"
     folder = _PLAYER_PHOTO_DIR / key
     manifest_file = folder / "manifest.json"
     manifest: dict[str, Any] = {}
@@ -1671,7 +1673,8 @@ def _player_photos(card_id: str, name: str, roman_name: str = "", sources: list[
     files = sorted(p.name for p in folder.glob("*.jpg")) if folder.is_dir() else []
     cached_limit = int(manifest.get("limit") or 12)
     fresh = ((time.time() - manifest.get("fetched_at", 0)) < 7 * 86400
-             and manifest.get("source") in {"theidolbase", "dmm-stills", "all4jp", "javdatabase-covers", "actorbase"}
+             and manifest.get("source") in {"theidolbase", "dmm-stills", "dmm-covers", "all4jp",
+                                            "javdatabase-covers", "actorbase"}
              and cached_limit >= limit)
     if not force and fresh and files:
         return [f"/api/players/photo/{key}/{name_}" for name_ in files]
@@ -1688,6 +1691,36 @@ def _player_photos(card_id: str, name: str, roman_name: str = "", sources: list[
 
     saved = 0
     source_name = "dmm-stills"
+    if kind == "covers":
+        codes: list[str] = []
+        seen: set[str] = set()
+        for work in (_actorbase_works(roman_name) if roman_name else []):
+            code = str(work.get("code") or "").strip()
+            if not code or code.upper() in seen:
+                continue
+            prefix = re.match(r"^([A-Za-z]+)", code)
+            if prefix and prefix.group(1).upper() in _COMPILATION_PREFIXES:
+                continue
+            seen.add(code.upper())
+            codes.append(code)
+            if len(codes) >= 20:
+                break
+        if not codes and roman_name:
+            codes = _javdatabase_codes(roman_name, limit=20)
+        with futures.ThreadPoolExecutor(max_workers=6) as pool:
+            covers = list(pool.map(lambda code: _nya_cover_bytes(code, full=True), codes[:limit]))
+        for data in covers:
+            if data:
+                saved += 1
+                (folder / f"{saved:02d}.jpg").write_bytes(data)
+        if saved:
+            source_name = "dmm-covers"
+            manifest_file.write_text(json.dumps({"fetched_at": time.time(), "count": saved,
+                                                "source": source_name, "limit": limit},
+                                                ensure_ascii=False), encoding="utf-8")
+        files = sorted(p.name for p in folder.glob("*.jpg"))
+        return [f"/api/players/photo/{key}/{name_}" for name_ in files]
+
     if kind == "daily":
         candidates = _agency_portraits(jp_name_for_photos, roman_name)
         candidates += _actorbase_images(roman_name) if roman_name else []
@@ -2636,7 +2669,8 @@ def _photos_payload(card_id: str, kind: str, refresh: bool = False) -> dict[str,
     photos = _player_photos(card_id, name, roman_name=roman_name, sources=sources, kind=kind,
                             jp_name_for_photos=jp_name, force=refresh)
     source = ""
-    folder_key = re.sub(r"[^A-Za-z0-9_-]+", "-", card_id)[:80] + ("~daily" if kind == "daily" else "")
+    suffix = "~daily" if kind == "daily" else ("~covers" if kind == "covers" else "")
+    folder_key = re.sub(r"[^A-Za-z0-9_-]+", "-", card_id)[:80] + suffix
     manifest = _PLAYER_PHOTO_DIR / folder_key / "manifest.json"
     if manifest.is_file():
         try:
@@ -2721,14 +2755,16 @@ def api_players_photos_discard() -> Response:
     if not info:
         return error_response(404, "没有找到这位选手")
     kind = str(payload.get("kind") or "stills").lower()
-    if kind not in {"stills", "daily"}:
-        return error_response(400, "只能移除剧照或日常照缓存")
+    if kind not in {"stills", "daily", "covers"}:
+        return error_response(400, "只能移除剧照、日常照或封面缓存")
     raw_files = payload.get("files")
     if not isinstance(raw_files, list) or not raw_files:
         return error_response(400, "请选择要移除的图片")
     key = re.sub(r"[^A-Za-z0-9_-]+", "-", card_id)[:80] or "player"
     if kind == "daily":
         key += "~daily"
+    elif kind == "covers":
+        key += "~covers"
     folder = (_PLAYER_PHOTO_DIR / key).resolve()
     if not folder.is_dir():
         return error_response(400, "没有图片缓存")

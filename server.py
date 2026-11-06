@@ -25,6 +25,7 @@ import unicodedata
 import concurrent.futures as futures
 import html as html_lib
 import urllib.error
+import unicodedata
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -688,8 +689,10 @@ def api_players_list() -> Response:
 
     studios = sorted({card.get("studio") for card in cards if card.get("studio")})
     page_items = entries[offset:offset + limit]
+    video_entries = _video_entries(_all_videos()[0])
     for item in page_items:
         item["local_books"], item["local_pages"] = _local_stats(item.get("name") or "")
+        item["video_count"] = len(_match_player_videos(item, video_entries))
     return jsonify({"success": True, "total": len(entries), "offset": offset, "limit": limit,
                     "studios": studios, "items": page_items})
 
@@ -2679,9 +2682,12 @@ def api_players_detail() -> Response:
             })
         detail_item = _am_item(card, profile)
         detail_item["hidden"] = pid in _hidden_ids()
+        player_videos_list = _match_player_videos(detail_item)
+        detail_item["video_count"] = len(player_videos_list)
         return jsonify({
             "success": True,
             "item": detail_item,
+            "videos": [_video_public(video) for video in player_videos_list],
             "card": card,
             "profile": profile,
             "tags": state["tags"].get(pid, []),
@@ -3256,19 +3262,29 @@ def api_nya_cover() -> Response:
     return Response(data, mimetype="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 
 
-@console_bp.get("/api/player/videos")
-def player_videos() -> Response:
-    """列出配置的 Movies 目录下可播放的视频及其资料。"""
+_VIDEO_CACHE: dict[str, Any] = {"at": 0.0, "items": [], "warning": ""}
+_VIDEO_LOCK = threading.RLock()
+_VIDEO_TTL = 60.0
+
+
+def _all_videos() -> tuple[list[dict[str, Any]], str]:
+    now = time.time()
+    with _VIDEO_LOCK:
+        if now - float(_VIDEO_CACHE.get("at") or 0) < _VIDEO_TTL:
+            return list(_VIDEO_CACHE["items"]), str(_VIDEO_CACHE.get("warning") or "")
     if not MOVIES_DIR.is_dir():
-        return jsonify({"items": [], "directory": str(MOVIES_DIR), "error": "Movies 目录不存在"})
-    items = []
+        return [], "Movies 目录不存在"
+    items: list[dict[str, Any]] = []
     records, catalog_warning = read_records("catalog.json")
     technical, technical_warning = read_records("technical.json")
     for path in MOVIES_DIR.rglob("*"):
         if not path.is_file() or path.name.startswith(".") or path.suffix.lower() not in PLAYER_EXTENSIONS:
             continue
         relative = path.relative_to(MOVIES_DIR).as_posix()
-        file_stat = path.stat()
+        try:
+            file_stat = path.stat()
+        except OSError:
+            continue
         item = {
             "id": relative,
             "title": path.stem,
@@ -3281,11 +3297,82 @@ def player_videos() -> Response:
         item["metadata"] = item_metadata(item, records, technical, file_stat)
         items.append(item)
     items.sort(key=lambda item: item["modified_at"], reverse=True)
+    with _VIDEO_LOCK:
+        _VIDEO_CACHE.update(at=now, items=items, warning=catalog_warning or technical_warning)
+    return items, catalog_warning or technical_warning
+
+
+def _video_norm(text: str) -> str:
+    value = unicodedata.normalize("NFKC", str(text or "")).lower()
+    return re.sub(r"[^0-9a-z\u3040-\u30ff\u4e00-\u9fff]+", "", value)
+
+
+def _video_tokens(text: str) -> set[str]:
+    value = unicodedata.normalize("NFKC", str(text or "")).lower()
+    return {_video_norm(part) for part in re.split(r"[\s　・._\-、,，/()（）\[\]【】]+", value)
+            if _video_norm(part)}
+
+
+def _video_entries(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    entries = []
+    for item in items:
+        metadata = item.get("metadata") or {}
+        actors = metadata.get("actors") or []
+        text = " ".join([item.get("filename") or "", item.get("title") or "", *actors])
+        tokens = _video_tokens(item.get("filename") or "")
+        for actor in actors:
+            tokens |= _video_tokens(actor)
+        entries.append({"item": item, "tokens": tokens, "text": _video_norm(text)})
+    return entries
+
+
+def _player_video_keys(item: dict[str, Any]) -> set[str]:
+    names = [item.get("name"), item.get("jp_name"), item.get("ro_name")]
+    names.extend(item.get("aliases") or [])
+    keys = set()
+    for name in names:
+        key = _video_norm(name or "")
+        if len(key) >= 2:
+            keys.add(key)
+    return keys
+
+
+def _match_player_videos(item: dict[str, Any], entries: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    keys = _player_video_keys(item)
+    if not keys:
+        return []
+    entries = entries if entries is not None else _video_entries(_all_videos()[0])
+    matched = []
+    for entry in entries:
+        if keys & entry["tokens"] or any(len(key) >= 3 and key in entry["text"] for key in keys):
+            matched.append(entry["item"])
+    return matched
+
+
+def _video_public(item: dict[str, Any]) -> dict[str, Any]:
+    metadata = item.get("metadata") or {}
+    technical = metadata.get("technical") or {}
+    return {
+        "id": item.get("id"), "title": item.get("title"), "filename": item.get("filename"),
+        "url": item.get("url"), "extension": item.get("extension"),
+        "size": item.get("size"), "modified_at": item.get("modified_at"),
+        "code": metadata.get("code") or "", "actors": metadata.get("actors") or [],
+        "release_date": metadata.get("release_date") or "", "full_title": metadata.get("full_title") or "",
+        "cover_url": metadata.get("cover_url") or "", "duration": technical.get("duration") or 0,
+    }
+
+
+@console_bp.get("/api/player/videos")
+def player_videos() -> Response:
+    """列出配置的 Movies 目录下可播放的视频及其资料。"""
+    items, warning = _all_videos()
+    if not MOVIES_DIR.is_dir():
+        return jsonify({"items": [], "directory": str(MOVIES_DIR), "error": "Movies 目录不存在"})
     return jsonify({
         "items": items,
         "directory": str(MOVIES_DIR),
         "catalog": catalog_summary(items),
-        "catalog_warning": catalog_warning or technical_warning,
+        "catalog_warning": warning,
     })
 
 

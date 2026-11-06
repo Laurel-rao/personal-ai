@@ -197,6 +197,69 @@
     .pl-variants { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
     .pl-variants img { width: 56px; aspect-ratio: 3/4; object-fit: contain; background: #0f1218; border: 2px solid transparent; border-radius: 6px; cursor: pointer; opacity: .7; }
     .pl-variants img.active, .pl-variants img:hover { border-color: var(--page-primary, #087f65); opacity: 1; }
+    /* 新版选手详情 */
+    .pl-modal-box.pl-detail-box { display: block; width: min(1180px, 96vw); max-height: 92vh; padding: 0; overflow: hidden; }
+    .pl-detail-shell { display: grid; grid-template-columns: 286px minmax(0, 1fr); max-height: 92vh; min-height: 540px; }
+    .pl-detail-side { border-right: 1px solid var(--page-line, #e3e9ee); background: #f7f9fb; padding: 18px; overflow: auto; }
+    .pl-detail-cover-wrap { border-radius: 14px; overflow: hidden; background: #0f1218; border: 1px solid var(--page-line, #e3e9ee); }
+    .pl-detail-cover { width: 100%; display: block; aspect-ratio: 3 / 4; object-fit: contain; background: #0f1218; }
+    .pl-detail-side .pl-variants { margin-top: 10px; }
+    .pl-detail-side .pl-variants img { width: 48px; }
+    .pl-detail-actions { display: flex; flex-direction: column; gap: 7px; margin-top: 14px; }
+    .pl-action { border: 1px solid var(--page-line, #e3e9ee); background: #fff; color: var(--page-text, #243242); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; cursor: pointer; text-align: center; }
+    .pl-action:hover { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); }
+    .pl-action.primary { background: var(--page-primary, #087f65); border-color: var(--page-primary, #087f65); color: #fff; font-weight: 600; }
+    .pl-action.primary:hover { color: #fff; filter: brightness(.95); }
+    .pl-action.danger { color: #b03a2e; }
+    .pl-action[hidden] { display: none; }
+    .pl-detail-main { min-width: 0; overflow: auto; padding: 20px 24px 26px; }
+    .pl-detail-head { display: flex; align-items: flex-start; gap: 12px; }
+    .pl-detail-heading { min-width: 0; flex: 1; }
+    .pl-detail-name { margin: 0; font-size: 24px; letter-spacing: .01em; color: var(--page-text, #243242); }
+    .pl-detail-sub { margin: 4px 0 0; color: var(--page-muted, #7b8795); font-size: 13px; overflow-wrap: anywhere; }
+    .pl-detail-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+    .pl-detail-chips span { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--page-primary-soft, #edf7f2); color: var(--page-primary, #087f65); }
+    .pl-detail-close { flex: 0 0 auto; border: 0; background: #eef1f4; color: var(--page-text, #243242); width: 34px; height: 34px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+    .pl-detail-close:hover { background: #e3e9ee; }
+    .pl-detail-tabs { position: sticky; top: -20px; z-index: 3; display: flex; gap: 2px; margin: 14px -24px 0; padding: 0 24px; background: var(--page-surface, #fff); border-bottom: 1px solid var(--page-line, #e3e9ee); }
+    .pl-detail-tab { border: 0; background: none; color: var(--page-muted, #7b8795); padding: 10px 12px; font-size: 12.5px; cursor: pointer; border-bottom: 2px solid transparent; }
+    .pl-detail-tab:hover { color: var(--page-primary, #087f65); }
+    .pl-detail-tab.active { color: var(--page-primary, #087f65); border-color: var(--page-primary, #087f65); font-weight: 600; }
+    .pl-detail-tab i { font-style: normal; background: #f1f4f6; color: var(--page-muted, #7b8795); border-radius: 999px; padding: 1px 6px; font-size: 10.5px; margin-left: 4px; }
+    .pl-detail-panel { padding-top: 16px; }
+    .pl-detail-panel[hidden] { display: none; }
+    .pl-detail-section { margin-bottom: 18px; }
+    .pl-detail-section h3, .pl-detail-section-head h3 { margin: 0; font-size: 13px; color: var(--page-text, #243242); }
+    .pl-detail-section-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .pl-detail-section-head small { color: var(--page-muted, #7b8795); font-weight: 400; }
+    .pl-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: 20px; align-items: start; }
+    .pl-overview-grid .pl-kv { border-top: 0; padding-top: 0; margin: 0; }
+    .pl-detail-works { min-width: 0; }
+    .pl-detail-works .pl-works { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 240px; }
+    .pl-video-list { display: grid; gap: 8px; }
+    .pl-video-row { display: flex; align-items: center; gap: 12px; border: 1px solid var(--page-line, #e3e9ee); border-radius: 10px; padding: 8px; text-decoration: none; color: var(--page-text, #243242); background: #fff; }
+    .pl-video-row:hover { border-color: var(--page-primary, #087f65); background: #f7fbf9; }
+    .pl-video-thumb { width: 92px; flex: 0 0 92px; aspect-ratio: 16 / 10; border-radius: 7px; overflow: hidden; background: #0f1218; display: flex; align-items: center; justify-content: center; }
+    .pl-video-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .pl-video-placeholder { color: #8fa3b8; font-size: 18px; }
+    .pl-video-copy { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 3px; }
+    .pl-video-copy b { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pl-video-copy small { color: var(--page-muted, #7b8795); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pl-video-play { flex: 0 0 auto; color: var(--page-primary, #087f65); font-size: 12px; font-weight: 600; }
+    .pl-video-empty { padding: 28px; text-align: center; color: var(--page-muted, #7b8795); border: 1px dashed var(--page-line, #e3e9ee); border-radius: 10px; }
+    .pl-video-count { display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; font-size: 11px; color: var(--page-primary, #087f65); background: var(--page-primary-soft, #edf7f2); border-radius: 999px; padding: 2px 7px; align-self: flex-start; }
+    @media (max-width: 780px) {
+      .pl-detail-shell { grid-template-columns: 1fr; min-height: 0; }
+      .pl-detail-side { display: flex; gap: 12px; align-items: flex-start; border-right: 0; border-bottom: 1px solid var(--page-line, #e3e9ee); padding: 14px; }
+      .pl-detail-cover-wrap { width: 118px; flex: 0 0 118px; }
+      .pl-detail-side .pl-variants { display: none; }
+      .pl-detail-actions { flex: 1; margin-top: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .pl-detail-main { padding: 16px; position: relative; }
+      .pl-detail-heading { padding-right: 42px; }
+      .pl-detail-close { position: absolute; top: 10px; right: 10px; }
+      .pl-detail-tabs { margin: 12px -16px 0; padding: 0 16px; top: -16px; }
+      .pl-overview-grid { grid-template-columns: 1fr; }
+    }
     /* 图片灯箱 */
     .pl-lb { position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: center; justify-content: center; background: rgba(10,14,20,.92); }
     .pl-lb[hidden] { display: none; }
@@ -420,7 +483,6 @@
     </form>
   </div>
   <div class="pl-modal" id="plModal" hidden role="dialog" aria-modal="true">
-    <button class="pl-close" id="plClose" type="button" aria-label="关闭">×</button>
     <div class="pl-modal-box" id="plModalBox"></div>
   </div>
 
@@ -475,6 +537,7 @@
             ${item.debut ? `<span>${esc(item.debut)}出道</span>` : ''}
           </div>
           <div class="pl-stats">${mini}</div>
+          ${item.video_count ? `<div class="pl-video-count">▶ 本地视频 ${item.video_count} 部</div>` : ''}
         </article>`;
       }
 
@@ -637,6 +700,7 @@
       }
 
       async function openLocalPhotos(id) {
+        modalBox.classList.remove('pl-detail-box');
         detailDownloadToken += 1;
         stopDetailDownloadPoll();
         const item = items.find((entry) => entry.id === id);
@@ -720,9 +784,18 @@
         return value.replace(/^T?\d{2,3}\s*(cm)?\s*/i, '').trim() || '—';
       }
 
+      function formatDuration(seconds) {
+        const total = Math.max(0, Math.floor(Number(seconds) || 0));
+        const hours = Math.floor(total / 3600);
+        const minutes = Math.floor(total / 60) % 60;
+        const rest = total % 60;
+        return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}` : `${minutes}:${String(rest).padStart(2, '0')}`;
+      }
+
       async function openDetail(id) {
         const downloadToken = ++detailDownloadToken;
         stopDetailDownloadPoll();
+        modalBox.classList.remove('pl-detail-box');
         modalBox.innerHTML = '<div style="padding:30px;color:#8b93a7">加载中…</div>';
         modal.hidden = false;
         document.body.style.overflow = 'hidden';
@@ -745,54 +818,96 @@
           const socials = [];
           if (item.social?.x) socials.push(`<a href="${esc(item.social.x)}" target="_blank" rel="noopener">X / Twitter</a>`);
           if (item.social?.instagram) socials.push(`<a href="${esc(item.social.instagram)}" target="_blank" rel="noopener">Instagram</a>`);
+          const videoCount = data.video_count || (data.videos || []).length;
+          const videos = data.videos || [];
+          const videoHtml = videos.map((video) => {
+            const duration = Number(video.duration) || 0;
+            const meta = [video.code, (video.actors || []).join('、'), (video.release_date || '').slice(0, 7), duration ? formatDuration(duration) : '']
+              .filter(Boolean).join(' · ');
+            return `<a class="pl-video-row" href="/player?video=${encodeURIComponent(video.id)}" target="_blank" rel="noopener">
+              <span class="pl-video-thumb">${video.cover_url ? `<img loading="lazy" src="${esc(video.cover_url)}" alt="">` : '<span class="pl-video-placeholder">▶</span>'}</span>
+              <span class="pl-video-copy"><b>${esc(video.full_title || video.title)}</b><small>${esc(meta || video.filename || '')}</small></span>
+              <span class="pl-video-play">播放</span>
+            </a>`;
+          }).join('') || '<div class="pl-video-empty">还没有本地视频</div>';
+          modalBox.classList.add('pl-detail-box');
           modalBox.innerHTML = `
-            <div class="pl-modal-left">
-              ${item.card_image ? `<img class="pl-modal-img" id="plModalImg" src="${esc(item.card_image)}" alt="${esc(item.name)}">` : `<div class="pl-modal-img pl-noimg">${esc(item.name)}</div>`}
-              ${variantStrip}
-            </div>
-            <div>
-              <button class="pl-close" id="plClose2" type="button" aria-label="关闭">×</button>
-              <div class="pl-title-row">
-                <h2 class="pl-modal-title">${esc(item.name)}</h2>
-                <div class="pl-title-chips">
-                  <span>总评 ${item.overall ?? '—'}</span>
-                  ${item.studio ? `<span>${esc(item.studio)}</span>` : ''}
-                  ${item.position ? `<span>${esc(item.position)}</span>` : ''}
-                  ${item.height ? `<span>${item.height}cm</span>` : ''}
+            <div class="pl-detail-shell">
+              <aside class="pl-detail-side">
+                <div class="pl-detail-cover-wrap">
+                  ${item.card_image ? `<img class="pl-detail-cover" id="plModalImg" src="${esc(item.card_image)}" alt="${esc(item.name)}">` : `<div class="pl-detail-cover pl-noimg">${esc(item.name)}</div>`}
                 </div>
-                <button class="pl-photo-refresh" id="plDownloadBtn" type="button" style="margin-left:auto">下载写真</button>
-                <button class="pl-photo-refresh" id="plDownloadCancel" type="button" hidden style="color:#c0392b">取消下载</button>
-                ${item.custom ? `<button class="pl-photo-refresh" id="plRefreshBtn" type="button" title="重新获取基础信息">重取基础信息</button><button class="pl-photo-refresh" id="plEditBtn" type="button">编辑资料</button>` : ''}
-                <button class="pl-photo-refresh" id="plSearchBtn" type="button">搜索番号 / 写真集</button>
-                <button class="pl-photo-refresh" id="plHideBtn" type="button" title="隐藏后默认不在列表展示">${item.hidden ? '取消隐藏' : '隐藏'}</button>
+                ${variantStrip}
+                <div class="pl-detail-actions">
+                  <button class="pl-action primary" id="plDownloadBtn" type="button">下载写真</button>
+                  <button class="pl-action danger" id="plDownloadCancel" type="button" hidden>取消下载</button>
+                  ${item.custom ? `<button class="pl-action" id="plRefreshBtn" type="button" title="重新获取基础信息">重取基础信息</button><button class="pl-action" id="plEditBtn" type="button">编辑资料</button>` : ''}
+                  <button class="pl-action" id="plHideBtn" type="button">${item.hidden ? '取消隐藏' : '隐藏'}</button>
+                  <button class="pl-action" id="plSearchBtn" type="button">搜索番号 / 写真集</button>
+                </div>
+              </aside>
+              <div class="pl-detail-main">
+                <header class="pl-detail-head">
+                  <div class="pl-detail-heading">
+                    <h2 class="pl-detail-name">${esc(item.name)}</h2>
+                    <p class="pl-detail-sub">${esc(item.jp_name || '')}${item.ro_name ? ' · ' + esc(item.ro_name) : ''}</p>
+                    <div class="pl-detail-chips">
+                      <span>总评 ${item.overall ?? '—'}</span>
+                      ${item.studio ? `<span>${esc(item.studio)}</span>` : ''}
+                      ${item.position ? `<span>${esc(item.position)}</span>` : ''}
+                      ${item.height ? `<span>${item.height}cm</span>` : ''}
+                      ${item.debut ? `<span>${esc(item.debut)}出道</span>` : ''}
+                    </div>
+                  </div>
+                  <button class="pl-detail-close" id="plClose2" type="button" aria-label="关闭">×</button>
+                </header>
+                <div class="pl-download-status" id="plDownloadStatus" hidden>
+                  <div class="pl-download-text" id="plDownloadText"></div>
+                  <div class="pl-download-bar" id="plDownloadBar" hidden><i id="plDownloadBarFill"></i></div>
+                </div>
+                <div class="pl-download-status" id="plRefreshStatus" hidden></div>
+                <nav class="pl-detail-tabs" aria-label="选手详情分栏">
+                  <button type="button" class="pl-detail-tab active" data-detail-tab="overview">概览</button>
+                  <button type="button" class="pl-detail-tab" data-detail-tab="photos">写真</button>
+                  <button type="button" class="pl-detail-tab" data-detail-tab="videos">本地视频 <i>${videoCount}</i></button>
+                  <button type="button" class="pl-detail-tab" data-detail-tab="notes">标签与评论 <i>${(data.comments || []).length}</i></button>
+                </nav>
+                <div class="pl-detail-panel" data-detail-panel="overview">
+                  <div class="pl-stat-grid">${statCards}</div>
+                  <div class="pl-overview-grid">
+                    <dl class="pl-kv">
+                      <dt>生日</dt><dd>${esc(item.birthday || '—')}${item.age ? `（${item.age} 岁）` : ''}</dd>
+                      <dt>身高</dt><dd>${item.height ? item.height + ' cm' : '—'}</dd>
+                      <dt>三围</dt><dd>${esc(cleanMeasurements(item.measurements, item.height))}</dd>
+                      <dt>事务所</dt><dd>${esc(item.agency || '—')}</dd>
+                      <dt>出道</dt><dd>${esc(item.debut || '—')}</dd>
+                      <dt>粉丝</dt><dd>${item.followers ? Number(item.followers).toLocaleString() : '—'}</dd>
+                      <dt>厂牌/所属</dt><dd>${esc(item.studio || '—')}${item.club ? ' / ' + esc(item.club) : ''}</dd>
+                      ${item.dmm_id ? `<dt>DMM</dt><dd class="pl-links"><a href="https://video.dmm.co.jp/av/list/?actress=${encodeURIComponent(item.dmm_id)}" target="_blank" rel="noopener">女優名鑑 #${esc(item.dmm_id)}</a></dd>` : ''}
+                      ${socials.length ? `<dt>社媒</dt><dd class="pl-links">${socials.join('')}</dd>` : ''}
+                    </dl>
+                    <section class="pl-detail-works">
+                      <div class="pl-detail-section-head"><h3>DMM 作品</h3><small id="plWorkCount"></small></div>
+                      <div class="pl-works" id="plWorks"><div class="loading">加载中…</div></div>
+                    </section>
+                  </div>
+                </div>
+                <div class="pl-detail-panel" data-detail-panel="photos" hidden>
+                  <div class="pl-detail-section-head"><h3>写真</h3><small id="plPhotoCount"></small>
+                    <span class="pl-photo-tabs"><button type="button" data-kind="stills" class="active">剧照</button><button type="button" data-kind="daily">日常照</button><button type="button" data-kind="local">本地写真</button></span>
+                    <button class="pl-photo-refresh" id="plPhotoRefresh" type="button">换一批</button>
+                  </div>
+                  <div class="pl-photos" id="plPhotos"></div>
+                </div>
+                <div class="pl-detail-panel" data-detail-panel="videos" hidden>
+                  <div class="pl-detail-section-head"><h3>本地视频</h3><small>${videoCount} 部</small></div>
+                  <div class="pl-video-list">${videoHtml}</div>
+                </div>
+                <div class="pl-detail-panel" data-detail-panel="notes" hidden>
+                  <section class="pl-detail-section"><h3>标签</h3><div class="pl-chips">${tags}</div></section>
+                  <section class="pl-detail-section"><h3>评论 <small>${(data.comments || []).length} 条</small></h3>${comments}</section>
+                </div>
               </div>
-              <p class="pl-modal-sub" id="plModalSub">${esc(item.jp_name || '')}${item.ro_name ? ' · ' + esc(item.ro_name) : ''}</p>
-              <div class="pl-download-status" id="plDownloadStatus" hidden>
-                <div class="pl-download-text" id="plDownloadText"></div>
-                <div class="pl-download-bar" id="plDownloadBar" hidden><i id="plDownloadBarFill"></i></div>
-              </div>
-              <div class="pl-download-status" id="plRefreshStatus" hidden></div>
-              <div class="pl-stat-grid" id="plStatsBig">${statCards}</div>
-              <dl class="pl-kv">
-                <dt>生日</dt><dd>${esc(item.birthday || '—')}${item.age ? `（${item.age} 岁）` : ''}</dd>
-                <dt>身高</dt><dd>${item.height ? item.height + ' cm' : '—'}</dd>
-                <dt>三围</dt><dd>${esc(cleanMeasurements(item.measurements, item.height))}</dd>
-                <dt>事务所</dt><dd>${esc(item.agency || '—')}</dd>
-                <dt>出道</dt><dd>${esc(item.debut || '—')}</dd>
-                <dt>粉丝</dt><dd>${item.followers ? Number(item.followers).toLocaleString() : '—'}</dd>
-                <dt>厂牌/所属</dt><dd>${esc(item.studio || '—')}${item.club ? ' / ' + esc(item.club) : ''}</dd>
-                ${item.dmm_id ? `<dt>DMM</dt><dd class="pl-links"><a href="https://video.dmm.co.jp/av/list/?actress=${encodeURIComponent(item.dmm_id)}" target="_blank" rel="noopener">女優名鑑 #${esc(item.dmm_id)}</a></dd>` : ''}
-                ${socials.length ? `<dt>社媒</dt><dd class="pl-links">${socials.join('')}</dd>` : ''}
-              </dl>
-              <div class="pl-section-title">图片 <small id="plPhotoCount"></small>
-                <span class="pl-photo-tabs"><button type="button" data-kind="stills" class="active">剧照</button><button type="button" data-kind="daily">日常照</button><button type="button" data-kind="local">本地写真</button></span>
-                <button class="pl-photo-refresh" id="plPhotoRefresh" type="button">换一批</button>
-              </div>
-              <div class="pl-photos" id="plPhotos"><div class="loading">正在抓取写真图（首次约 10-20 秒）…</div></div>
-              <div class="pl-section-title">标签</div>
-              <div class="pl-chips">${tags}</div>
-              <div class="pl-section-title">评论 <small>${(data.comments || []).length} 条</small></div>
-              ${comments}
             </div>`;
 
           let photoKind = 'stills';
@@ -832,6 +947,18 @@
               box.innerHTML = `<div class="loading">${esc(error.message)}</div>`;
             }
           };
+          let photosLoaded = false;
+          const showDetailTab = (name) => {
+            modalBox.querySelectorAll('[data-detail-tab]').forEach((btn) => btn.classList.toggle('active', btn.dataset.detailTab === name));
+            modalBox.querySelectorAll('[data-detail-panel]').forEach((panel) => { panel.hidden = panel.dataset.detailPanel !== name; });
+            if (name === 'photos' && !photosLoaded) {
+              photosLoaded = true;
+              loadPhotos(false);
+            }
+          };
+          modalBox.querySelectorAll('[data-detail-tab]').forEach((btn) => {
+            btn.addEventListener('click', () => showDetailTab(btn.dataset.detailTab));
+          });
           (async () => {
             const box = document.getElementById('plWorks');
             const counter = document.getElementById('plWorkCount');
@@ -1037,7 +1164,6 @@
 
           downloadBtn?.addEventListener('click', () => openDownloadOptions(item.id, item.name));
           refreshDownload(true);
-          loadPhotos(false);
         } catch (error) {
           modalBox.innerHTML = `<div style="padding:30px;color:#ff9b9b">${esc(error.message)}</div>`;
         }
@@ -1324,13 +1450,13 @@
       }
 
       function closeModal() {
+        modalBox.classList.remove('pl-detail-box');
         detailDownloadToken += 1;
         stopDetailDownloadPoll();
         modal.hidden = true;
         document.body.style.overflow = '';
       }
 
-      document.getElementById('plClose').addEventListener('click', closeModal);
       modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
       document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !modal.hidden) closeModal(); });
 
@@ -1491,6 +1617,7 @@
         addQuery.focus();
       }
       function openEdit(item, profile) {
+        modalBox.classList.remove('pl-detail-box');
         addEditId = item.id;
         addForm.reset();
         addError.hidden = true;

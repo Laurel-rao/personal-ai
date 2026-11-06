@@ -2854,7 +2854,7 @@ def api_players_photos() -> Response:
             return jsonify({"success": True, "name": info["name"], "photos": photos,
                             "source": source, "pending": False,
                             "error": job.get("error") or "上次抓取失败，可点换一批重试"})
-        needs_job = refresh or not photos or cached_limit < 30
+        needs_job = refresh or not photos
         if needs_job and job.get("status") != "running":
             _start_photo_job(card_id, kind)
             with _PHOTO_JOBS_LOCK:

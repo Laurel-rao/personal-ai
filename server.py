@@ -107,7 +107,7 @@ _NYA_COVER_CACHE: dict[str, bytes] = {}
 _NYA_COVER_MISS: dict[str, float] = {}
 _NYA_COVER_LOCK = threading.Lock()
 _NYA_COVER_SEMAPHORE = threading.Semaphore(4)
-_NYA_COVER_MISS_TTL = 6 * 3600
+_NYA_COVER_MISS_TTL = 30 * 60
 
 IMAGE_TOOL = {
     "type": "function",
@@ -1728,12 +1728,21 @@ def _javdatabase_codes(roman_name: str, limit: int = 6) -> list[str]:
     return codes
 
 
+_DMM_ONE_PREFIX = {
+    "START", "STARS", "SODS", "SDDE", "SDMU", "SDAB", "SDNM", "SDHS", "SDJS",
+    "SDMS", "SDMT", "SDPT", "SDSI", "SDTM", "SDVA", "SDWD", "SDMF", "SDNT",
+    "SDOG", "SDOS", "SDPP", "SDSH", "SDSL", "SDST", "SDTB", "SDTS", "SDVD",
+}
+
+
 def _dmm_cid(code: str) -> str:
-    """SNIS-946 -> snis00946（DMM 内容 ID）。"""
+    """SNIS-946 -> snis00946（DMM 内容 ID）；SOD 系需要 1 前缀。"""
     match = re.match(r"^([A-Za-z]+)[-_ ]?0*(\d{1,4})", code or "")
     if not match:
         return ""
-    return f"{match.group(1).lower()}{match.group(2).zfill(5)}"
+    label = match.group(1).lower()
+    prefix = "1" if label.upper() in _DMM_ONE_PREFIX else ""
+    return f"{prefix}{label}{match.group(2).zfill(5)}"
 
 
 _COMPILATION_PREFIXES = ("IDBD", "IPOK", "OFJE", "IBW", "SONE", "OAE", "MIRD")
@@ -3438,12 +3447,20 @@ def _nya_cover_urls(code: str) -> list[str]:
     match = re.match(r"^([A-Za-z]{2,8})[-_ ]?0*(\d{1,4})(?:[-_ ]?[A-Z](?![A-Za-z]))?$", (code or "").strip())
     if not match:
         return []
-    key = f"{match.group(1).lower()}{match.group(2).zfill(5)}"
-    return [
-        f"https://awsimgsrc.dmm.co.jp/pics_dig/digital/video/{key}/{key}pl.jpg",
-        f"https://pics.dmm.co.jp/digital/video/{key}/{key}pl.jpg",
-        f"https://awsimgsrc.dmm.co.jp/pics_dig/digital/video/{key}/{key}ps.jpg",
-    ]
+    label = match.group(1)
+    key = f"{label.lower()}{match.group(2).zfill(5)}"
+    if label.upper() in _DMM_ONE_PREFIX:
+        keys = [f"1{key}", key]
+    else:
+        keys = [key, f"1{key}"]
+    urls = []
+    for cid in keys:
+        urls.extend([
+            f"https://awsimgsrc.dmm.co.jp/pics_dig/digital/video/{cid}/{cid}pl.jpg",
+            f"https://pics.dmm.co.jp/digital/video/{cid}/{cid}pl.jpg",
+            f"https://awsimgsrc.dmm.co.jp/pics_dig/digital/video/{cid}/{cid}ps.jpg",
+        ])
+    return urls
 
 
 class _NyaNoRedirect(urllib.request.HTTPRedirectHandler):
@@ -3725,7 +3742,7 @@ def api_nya_cover() -> Response:
     if not code:
         return error_response(400, "缺少 code")
     size = request.args.get("size") or "thumb"
-    data = _nya_cover_bytes(code, full=size in {"full", "medium"}, timeout=6)
+    data = _nya_cover_bytes(code, full=size in {"full", "medium"}, timeout=8)
     if not data:
         return error_response(404, "没有封面")
     if size == "medium":
@@ -3772,7 +3789,7 @@ def _all_videos() -> tuple[list[dict[str, Any]], str]:
         code = str(item["metadata"].get("code") or "")
         if code:
             item["metadata"]["official_cover_url"] = (
-                "/api/player/official-cover?code=" + urllib.parse.quote(code) + "&v=3"
+                "/api/player/official-cover?code=" + urllib.parse.quote(code) + "&v=4"
             )
         items.append(item)
     items.sort(key=lambda item: item["modified_at"], reverse=True)

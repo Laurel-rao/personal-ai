@@ -214,6 +214,10 @@
     $('videoSizeTag').textContent = item ? formatSize(item.size) : '--';
     $('downloadButton').href = item?.url || '#';
     $('downloadButton').download = item?.filename || 'video';
+    const resourceLink = $('videoResourceLink');
+    const resourceCode = item?.metadata?.code || '';
+    resourceLink.hidden = !resourceCode;
+    if (resourceCode) resourceLink.href = `/nya?q=${encodeURIComponent(resourceCode)}`;
     $('downloadButton').setAttribute('aria-disabled', String(!item));
     $('downloadButton').tabIndex = item ? 0 : -1;
     $('copyPathButton').disabled = !item || !navigator.clipboard?.writeText;

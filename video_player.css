@@ -339,3 +339,7 @@ body.player-body #searchInput::placeholder { color: #9aa89f; }
 .video-cast-label { padding: 1px 6px; border-radius: 999px; background: #20332b; color: var(--player-accent); font-size: 9px; letter-spacing: .04em; }
 .video-cast a { color: var(--player-accent); text-decoration: none; font-weight: 600; }
 .video-cast a:hover { text-decoration: underline; }
+
+.player-resource-link { display: inline-flex; align-items: center; padding: 5px 9px; border: 1px solid var(--player-line); border-radius: 6px; color: var(--player-accent); font-size: 11px; text-decoration: none; white-space: nowrap; }
+.player-resource-link:hover { border-color: var(--player-accent); background: #1f2b26; }
+.player-resource-link[hidden] { display: none !important; }

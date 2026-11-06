@@ -3621,14 +3621,15 @@ def _nya_cover_bytes(code: str, full: bool = False, timeout: int = 15) -> bytes 
         missed_at = _NYA_COVER_MISS.get(key, 0)
     if cached_bytes:
         return cached_bytes
-    if missed_at and time.time() - missed_at < _NYA_COVER_MISS_TTL:
-        return None
     cached_file = NYAA_COVER_DIR / f"{key}.jpg"
     if cached_file.is_file():
         data = cached_file.read_bytes()
         with _NYA_COVER_LOCK:
             _NYA_COVER_CACHE[key] = data
+            _NYA_COVER_MISS.pop(key, None)
         return data
+    if missed_at and time.time() - missed_at < _NYA_COVER_MISS_TTL:
+        return None
 
     urls = _nya_cover_urls(code)
     if not full:

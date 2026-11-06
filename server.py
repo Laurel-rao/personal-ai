@@ -624,7 +624,7 @@ def _am_item(card: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
         card_image = f"/api/players/card/{card.get('id')}"
     else:
         card_image = profile.get("dmmImage") or extra.get("image") or dmm.get("image") or ""
-    birthday = card.get("birthday") or profile.get("birthday") or ""
+    birthday = card.get("birthday") or profile.get("birthday") or extra.get("birthday") or ""
     age = ""
     if re.match(r"^\d{4}-\d{2}-\d{2}$", birthday):
         year, month, day = (int(part) for part in birthday.split("-"))

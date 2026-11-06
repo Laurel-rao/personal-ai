@@ -138,7 +138,9 @@
     .pl-card:hover .pl-hide-toggle, .pl-card.is-hidden .pl-hide-toggle, .pl-hide-toggle:focus-visible { opacity: 1; }
     .pl-hide-toggle:hover { background: #b03a2e; }
     @media (hover: none) { .pl-hide-toggle { opacity: 1; } }
-    .pl-name { font-size: 13px; font-weight: 600; line-height: 1.35; color: var(--page-text, #243242); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pl-name { display: flex; align-items: baseline; gap: 5px; min-width: 0; font-size: 13px; font-weight: 600; line-height: 1.35; color: var(--page-text, #243242); }
+    .pl-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pl-age { flex: 0 0 auto; color: var(--page-muted, #7b8795); font-size: 10.5px; font-weight: 500; }
     .pl-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; color: var(--page-muted, #7b8795); }
     .pl-meta .ov { color: #b86e00; font-weight: 700; }
     .pl-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; font-size: 10.5px; color: var(--page-muted, #7b8795); }
@@ -233,6 +235,7 @@
     .pl-detail-head { display: flex; align-items: flex-start; gap: 12px; }
     .pl-detail-heading { min-width: 0; flex: 1; padding-right: 46px; }
     .pl-detail-name { margin: 0; font-size: 24px; letter-spacing: .01em; color: var(--page-text, #243242); }
+    .pl-detail-age { margin-left: 8px; color: var(--page-muted, #7b8795); font-size: 14px; font-weight: 500; }
     .pl-detail-sub { margin: 4px 0 0; color: var(--page-muted, #7b8795); font-size: 13px; overflow-wrap: anywhere; }
     .pl-detail-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
     .pl-detail-chips span { font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--page-primary-soft, #edf7f2); color: var(--page-primary, #087f65); }
@@ -614,7 +617,7 @@
         return `
         <article class="pl-card${item.hidden ? ' is-hidden' : ''}" data-id="${esc(item.id)}">
           <div class="pl-cover">${item.card_image ? `<img loading="lazy" src="${esc(item.card_image)}" alt="${esc(item.name)}">` : ''}${item.local_books ? `<button type="button" class="pl-local-badge" data-local="1" title="本地写真 ${item.local_books} 本 · ${item.local_pages} 张">写真 ${item.local_books}</button>` : ''}${item.video_count ? `<span class="pl-video-badge" title="本地视频 ${item.video_count} 部">视频 ${item.video_count}</span>` : ''}${item.hidden ? '<span class="pl-hidden-badge">已隐藏</span>' : ''}${item.group_size > 1 ? `<span class="pl-variant-badge">×${item.group_size}</span>` : ''}<button type="button" class="pl-hide-toggle" data-hidden="${item.hidden ? '1' : '0'}" aria-pressed="${item.hidden ? 'true' : 'false'}" title="${item.hidden ? '取消隐藏，恢复到默认列表' : '隐藏，默认列表不再展示'}">${item.hidden ? '取消隐藏' : '隐藏'}</button></div>
-          <div class="pl-name" title="${esc(item.name)}">${esc(item.name)}</div>
+          <div class="pl-name" title="${esc(item.name)}"><span class="pl-name-text">${esc(item.name)}</span>${item.age ? `<span class="pl-age">${item.age}岁</span>` : ''}</div>
           <div class="pl-meta">
             <span class="ov">${item.overall != null ? item.overall : '—'}</span>
             <span>${esc(item.studio || '')}</span>
@@ -943,7 +946,7 @@
               <div class="pl-detail-main">
                 <header class="pl-detail-head">
                   <div class="pl-detail-heading">
-                    <h2 class="pl-detail-name">${esc(item.name)}</h2>
+                    <h2 class="pl-detail-name">${esc(item.name)}${item.age ? `<span class="pl-detail-age">${item.age}岁</span>` : ''}</h2>
                     <p class="pl-detail-sub">${esc(item.jp_name || '')}${item.ro_name ? ' · ' + esc(item.ro_name) : ''}</p>
                     <div class="pl-detail-chips">
                       <span>总评 ${item.overall ?? '—'}</span>

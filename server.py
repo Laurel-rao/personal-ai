@@ -545,6 +545,44 @@ def _bust(measurements: str) -> int:
     return int(match.group(1)) if match else 0
 
 
+_HIDDEN_STATE: dict[str, Any] = {"path": "", "stamp": None, "ids": set()}
+_HIDDEN_LOCK = threading.RLock()
+
+
+def _hidden_ids() -> set[str]:
+    path = _AM_DIR / "player-hidden.json"
+    try:
+        stamp = path.stat().st_mtime
+    except OSError:
+        return set()
+    with _HIDDEN_LOCK:
+        if _HIDDEN_STATE["path"] == str(path) and _HIDDEN_STATE["stamp"] == stamp:
+            return set(_HIDDEN_STATE["ids"])
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        rows = []
+    ids = {str(item) for item in rows if isinstance(item, str)} if isinstance(rows, list) else set()
+    with _HIDDEN_LOCK:
+        _HIDDEN_STATE.update(path=str(path), stamp=stamp, ids=ids)
+    return ids
+
+
+def _set_hidden(player_id: str, hidden: bool) -> None:
+    with _HIDDEN_LOCK:
+        ids = _hidden_ids()
+        if hidden:
+            ids.add(player_id)
+        else:
+            ids.discard(player_id)
+        path = _AM_DIR / "player-hidden.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(f"{path.name}.tmp")
+        temporary.write_text(json.dumps(sorted(ids), ensure_ascii=False, indent=1), encoding="utf-8")
+        temporary.replace(path)
+        _HIDDEN_STATE.update(path=str(path), stamp=None, ids=set(ids))
+
+
 def _am_item(card: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
     extra = (_AM_STATE.get("enrich") or {}).get(card.get("id"), {})
     dmm_id = str(extra.get("dmm_id") or profile.get("dmmId") or "")
@@ -610,6 +648,8 @@ def api_players_list() -> Response:
     except ValueError:
         limit, offset = 60, 0
 
+    hidden_ids = _hidden_ids()
+    show_hidden = request.args.get("show_hidden") == "1"
     if show_all:
         entries = [_am_item(card, profiles.get(card["id"], {})) for card in cards]
     else:
@@ -621,6 +661,10 @@ def api_players_list() -> Response:
             item["variant_ids"] = [c["id"] for c in group_cards]
             entries.append(item)
 
+    if not show_hidden:
+        entries = [item for item in entries if item["id"] not in hidden_ids]
+    for item in entries:
+        item["hidden"] = item["id"] in hidden_ids
     if query:
         entries = [item for item in entries if query in (item["name"] or "").lower()
                    or query in (item["ro_name"] or "").lower()
@@ -1253,6 +1297,20 @@ def api_tasks_cancel(task_id: str) -> Response:
             return jsonify({"success": True, "task": task_store.get(task_id, with_logs=False)})
     task_store.cancel(task_id, "用户取消")
     return jsonify({"success": True, "task": task_store.get(task_id, with_logs=False)})
+
+
+@console_bp.post("/api/players/hide")
+def api_players_hide() -> Response:
+    payload = request.get_json(silent=True) or {}
+    card_id = str(payload.get("id") or "").strip()
+    if not card_id:
+        return error_response(400, "缺少 id")
+    state = _am_load()
+    if not any(card.get("id") == card_id for card in state["cards"]):
+        return error_response(404, "没有找到这位选手")
+    hidden = bool(payload.get("hidden"))
+    _set_hidden(card_id, hidden)
+    return jsonify({"success": True, "id": card_id, "hidden": hidden})
 
 
 @console_bp.post("/api/players/update")
@@ -2619,9 +2677,11 @@ def api_players_detail() -> Response:
                 "stats": variant_card.get("stats") or {},
                 "card_image": f"/api/players/card/{variant_card['id']}" if variant_card.get("card") else "",
             })
+        detail_item = _am_item(card, profile)
+        detail_item["hidden"] = pid in _hidden_ids()
         return jsonify({
             "success": True,
-            "item": _am_item(card, profile),
+            "item": detail_item,
             "card": card,
             "profile": profile,
             "tags": state["tags"].get(pid, []),

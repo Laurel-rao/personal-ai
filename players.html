@@ -121,6 +121,10 @@
     .pl-task-center-link { margin-left: auto; color: var(--page-primary, #087f65); font-size: 12px; text-decoration: none; white-space: nowrap; }
     .pl-task-center-link:hover { text-decoration: underline; }
     .pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 14px; }
+    .pl-show-hidden { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--page-muted, #7b8795); white-space: nowrap; cursor: pointer; }
+    .pl-show-hidden input { width: auto; margin: 0; padding: 0; }
+    .pl-card.is-hidden { opacity: .55; }
+    .pl-hidden-badge { position: absolute; bottom: 6px; left: 6px; background: rgba(15,18,24,.72); color: #fff; font-size: 10.5px; font-weight: 700; border-radius: 999px; padding: 2px 7px; }
     .pl-card { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: var(--page-surface, #fff); border: 1px solid var(--page-line, #e3e9ee); cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
     .pl-card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(36,50,66,.1); border-color: rgba(8,127,101,.35); }
     .pl-cover { position: relative; width: 100%; aspect-ratio: 3 / 4; border-radius: 8px; overflow: hidden; background: #0f1218; }
@@ -268,6 +272,7 @@
       <select id="plStudio" aria-label="厂牌筛选"><option value="">全部厂牌</option></select>
       <button type="button" class="pl-add" id="plAdd">＋ 添加选手</button>
       <button type="button" class="pl-tasks-btn" id="plTasksBtn">外部任务</button>
+      <label class="pl-show-hidden"><input type="checkbox" id="plShowHidden">显示隐藏</label>
       <span class="pl-count" id="plCount"></span>
     </div>
     <div class="pl-dl-banner" id="plDlBanner" hidden></div>
@@ -415,6 +420,7 @@
       const orderSelect = document.getElementById('plOrder');
       const studioSelect = document.getElementById('plStudio');
       const countEl = document.getElementById('plCount');
+      const showHidden = document.getElementById('plShowHidden');
       const moreBtn = document.getElementById('plMore');
       const modal = document.getElementById('plModal');
       const modalBox = document.getElementById('plModalBox');
@@ -446,8 +452,8 @@
           .filter((key) => stats[key] != null)
           .map((key) => `<span title="${key}">${stats[key]}</span>`).join('');
         return `
-        <article class="pl-card" data-id="${esc(item.id)}">
-          <div class="pl-cover">${item.card_image ? `<img loading="lazy" src="${esc(item.card_image)}" alt="${esc(item.name)}">` : ''}${item.local_books ? `<button type="button" class="pl-local-badge" data-local="1" title="本地写真 ${item.local_books} 本 · ${item.local_pages} 张">写真 ${item.local_books}</button>` : ''}${item.group_size > 1 ? `<span class="pl-variant-badge">×${item.group_size}</span>` : ''}</div>
+        <article class="pl-card${item.hidden ? ' is-hidden' : ''}" data-id="${esc(item.id)}">
+          <div class="pl-cover">${item.card_image ? `<img loading="lazy" src="${esc(item.card_image)}" alt="${esc(item.name)}">` : ''}${item.local_books ? `<button type="button" class="pl-local-badge" data-local="1" title="本地写真 ${item.local_books} 本 · ${item.local_pages} 张">写真 ${item.local_books}</button>` : ''}${item.hidden ? '<span class="pl-hidden-badge">已隐藏</span>' : ''}${item.group_size > 1 ? `<span class="pl-variant-badge">×${item.group_size}</span>` : ''}</div>
           <div class="pl-name" title="${esc(item.name)}">${esc(item.name)}</div>
           <div class="pl-meta">
             <span class="ov">${item.overall != null ? item.overall : '—'}</span>
@@ -469,6 +475,7 @@
             sort: sortSelect.value,
             order: orderSelect.value,
             studio: studioSelect.value,
+            show_hidden: showHidden.checked ? '1' : '0',
             limit: PAGE,
             offset: reset ? 0 : offset,
           });
@@ -723,6 +730,7 @@
                 <button class="pl-photo-refresh" id="plDownloadCancel" type="button" hidden style="color:#c0392b">取消下载</button>
                 ${item.custom ? `<button class="pl-photo-refresh" id="plRefreshBtn" type="button" title="重新获取基础信息">重取基础信息</button><button class="pl-photo-refresh" id="plEditBtn" type="button">编辑资料</button>` : ''}
                 <button class="pl-photo-refresh" id="plSearchBtn" type="button">搜索番号 / 写真集</button>
+                <button class="pl-photo-refresh" id="plHideBtn" type="button" title="隐藏后默认不在列表展示">${item.hidden ? '取消隐藏' : '隐藏'}</button>
               </div>
               <p class="pl-modal-sub" id="plModalSub">${esc(item.jp_name || '')}${item.ro_name ? ' · ' + esc(item.ro_name) : ''}</p>
               <div class="pl-download-status" id="plDownloadStatus" hidden>
@@ -812,6 +820,25 @@
 
           document.getElementById('plClose2')?.addEventListener('click', closeModal);
           document.getElementById('plSearchBtn')?.addEventListener('click', () => openSearchModal(item));
+          document.getElementById('plHideBtn')?.addEventListener('click', async () => {
+            const button = document.getElementById('plHideBtn');
+            button.disabled = true;
+            try {
+              const response = await fetch('/api/players/hide', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, hidden: !item.hidden }),
+              });
+              const result = await readJson(response);
+              if (!response.ok || !result.success) throw new Error(result.error || '操作失败');
+              await load(true);
+              if (result.hidden && !showHidden.checked) closeModal();
+              else openDetail(id);
+            } catch (error) {
+              button.disabled = false;
+              button.textContent = error.message;
+            }
+          });
           document.getElementById('plEditBtn')?.addEventListener('click', () => openEdit(item, data.profile || {}));
           const refreshBtn = document.getElementById('plRefreshBtn');
           const refreshStatus = document.getElementById('plRefreshStatus');

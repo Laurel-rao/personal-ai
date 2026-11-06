@@ -2860,6 +2860,9 @@ def api_players_photos() -> Response:
             with _PHOTO_JOBS_LOCK:
                 job = dict(_PHOTO_JOBS.get(key) or {})
         pending = job.get("status") == "running"
+        if pending:
+            photos = []
+            source = ""
         if job.get("status") == "failed" and not photos:
             return error_response(502, f"写真加载失败：{job.get('error') or '未知错误'}")
         return jsonify({"success": True, "name": info["name"], "photos": photos,

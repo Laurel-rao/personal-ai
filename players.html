@@ -599,6 +599,8 @@
       let dlBannerPoll = 0;
       let detailDownloadPoll = 0;
       let detailDownloadToken = 0;
+      let photoPollTimer = 0;
+      let photoLoadToken = 0;
 
       function cardHtml(item) {
         const stats = item.stats || {};
@@ -1026,8 +1028,6 @@
           let photoKind = 'stills';
           let photoFiles = [];
           let photoIsLocal = false;
-          let photoPollTimer = 0;
-          let photoLoadToken = 0;
           let photoUndoTimer = 0;
           let lastPhotoBatch = '';
           let photoSelecting = false;

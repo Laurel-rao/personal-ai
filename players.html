@@ -318,6 +318,10 @@
     .pl-lb-bar .tools { display: flex; gap: 8px; }
     .pl-lb-bar .tools button, .pl-lb-bar .tools a { border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.08); color: #e8eef6; border-radius: 8px; padding: 6px 12px; font-size: 12.5px; cursor: pointer; text-decoration: none; }
     .pl-lb-bar .tools button:hover, .pl-lb-bar .tools a:hover { background: rgba(255,255,255,.18); }
+    .pl-cover-menu { position: fixed; z-index: 2147483600; min-width: 132px; padding: 4px; border: 1px solid var(--page-line, #e3e9ee); border-radius: 9px; background: var(--page-surface, #fff); box-shadow: 0 10px 30px rgba(15,18,24,.2); }
+    .pl-cover-menu[hidden] { display: none; }
+    .pl-cover-menu button { display: block; width: 100%; border: 0; background: none; color: var(--page-text, #243242); text-align: left; padding: 7px 10px; border-radius: 6px; font-size: 12.5px; cursor: pointer; }
+    .pl-cover-menu button:hover { background: var(--page-primary-soft, #edf7f2); color: var(--page-primary, #087f65); }
     /* 搜索悬浮窗 */
     .pl-search-overlay { position: fixed; inset: 0; z-index: 2147482500; display: flex; align-items: center; justify-content: center; background: rgba(23,32,43,.45); }
     .pl-search-overlay[hidden] { display: none; }
@@ -405,6 +409,10 @@
         <a id="plLbDownload" download>下载原图</a>
       </div>
     </div>
+  </div>
+  <div class="pl-cover-menu" id="plCoverMenu" hidden role="menu">
+    <button type="button" id="plCoverMenuThunder">送迅雷</button>
+    <button type="button" id="plCoverMenuMagnet">磁力</button>
   </div>
   <div class="pl-search-overlay" id="plSearchModal" hidden role="dialog" aria-modal="true" aria-label="搜索番号与写真集">
     <div class="pl-search-box">
@@ -1422,6 +1430,45 @@
         document.getElementById('plLbNext').style.display = single ? 'none' : '';
       }
 
+      const coverMenu = document.getElementById('plCoverMenu');
+      let coverMenuIndex = -1;
+
+      function hideCoverMenu() {
+        coverMenu.hidden = true;
+        coverMenuIndex = -1;
+      }
+
+      function showCoverMenu(event, resultIndex) {
+        if (!Number.isInteger(resultIndex) || resultIndex < 0) return;
+        coverMenuIndex = resultIndex;
+        coverMenu.hidden = false;
+        const width = coverMenu.offsetWidth || 140;
+        const height = coverMenu.offsetHeight || 90;
+        coverMenu.style.left = `${Math.max(8, Math.min(event.clientX, window.innerWidth - width - 8))}px`;
+        coverMenu.style.top = `${Math.max(8, Math.min(event.clientY, window.innerHeight - height - 8))}px`;
+      }
+
+      document.getElementById('plCoverMenuThunder').addEventListener('click', () => {
+        const button = searchPane.querySelector(`button[data-code-download="${coverMenuIndex}"]`);
+        hideCoverMenu();
+        button?.click();
+      });
+      document.getElementById('plCoverMenuMagnet').addEventListener('click', () => {
+        const button = searchPane.querySelector(`button[data-code-copy="${coverMenuIndex}"]`);
+        hideCoverMenu();
+        button?.click();
+      });
+      document.addEventListener('click', hideCoverMenu);
+      document.addEventListener('scroll', hideCoverMenu, true);
+      window.addEventListener('resize', hideCoverMenu);
+      document.addEventListener('keydown', (event) => { if (event.key === 'Escape') hideCoverMenu(); });
+      lbImg.addEventListener('contextmenu', (event) => {
+        const entry = lbList[lbIndex];
+        if (!entry || !Number.isInteger(entry.resultIndex)) return;
+        event.preventDefault();
+        showCoverMenu(event, entry.resultIndex);
+      });
+
       function openLightbox(list, index) {
         if (!list.length) return;
         lbList = list;
@@ -1538,9 +1585,9 @@
             const match = String(title || '').match(/([A-Za-z]{2,6})[-_ ]?0*(\d{2,5})/);
             return match ? `${match[1]}-${match[2]}` : '';
           };
-          const coverItems = (data.results || []).map((result) => {
+          const coverItems = (data.results || []).map((result, resultIndex) => {
             const code = coverOf(result.title);
-            return code ? { src: `/api/nya/cover?code=${encodeURIComponent(code)}&size=full`, name: code, file: `${code}.jpg` } : null;
+            return code ? { src: `/api/nya/cover?code=${encodeURIComponent(code)}&size=full`, name: code, file: `${code}.jpg`, resultIndex } : null;
           }).filter(Boolean);
           const rows = (data.results || []).map((result, index) => {
             const code = coverOf(result.title);
@@ -1548,7 +1595,7 @@
             return `
             <div class="pl-search-row">
               <div style="display:flex;gap:10px;align-items:flex-start;min-width:0">
-                ${cover ? `<img class="pl-search-cover" loading="lazy" src="${cover}" alt="${esc(code)}" data-cover="${esc(cover)}" data-code="${esc(code)}">` : ''}
+                ${cover ? `<img class="pl-search-cover" loading="lazy" src="${cover}" alt="${esc(code)}" data-cover="${esc(cover)}" data-code="${esc(code)}" data-result-index="${index}">` : ''}
                 <div style="min-width:0">
                   <div class="pl-search-title">${esc(result.title)}</div>
                   <div class="pl-search-meta"><span>${esc(code || '')}</span><span>${esc(result.size || '—')}</span><span class="seed">做种 ${result.seeders}</span><span>下载 ${result.downloads || result.leechers}</span><span>${esc((result.uploaded_at || '').slice(0, 10))}</span></div>
@@ -1563,6 +1610,10 @@
           searchPane.innerHTML = rows || '<div class="pl-search-loading">没有找到相关番号</div>';
           searchPane.querySelectorAll('img.pl-search-cover').forEach((img) => {
             img.addEventListener('error', () => { img.dataset.failed = '1'; img.style.opacity = '0'; });
+            img.addEventListener('contextmenu', (event) => {
+              event.preventDefault();
+              showCoverMenu(event, Number(img.dataset.resultIndex));
+            });
             img.addEventListener('click', () => {
               if (img.dataset.failed || !img.naturalWidth) return;
               const idx = coverItems.findIndex((entry) => entry.name === img.dataset.code);

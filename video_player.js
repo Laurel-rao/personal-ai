@@ -155,8 +155,9 @@
     $('playlistList').innerHTML = state.filtered.length ? state.filtered.map((item, index) => {
       const metadata = item.metadata || {};
       const details = [metadata.code, ...(metadata.actors || [])].filter(Boolean).join(' · ');
-      const coverSrc = metadata.cover_url || metadata.thumb_url;
-      const cover = coverSrc ? `<img src="${escape(coverSrc)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : '';
+      const coverSrc = metadata.cover_url || metadata.official_cover_url || metadata.thumb_url;
+      const coverFallback = metadata.thumb_url && metadata.thumb_url !== coverSrc ? metadata.thumb_url : '';
+      const cover = coverSrc ? `<img src="${escape(coverSrc)}" data-fallback="${escape(coverFallback)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : '';
       return `<button class="playlist-item${item.id === state.activeItem?.id ? ' active' : ''}" type="button" data-index="${index}" title="${escape(item.filename || item.title)}" aria-current="${item.id === state.activeItem?.id}" aria-label="播放 ${escape(item.title)}"><span class="playlist-thumb">${cover}<span>${escape(metadata.code || '▶')}</span></span><span class="playlist-item-body"><strong class="playlist-item-title">${escape(item.title)}</strong>${details ? `<span class="playlist-catalog-line">${escape(details)}</span>` : ''}<span class="playlist-item-meta"><span>${escape(item.extension.toUpperCase())}</span><span>${escape(formatSize(item.size))}</span></span></span></button>`;
     }).join('') : '<div class="playlist-empty">没有符合条件的视频</div>';
     renderNavigation();
@@ -217,12 +218,20 @@
     caption.textContent = '暂无已审核封面';
     placeholder.append(code, caption);
     $('filmCover').append(placeholder);
-    const coverSrc = metadata.cover_url || metadata.thumb_url;
+    const coverSrc = metadata.cover_url || metadata.official_cover_url || metadata.thumb_url;
     if (coverSrc) {
       const image = document.createElement('img');
       image.alt = `${metadata.code || item.title} 封面`;
       image.referrerPolicy = 'no-referrer';
-      image.addEventListener('error', () => image.remove(), { once: true });
+      image.dataset.fallback = metadata.thumb_url && metadata.thumb_url !== coverSrc ? metadata.thumb_url : '';
+      image.addEventListener('error', () => {
+        if (image.dataset.fallback) {
+          image.src = image.dataset.fallback;
+          image.removeAttribute('data-fallback');
+        } else {
+          image.remove();
+        }
+      });
       image.src = coverSrc;
       $('filmCover').append(image);
     }
@@ -410,7 +419,14 @@
     if (button) loadItem(state.filtered[Number(button.dataset.index)], true);
   });
   $('playlistList').addEventListener('error', (event) => {
-    if (event.target instanceof HTMLImageElement) event.target.remove();
+    if (!(event.target instanceof HTMLImageElement)) return;
+    const fallback = event.target.dataset.fallback;
+    if (fallback) {
+      event.target.src = fallback;
+      event.target.removeAttribute('data-fallback');
+    } else {
+      event.target.remove();
+    }
   }, true);
   $('searchInput').addEventListener('input', (event) => { state.query = event.target.value; applyFilter(); });
   document.querySelectorAll('.format-tab').forEach((tab) => tab.addEventListener('click', () => {

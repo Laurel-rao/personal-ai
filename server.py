@@ -3448,6 +3448,11 @@ def _all_videos() -> tuple[list[dict[str, Any]], str]:
         item["metadata"]["thumb_url"] = (
             "/api/player/thumb?path=" + urllib.parse.quote(relative, safe="")
         )
+        code = str(item["metadata"].get("code") or "")
+        if code:
+            item["metadata"]["official_cover_url"] = (
+                "/api/player/official-cover?code=" + urllib.parse.quote(code)
+            )
         items.append(item)
     items.sort(key=lambda item: item["modified_at"], reverse=True)
     with _VIDEO_LOCK:
@@ -3579,6 +3584,7 @@ def _video_public(item: dict[str, Any]) -> dict[str, Any]:
         "code": metadata.get("code") or "", "actors": metadata.get("actors") or [],
         "release_date": metadata.get("release_date") or "", "full_title": metadata.get("full_title") or "",
         "cover_url": metadata.get("cover_url") or "", "thumb_url": metadata.get("thumb_url") or "",
+        "official_cover_url": metadata.get("official_cover_url") or "",
         "duration": technical.get("duration") or 0,
     }
 
@@ -3605,6 +3611,18 @@ def player_cover() -> Response:
     if target is None:
         return jsonify({"error": "没有已审核的封面"}), 404
     return send_file(target, conditional=True, max_age=300)
+
+
+@console_bp.get("/api/player/official-cover")
+def player_official_cover() -> Response:
+    code = (request.args.get("code") or "").strip()
+    if not code:
+        return error_response(400, "缺少 code")
+    data = _nya_cover_bytes(code, full=(request.args.get("size") or "thumb") == "full")
+    if not data:
+        return error_response(404, "没有官方封面")
+    return Response(data, mimetype="image/jpeg",
+                    headers={"Cache-Control": "private, max-age=86400"})
 
 
 @console_bp.get("/api/player/thumb")

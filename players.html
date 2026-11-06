@@ -847,8 +847,10 @@
             const duration = Number(video.duration) || 0;
             const meta = [video.code, (video.actors || []).join('、'), (video.release_date || '').slice(0, 7), duration ? formatDuration(duration) : '']
               .filter(Boolean).join(' · ');
+            const coverSrc = video.cover_url || video.official_cover_url || video.thumb_url;
+            const coverFallback = video.thumb_url && video.thumb_url !== coverSrc ? video.thumb_url : '';
             return `<a class="pl-video-row" href="/player?video=${encodeURIComponent(video.id)}" target="_blank" rel="noopener">
-              <span class="pl-video-thumb">${video.cover_url || video.thumb_url ? `<img loading="lazy" src="${esc(video.cover_url || video.thumb_url)}" alt="">` : '<span class="pl-video-placeholder">▶</span>'}</span>
+              <span class="pl-video-thumb">${coverSrc ? `<img loading="lazy" src="${esc(coverSrc)}" data-fallback="${esc(coverFallback)}" alt="">` : '<span class="pl-video-placeholder">▶</span>'}</span>
               <span class="pl-video-copy"><b>${esc(video.full_title || video.title)}</b><small>${esc(meta || video.filename || '')}</small></span>
               <span class="pl-video-play">播放</span>
             </a>`;
@@ -939,6 +941,17 @@
               <button class="pl-detail-close" id="plClose2" type="button" aria-label="关闭">×</button>
             </div>`;
 
+          modalBox.querySelectorAll('.pl-video-thumb img[data-fallback]').forEach((img) => {
+            img.addEventListener('error', () => {
+              const fallback = img.dataset.fallback;
+              if (fallback) {
+                img.src = fallback;
+                img.removeAttribute('data-fallback');
+              } else {
+                img.remove();
+              }
+            });
+          });
           let photoKind = 'stills';
           let photoFiles = [];
           let photoIsLocal = false;

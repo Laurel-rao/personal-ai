@@ -3408,44 +3408,67 @@ _NYA_SEARCH_LOCK = threading.Lock()
 
 @console_bp.get("/api/nya/search")
 def api_nya_search() -> Response:
-    query = (request.args.get("q") or "").strip()
-    if not query:
+    term_values = [value.strip() for value in request.args.getlist("q") if value.strip()]
+    terms = [value.strip() for value in (request.args.get("terms") or "").split("|") if value.strip()]
+    queries: list[str] = []
+    for value in term_values + terms:
+        if value.lower() not in {item.lower() for item in queries}:
+            queries.append(value)
+    queries = queries[:8]
+    if not queries:
         return error_response(400, "请输入番号")
+    query = queries[0]
     source = (request.args.get("source") or "all").lower()
-    cache_key = f"{source}:{query.lower()}"
+    cache_key = f"{source}:{'|'.join(queries).lower()}"
     now = time.time()
     with _NYA_SEARCH_LOCK:
         cached = _NYA_SEARCH_CACHE.get(cache_key)
     if cached and now - cached[0] < _NYA_SEARCH_TTL:
         return jsonify(cached[1])
 
-    results: list[dict[str, Any]] = []
-    extra: list[dict[str, Any]] = []
-    if source != "btdig":
-        try:
-            results = _nya_search(query)
-        except Exception as exc:  # noqa: BLE001
-            return error_response(502, f"搜索失败：{exc}")
-    if source != "sukebei":
-        try:
-            extra = _nya_search_btdig(query)
-        except Exception:  # noqa: BLE001
-            extra = []
+    def run_one(term: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
+        results: list[dict[str, Any]] = []
+        extra: list[dict[str, Any]] = []
+        error = ""
+        if source != "btdig":
+            try:
+                results = _nya_search(term)
+            except Exception as exc:  # noqa: BLE001
+                error = str(exc)
+        if source != "sukebei":
+            try:
+                extra = _nya_search_btdig(term)
+            except Exception:  # noqa: BLE001
+                extra = []
+        return results, extra, error
 
-    if source == "all":
-        known_hashes = set()
-        for item in results:
-            magnet = item.get("magnet") or ""
-            found = re.search(r"btih[:=]([a-fA-F0-9]{40})", magnet)
-            if found:
-                known_hashes.add(found.group(1).lower())
-        extra = [item for item in extra if item["infohash"] not in known_hashes]
+    all_results: list[dict[str, Any]] = []
+    all_extra: list[dict[str, Any]] = []
+    errors: list[str] = []
+    with futures.ThreadPoolExecutor(max_workers=min(4, len(queries))) as pool:
+        for results, extra, error in pool.map(run_one, queries):
+            all_results.extend(results)
+            all_extra.extend(extra)
+            if error:
+                errors.append(error)
+    if not all_results and not all_extra and errors:
+        return error_response(502, f"搜索失败：{errors[0]}")
 
-    payload = {"success": True, "query": query, "source": source,
-               "count": len(results) + len(extra),
-               "sources": {"sukebei": len(results) if source != "btdig" else 0,
-                            "btdig": len(extra) if source != "sukebei" else 0},
-               "results": results + extra}
+    seen: set[str] = set()
+    merged: list[dict[str, Any]] = []
+    for item in all_results + all_extra:
+        key = str(item.get("view_id") or item.get("infohash") or item.get("magnet") or "")
+        if key and key in seen:
+            continue
+        if key:
+            seen.add(key)
+        merged.append(item)
+    payload = {"success": True, "query": " / ".join(queries), "queries": queries,
+               "source": source, "count": len(merged),
+               "sources": {"sukebei": len(all_results) if source != "btdig" else 0,
+                            "btdig": len(all_extra) if source != "sukebei" else 0},
+               "errors": errors,
+               "results": merged}
     with _NYA_SEARCH_LOCK:
         _NYA_SEARCH_CACHE[cache_key] = (now, payload)
         if len(_NYA_SEARCH_CACHE) > 300:

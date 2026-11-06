@@ -343,15 +343,16 @@
         return merged;
       }
 
-      async function search(query) {
+      async function search(query, terms = '') {
         setStatus('搜索中（sukebei）…');
-        const first = await fetch(`/api/nya/search?q=${encodeURIComponent(query)}&source=sukebei`);
+        const termParam = terms ? `&terms=${encodeURIComponent(terms)}` : '';
+        const first = await fetch(`/api/nya/search?q=${encodeURIComponent(query)}&source=sukebei${termParam}`);
         const base = await first.json();
         if (!first.ok || !base.success) throw new Error(base.error || '搜索失败');
         render(base.results || []);
         setStatus(`找到 ${base.count} 条（sukebei），正在补充 DHT 源…`);
         try {
-          const second = await fetch(`/api/nya/search?q=${encodeURIComponent(query)}&source=btdig`);
+          const second = await fetch(`/api/nya/search?q=${encodeURIComponent(query)}&source=btdig${termParam}`);
           const extra = await second.json();
           if (extra.success && (extra.results || []).length) {
             const merged = mergeResults(base.results || [], extra.results || []);
@@ -557,10 +558,10 @@
         else if (event.key === 'ArrowRight') stepLightbox(1);
       });
 
-      async function runSearch(query) {
+      async function runSearch(query, terms = '') {
         searchBtn.disabled = true;
         try {
-          await search(query);
+          await search(query, terms);
         } catch (error) {
           setStatus(error.message, true);
         } finally {
@@ -576,10 +577,12 @@
       });
 
       // 支持 /nya?q=CODE 直达搜索（选手作品列表点番号跳转）
-      const initialQuery = new URLSearchParams(location.search).get('q');
+      const initialParams = new URLSearchParams(location.search);
+      const initialQuery = initialParams.get('q');
+      const initialTerms = initialParams.get('terms') || '';
       if (initialQuery) {
         input.value = initialQuery;
-        runSearch(initialQuery.trim());
+        runSearch(initialQuery.trim(), initialTerms);
       }
     })();
   </script>

@@ -1823,8 +1823,8 @@
         searchModal.hidden = false;
         document.body.style.overflow = 'hidden';
         searchTitle.textContent = `搜索：${item.name}`;
-        const resourceQuery = item.jp_name || item.ro_name || item.name || '';
-        document.getElementById('plSearchResource').href = `/nya?q=${encodeURIComponent(resourceQuery)}`;
+        const resourceTerms = playerSearchTerms(item);
+        document.getElementById('plSearchResource').href = `/nya?q=${encodeURIComponent(resourceTerms[0] || '')}&terms=${encodeURIComponent(resourceTerms.join('|'))}`;
         loadCodeTab(item);
         searchModal.querySelectorAll('.pl-search-tabs button').forEach((btn) => {
           btn.classList.toggle('active', btn.dataset.tab === 'code');
@@ -1868,12 +1868,26 @@
         return String(value || "").toUpperCase().replace(/^([A-Z]+)-0*(\d+)$/, "$1-$2");
       }
 
+      function playerSearchTerms(item) {
+        const values = [item.jp_name, item.ro_name, item.name, ...(Array.isArray(item.aliases) ? item.aliases : [])];
+        const seen = new Set();
+        const terms = [];
+        values.forEach((value) => {
+          const text = String(value || '').trim();
+          if (text && !seen.has(text.toLowerCase())) {
+            seen.add(text.toLowerCase());
+            terms.push(text);
+          }
+        });
+        return terms;
+      }
+
       async function loadCodeTab(item) {
-        searchPane.innerHTML = '<div class="pl-search-loading">正在搜索番号（sukebei）…</div>';
-        const query = item.jp_name || item.ro_name || item.name;
+        const queries = playerSearchTerms(item);
+        searchPane.innerHTML = `<div class="pl-search-loading">正在按 ${queries.length} 个名字搜索番号（sukebei）…</div>`;
         try {
           const [response, localResponse] = await Promise.all([
-            fetch(`/api/nya/search?q=${encodeURIComponent(query)}&source=sukebei`),
+            fetch(`/api/nya/search?source=sukebei&terms=${encodeURIComponent(queries.join('|'))}`),
             fetch('/api/players/video-codes').catch(() => null),
           ]);
           const data = await readJson(response);
@@ -2075,12 +2089,25 @@
       }
 
       async function loadBookTab(item) {
-        searchPane.innerHTML = '<div class="pl-search-loading">正在检索写真集书目（NDL）…</div>';
+        const queries = playerSearchTerms(item);
+        searchPane.innerHTML = `<div class="pl-search-loading">正在按 ${queries.length} 个名字检索写真集书目（NDL）…</div>`;
         try {
-          const response = await fetch(`/api/players/books?name=${encodeURIComponent(item.jp_name || item.name)}&id=${encodeURIComponent(item.id)}`);
-          const data = await readJson(response);
-          if (!data.success) throw new Error(data.error || '检索失败');
-          const rows = (data.books || []).map((book) => `
+          const payloads = await Promise.all(queries.map(async (term) => {
+            const response = await fetch(`/api/players/books?name=${encodeURIComponent(term)}&id=${encodeURIComponent(item.id)}`);
+            const data = await readJson(response);
+            return data.success ? data : { books: [] };
+          }));
+          const seenBooks = new Set();
+          const mergedBooks = [];
+          payloads.forEach((data) => {
+            (data.books || []).forEach((book) => {
+              const key = String(book.isbn || book.title || book.link || '').toLowerCase();
+              if (!key || seenBooks.has(key)) return;
+              seenBooks.add(key);
+              mergedBooks.push(book);
+            });
+          });
+          const rows = mergedBooks.map((book) => `
             <div class="pl-search-row">
               <div style="display:flex;gap:10px;align-items:center;min-width:0">
                 ${book.cover ? `<img class="pl-book-cover" loading="lazy" src="${esc(book.cover)}" alt="">` : '<span class="pl-book-cover pl-book-cover-empty"></span>'}

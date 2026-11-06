@@ -275,13 +275,13 @@
     .pl-lb-btn { border: 1px solid rgba(255,255,255,.18); background: rgba(15,18,24,.55); color: #fff; width: 44px; height: 44px; border-radius: 50%; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
     .pl-lb-btn:hover { background: rgba(255,255,255,.24); }
     .pl-lb-close { position: absolute; top: 16px; right: 18px; }
-    .pl-lb-prev { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 3; }
-    .pl-lb-next { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 3; }
+    .pl-lb-prev { position: absolute; left: max(18px, calc(50% - 520px)); top: 50%; transform: translateY(-50%); z-index: 3; }
+    .pl-lb-next { position: absolute; right: max(18px, calc(50% - 520px)); top: 50%; transform: translateY(-50%); z-index: 3; }
     @media (max-width: 700px) {
       .pl-lb-stage { inset: 56px 12px 76px; }
       .pl-lb-frame img { max-width: calc(100vw - 24px); max-height: calc(100vh - 150px); }
-      .pl-lb-prev { left: 6px; }
-      .pl-lb-next { right: 6px; }
+      .pl-lb-prev { left: 10px; }
+      .pl-lb-next { right: 10px; }
     }
     .pl-lb-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: linear-gradient(transparent, rgba(0,0,0,.8)); color: #e8eef6; font-size: 13px; }
     .pl-lb-bar .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #cfd9e6; }
@@ -360,11 +360,11 @@
     <div class="pl-lb-stage" id="plLbStage">
       <div class="pl-lb-frame" id="plLbFrame">
         <img id="plLbImg" alt="" />
-        <button class="pl-lb-btn pl-lb-prev" id="plLbPrev" type="button" aria-label="上一张">‹</button>
-        <button class="pl-lb-btn pl-lb-next" id="plLbNext" type="button" aria-label="下一张">›</button>
       </div>
       <div class="pl-lb-loading" id="plLbLoading" hidden><span class="pl-lb-spinner"></span><span id="plLbLoadingText">加载中…</span></div>
     </div>
+    <button class="pl-lb-btn pl-lb-prev" id="plLbPrev" type="button" aria-label="上一张">‹</button>
+    <button class="pl-lb-btn pl-lb-next" id="plLbNext" type="button" aria-label="下一张">›</button>
     <button class="pl-lb-btn pl-lb-close" id="plLbClose" type="button" aria-label="关闭">×</button>
     <div class="pl-lb-bar">
       <span class="title" id="plLbTitle"></span>

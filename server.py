@@ -15,6 +15,7 @@ import json
 import mimetypes
 import os
 import re
+import hashlib
 import shutil
 import socket
 import ssl
@@ -3295,11 +3296,81 @@ def _all_videos() -> tuple[list[dict[str, Any]], str]:
             "url": f"/api/player/video?path={urllib.parse.quote(relative, safe='')}",
         }
         item["metadata"] = item_metadata(item, records, technical, file_stat)
+        item["metadata"]["thumb_url"] = (
+            "/api/player/thumb?path=" + urllib.parse.quote(relative, safe="")
+        )
         items.append(item)
     items.sort(key=lambda item: item["modified_at"], reverse=True)
     with _VIDEO_LOCK:
         _VIDEO_CACHE.update(at=now, items=items, warning=catalog_warning or technical_warning)
     return items, catalog_warning or technical_warning
+
+
+VIDEO_THUMB_DIR = DATA_DIR / "player" / "thumbs"
+FFMPEG_BIN = shutil.which("ffmpeg") or ""
+FFPROBE_BIN = shutil.which("ffprobe") or ""
+_VIDEO_THUMB_SEM = threading.Semaphore(2)
+
+
+def _video_duration(path: Path) -> float:
+    if not FFPROBE_BIN:
+        return 0.0
+    try:
+        result = subprocess.run(
+            [FFPROBE_BIN, "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=nw=1:nk=1", str(path)],
+            capture_output=True, text=True, timeout=15, check=False,
+        )
+        return max(0.0, float((result.stdout or "").strip() or 0))
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return 0.0
+
+
+def _video_thumb(relative: str) -> Path | None:
+    relative = str(relative or "").strip()
+    if not relative:
+        return None
+    target = (MOVIES_DIR / relative).resolve()
+    if MOVIES_DIR not in target.parents or not target.is_file() or target.suffix.lower() not in PLAYER_EXTENSIONS:
+        return None
+    try:
+        stat = target.stat()
+    except OSError:
+        return None
+    key = hashlib.sha1(f"v2|{relative}|{stat.st_size}|{stat.st_mtime_ns}".encode("utf-8")).hexdigest()
+    output = VIDEO_THUMB_DIR / f"{key}.jpg"
+    if output.is_file() and output.stat().st_size > 0:
+        return output
+    if not FFMPEG_BIN:
+        return None
+    VIDEO_THUMB_DIR.mkdir(parents=True, exist_ok=True)
+    temporary = output.with_name(f"{key}.{os.getpid()}.{threading.get_ident()}.jpg")
+    duration = _video_duration(target)
+    if duration:
+        seek = f"{max(5.0, min(duration * 0.25, 180.0)):.1f}"
+    else:
+        seek = "15"
+    with _VIDEO_THUMB_SEM:
+        if output.is_file() and output.stat().st_size > 0:
+            return output
+        for candidate in (seek, "0"):
+            try:
+                result = subprocess.run(
+                    [FFMPEG_BIN, "-hide_banner", "-loglevel", "error", "-ss", candidate,
+                     "-i", str(target), "-frames:v", "1", "-vf", "scale=480:-2:flags=lanczos",
+                     "-q:v", "4", "-an", "-y", str(temporary)],
+                    capture_output=True, timeout=25, check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                continue
+            if result.returncode == 0 and temporary.is_file() and temporary.stat().st_size > 0:
+                temporary.replace(output)
+                return output
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
+    return None
 
 
 def _video_norm(text: str) -> str:
@@ -3358,7 +3429,8 @@ def _video_public(item: dict[str, Any]) -> dict[str, Any]:
         "size": item.get("size"), "modified_at": item.get("modified_at"),
         "code": metadata.get("code") or "", "actors": metadata.get("actors") or [],
         "release_date": metadata.get("release_date") or "", "full_title": metadata.get("full_title") or "",
-        "cover_url": metadata.get("cover_url") or "", "duration": technical.get("duration") or 0,
+        "cover_url": metadata.get("cover_url") or "", "thumb_url": metadata.get("thumb_url") or "",
+        "duration": technical.get("duration") or 0,
     }
 
 
@@ -3384,6 +3456,14 @@ def player_cover() -> Response:
     if target is None:
         return jsonify({"error": "没有已审核的封面"}), 404
     return send_file(target, conditional=True, max_age=300)
+
+
+@console_bp.get("/api/player/thumb")
+def player_thumb() -> Response:
+    target = _video_thumb(request.args.get("path", ""))
+    if target is None:
+        return error_response(404, "没有视频封面")
+    return send_file(target, mimetype="image/jpeg", conditional=True, max_age=86400)
 
 
 @console_bp.get("/api/player/video")

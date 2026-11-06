@@ -40,6 +40,7 @@ try:
     detail = client.get(f"/api/players/detail?id={player['id']}").get_json()
     assert detail["item"]["video_count"] == 1, detail["item"]
     assert len(detail["videos"]) == 1 and detail["videos"][0]["id"].endswith("ABC-123-视频测试.mp4"), detail
+    assert detail["videos"][0]["thumb_url"].startswith("/api/player/thumb?path="), detail["videos"][0]
 
     other = client.get("/api/players/list?q=其他").get_json()
     assert other["total"] == 0, other

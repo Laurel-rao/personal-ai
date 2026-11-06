@@ -155,7 +155,8 @@
     $('playlistList').innerHTML = state.filtered.length ? state.filtered.map((item, index) => {
       const metadata = item.metadata || {};
       const details = [metadata.code, ...(metadata.actors || [])].filter(Boolean).join(' · ');
-      const cover = metadata.cover_url ? `<img src="${escape(metadata.cover_url)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : '';
+      const coverSrc = metadata.cover_url || metadata.thumb_url;
+      const cover = coverSrc ? `<img src="${escape(coverSrc)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : '';
       return `<button class="playlist-item${item.id === state.activeItem?.id ? ' active' : ''}" type="button" data-index="${index}" title="${escape(item.filename || item.title)}" aria-current="${item.id === state.activeItem?.id}" aria-label="播放 ${escape(item.title)}"><span class="playlist-thumb">${cover}<span>${escape(metadata.code || '▶')}</span></span><span class="playlist-item-body"><strong class="playlist-item-title">${escape(item.title)}</strong>${details ? `<span class="playlist-catalog-line">${escape(details)}</span>` : ''}<span class="playlist-item-meta"><span>${escape(item.extension.toUpperCase())}</span><span>${escape(formatSize(item.size))}</span></span></span></button>`;
     }).join('') : '<div class="playlist-empty">没有符合条件的视频</div>';
     renderNavigation();
@@ -216,12 +217,13 @@
     caption.textContent = '暂无已审核封面';
     placeholder.append(code, caption);
     $('filmCover').append(placeholder);
-    if (metadata.cover_url) {
+    const coverSrc = metadata.cover_url || metadata.thumb_url;
+    if (coverSrc) {
       const image = document.createElement('img');
       image.alt = `${metadata.code || item.title} 封面`;
       image.referrerPolicy = 'no-referrer';
       image.addEventListener('error', () => image.remove(), { once: true });
-      image.src = metadata.cover_url;
+      image.src = coverSrc;
       $('filmCover').append(image);
     }
   }

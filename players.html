@@ -833,7 +833,7 @@
             const meta = [video.code, (video.actors || []).join('、'), (video.release_date || '').slice(0, 7), duration ? formatDuration(duration) : '']
               .filter(Boolean).join(' · ');
             return `<a class="pl-video-row" href="/player?video=${encodeURIComponent(video.id)}" target="_blank" rel="noopener">
-              <span class="pl-video-thumb">${video.cover_url ? `<img loading="lazy" src="${esc(video.cover_url)}" alt="">` : '<span class="pl-video-placeholder">▶</span>'}</span>
+              <span class="pl-video-thumb">${video.cover_url || video.thumb_url ? `<img loading="lazy" src="${esc(video.cover_url || video.thumb_url)}" alt="">` : '<span class="pl-video-placeholder">▶</span>'}</span>
               <span class="pl-video-copy"><b>${esc(video.full_title || video.title)}</b><small>${esc(meta || video.filename || '')}</small></span>
               <span class="pl-video-play">播放</span>
             </a>`;

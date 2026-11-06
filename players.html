@@ -925,6 +925,7 @@
                   <button class="pl-action danger" id="plDownloadCancel" type="button" hidden>取消下载</button>
                   ${item.custom ? `<button class="pl-action" id="plRefreshBtn" type="button" title="重新获取基础信息">重取基础信息</button><button class="pl-action" id="plEditBtn" type="button">编辑资料</button>` : ''}
                   <button class="pl-action" id="plHideBtn" type="button">${item.hidden ? '取消隐藏' : '隐藏'}</button>
+                  <button class="pl-action" id="plDmmBtn" type="button" title="手动纠正 DMM 女优 ID">DMM ID</button>
                   <button class="pl-action" id="plSearchBtn" type="button">搜索番号 / 写真集</button>
                 </div>
               </aside>
@@ -1164,6 +1165,28 @@
 
           document.getElementById('plClose2')?.addEventListener('click', closeModal);
           document.getElementById('plSearchBtn')?.addEventListener('click', () => openSearchModal(item));
+          document.getElementById('plDmmBtn')?.addEventListener('click', async () => {
+            const value = window.prompt('输入 DMM 女优 ID（纯数字；留空解除关联）', item.dmm_id || '');
+            if (value === null) return;
+            const dmmId = value.trim();
+            if (dmmId && !/^\d{1,12}$/.test(dmmId)) {
+              window.alert('DMM ID 必须是纯数字');
+              return;
+            }
+            try {
+              const response = await fetch('/api/players/dmm-id', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: item.id, dmmId }),
+              });
+              const result = await readJson(response);
+              if (!response.ok || !result.success) throw new Error(result.error || '保存失败');
+              await load(true);
+              openDetail(item.id);
+            } catch (error) {
+              window.alert(`保存失败：${error.message}`);
+            }
+          });
           document.getElementById('plHideBtn')?.addEventListener('click', async () => {
             const button = document.getElementById('plHideBtn');
             button.disabled = true;

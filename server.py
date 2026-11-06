@@ -473,7 +473,9 @@ def _am_load() -> dict[str, Any]:
     tags_file = _AM_DIR / "player-tags.jsonl"
     comments_file = _AM_DIR / "player-comments.jsonl"
     enrich_file = _AM_DIR / "dmm-enrich.json"
-    stamp = max((p.stat().st_mtime for p in (merged, tags_file, comments_file, enrich_file, _AM_USER_FILE) if p.exists()), default=0.0)
+    overrides_file = _AM_DIR / "player-overrides.json"
+    stamp = max((p.stat().st_mtime for p in (merged, tags_file, comments_file, enrich_file,
+                                             _AM_USER_FILE, overrides_file) if p.exists()), default=0.0)
     with _AM_LOCK:
         if _AM_STATE["mtime"] == stamp and _AM_STATE["cards"]:
             return _AM_STATE
@@ -512,6 +514,10 @@ def _am_load() -> dict[str, Any]:
         items = row.get("comments") or []
         if items:
             comments[row.get("playerId", "")] = items
+    overrides = _am_overrides()
+    for player_id, patch in overrides.items():
+        if player_id in profiles:
+            profiles[player_id].update(patch)
     groups: dict[str, list[dict[str, Any]]] = {}
     for card in cards:
         groups.setdefault(_person_key(card, profiles.get(card["id"], {})), []).append(card)
@@ -906,6 +912,37 @@ def _write_user_rows(rows: list[dict[str, Any]]) -> None:
         _AM_STATE["mtime"] = 0.0
 
 
+def _am_overrides() -> dict[str, dict[str, Any]]:
+    path = _AM_DIR / "player-overrides.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {str(key): value for key, value in data.items() if isinstance(value, dict)} if isinstance(data, dict) else {}
+
+
+def _write_am_overrides(overrides: dict[str, dict[str, Any]]) -> None:
+    _AM_DIR.mkdir(parents=True, exist_ok=True)
+    path = _AM_DIR / "player-overrides.json"
+    temporary = path.with_name(f"{path.name}.tmp")
+    with _AM_LOCK:
+        temporary.write_text(json.dumps(overrides, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(path)
+        _AM_STATE["mtime"] = 0.0
+
+
+def _set_dmm_override(player_id: str, dmm_id: str) -> None:
+    overrides = _am_overrides()
+    if dmm_id:
+        entry = _dmm_entry(dmm_id)
+        overrides[player_id] = {"dmmId": dmm_id, "dmmImage": str(entry.get("image") or "")}
+        if not overrides[player_id]["dmmImage"]:
+            overrides[player_id].pop("dmmImage", None)
+    else:
+        overrides.pop(player_id, None)
+    _write_am_overrides(overrides)
+
+
 def _am_add_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
     """登记一位选手；只写文字资料，不抓取任何图片。"""
     name = str(payload.get("displayName") or "").strip()
@@ -1044,6 +1081,8 @@ def _am_update_player(payload: dict[str, Any]) -> tuple[dict[str, Any] | None, s
         if extras["social"]:
             profile["social"] = extras["social"]
         _write_user_rows(rows)
+        if dmm_id_supplied:
+            _set_dmm_override(player_id, dmm_id)
         refreshed = _am_load()
         return _am_item(card, refreshed["profiles"].get(player_id, profile)), ""
     return None, "只能编辑手动添加的选手"
@@ -1341,6 +1380,25 @@ def api_players_hide() -> Response:
     hidden = bool(payload.get("hidden"))
     _set_hidden(card_id, hidden)
     return jsonify({"success": True, "id": card_id, "hidden": hidden})
+
+
+@console_bp.post("/api/players/dmm-id")
+def api_players_dmm_id() -> Response:
+    payload = request.get_json(silent=True) or {}
+    card_id = str(payload.get("id") or "").strip()
+    if not card_id:
+        return error_response(400, "缺少选手 id")
+    dmm_id = str(payload.get("dmmId") or "").strip()
+    if dmm_id and not re.fullmatch(r"\d{1,12}", dmm_id):
+        return error_response(400, "DMM ID 必须是数字")
+    state = _am_load()
+    card = next((item for item in state["cards"] if item.get("id") == card_id), None)
+    if card is None:
+        return error_response(404, "没有找到这位选手")
+    _set_dmm_override(card_id, dmm_id)
+    refreshed = _am_load()
+    return jsonify({"success": True, "item": _am_item(card, refreshed["profiles"].get(card_id, {})),
+                    "dmmId": dmm_id})
 
 
 @console_bp.post("/api/players/update")

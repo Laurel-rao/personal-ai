@@ -344,6 +344,15 @@
     .pl-book-cover { width: 44px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 5px; border: 1px solid var(--page-line, #e3e9ee); background: #f3f6f8; flex: 0 0 44px; }
     .pl-book-cover-empty { display: block; }
     .pl-search-loading { padding: 28px 0; text-align: center; color: var(--page-muted, #7b8795); font-size: 12.5px; }
+    .pl-search-tools { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--page-line, #e3e9ee); color: var(--page-muted, #7b8795); font-size: 11.5px; flex-wrap: wrap; }
+    .pl-search-tools label { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+    .pl-search-tools select { border: 1px solid var(--page-line, #e3e9ee); border-radius: 6px; padding: 3px 6px; font-size: 11.5px; background: var(--page-surface, #fff); color: var(--page-text, #243242); }
+    .pl-search-tools button { border: 1px solid var(--page-line, #e3e9ee); border-radius: 6px; padding: 3px 8px; background: var(--page-surface, #fff); color: var(--page-text, #243242); font-size: 11.5px; cursor: pointer; }
+    .pl-search-tools button:hover { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); }
+    .pl-search-group-toggle { border-color: var(--page-primary, #087f65) !important; color: var(--page-primary, #087f65) !important; }
+    .pl-search-variants { margin-left: 94px; padding-left: 10px; border-left: 2px solid var(--page-primary-soft, #edf7f2); }
+    .pl-search-variants[hidden] { display: none; }
+    .pl-search-row.variant { background: #fafbfc; }
 </style>
 </head>
 <body data-page="idols">
@@ -1585,15 +1594,37 @@
             const match = String(title || '').match(/([A-Za-z]{2,6})[-_ ]?0*(\d{2,5})/);
             return match ? `${match[1]}-${match[2]}` : '';
           };
-          const coverItems = (data.results || []).map((result, resultIndex) => {
-            const code = coverOf(result.title);
-            return code ? { src: `/api/nya/cover?code=${encodeURIComponent(code)}&size=full`, name: code, file: `${code}.jpg`, resultIndex } : null;
-          }).filter(Boolean);
-          const rows = (data.results || []).map((result, index) => {
-            const code = coverOf(result.title);
+          const results = Array.isArray(data.results) ? data.results : [];
+          const entries = results.map((result, index) => ({ result, index, code: coverOf(result.title) }));
+          const coverItems = entries.filter((entry) => entry.code).map((entry) => ({
+            src: `/api/nya/cover?code=${encodeURIComponent(entry.code)}&size=full`,
+            name: entry.code,
+            file: `${entry.code}.jpg`,
+            resultIndex: entry.index,
+          }));
+          let codeSort = 'downloads';
+          const expanded = new Set();
+          let groupKeys = [];
+
+          const metric = (entry) => {
+            if (codeSort === 'seeders') return Number(entry.result.seeders) || 0;
+            if (codeSort === 'time') return Date.parse(entry.result.uploaded_at || '') || 0;
+            return Number(entry.result.downloads || entry.result.leechers) || 0;
+          };
+          const sortOptions = [
+            ['downloads', '下载量'],
+            ['seeders', '做种量'],
+            ['time', '时间'],
+          ];
+
+          function resultRow(entry, options = {}) {
+            const { result, index, code } = entry;
             const cover = code ? `/api/nya/cover?code=${encodeURIComponent(code)}&size=full` : '';
+            const groupToggle = options.groupKey && options.groupCount > 1
+              ? `<button type="button" class="pl-search-group-toggle" data-group-toggle="${esc(options.groupKey)}" data-group-extra="${options.groupCount - 1}">${options.open ? '收起' : `+${options.groupCount - 1} 个资源`}</button>`
+              : '';
             return `
-            <div class="pl-search-row">
+            <div class="pl-search-row${options.variant ? ' variant' : ''}">
               <div style="display:flex;gap:10px;align-items:flex-start;min-width:0">
                 ${cover ? `<img class="pl-search-cover" loading="lazy" src="${cover}" alt="${esc(code)}" data-cover="${esc(cover)}" data-code="${esc(code)}" data-result-index="${index}">` : ''}
                 <div style="min-width:0">
@@ -1602,48 +1633,117 @@
                 </div>
               </div>
               <div class="pl-search-actions">
+                ${groupToggle}
                 <button type="button" class="primary" data-code-download="${index}">送迅雷</button>
                 <button type="button" data-code-copy="${index}">磁力</button>
               </div>
             </div>`;
-          }).join('');
-          searchPane.innerHTML = rows || '<div class="pl-search-loading">没有找到相关番号</div>';
-          searchPane.querySelectorAll('img.pl-search-cover').forEach((img) => {
-            img.addEventListener('error', () => { img.dataset.failed = '1'; img.style.opacity = '0'; });
-            img.addEventListener('contextmenu', (event) => {
-              event.preventDefault();
-              showCoverMenu(event, Number(img.dataset.resultIndex));
+          }
+
+          function renderRows() {
+            const groups = new Map();
+            entries.forEach((entry) => {
+              const key = entry.code || `__${entry.index}`;
+              if (!groups.has(key)) groups.set(key, { key, entries: [] });
+              groups.get(key).entries.push(entry);
             });
-            img.addEventListener('click', () => {
-              if (img.dataset.failed || !img.naturalWidth) return;
-              const idx = coverItems.findIndex((entry) => entry.name === img.dataset.code);
-              openLightbox(coverItems, idx >= 0 ? idx : 0);
+            const ordered = [...groups.values()].map((group) => {
+              group.entries.sort((a, b) => metric(b) - metric(a));
+              return group;
+            }).sort((a, b) => metric(b.entries[0]) - metric(a.entries[0]));
+            groupKeys = ordered.map((group) => group.key);
+            const rows = ordered.map((group) => {
+              const representative = group.entries[0];
+              const open = expanded.has(group.key);
+              const extra = group.entries.slice(1);
+              return `<div class="pl-search-group">
+                ${resultRow(representative, { groupKey: group.key, groupCount: group.entries.length, open })}
+                ${extra.length ? `<div class="pl-search-variants" data-group-body="${esc(group.key)}"${open ? '' : ' hidden'}>${extra.map((entry) => resultRow(entry, { variant: true })).join('')}</div>` : ''}
+              </div>`;
+            }).join('');
+            const allOpen = groupKeys.length > 0 && groupKeys.every((key) => expanded.has(key));
+            searchPane.innerHTML = `
+              <div class="pl-search-tools">
+                <span>${groups.size} 个番号 · ${entries.length} 个资源</span>
+                <label>排序
+                  <select id="plCodeSort">${sortOptions.map(([value, label]) => `<option value="${value}"${value === codeSort ? ' selected' : ''}>${label}</option>`).join('')}</select>
+                </label>
+                <button type="button" id="plCodeToggleAll">${allOpen ? '全部收起' : '全部展开'}</button>
+              </div>
+              <div class="pl-search-groups">${rows || '<div class="pl-search-loading">没有找到相关番号</div>'}</div>`;
+            bindRows();
+          }
+
+          function bindRows() {
+            searchPane.querySelectorAll('img.pl-search-cover').forEach((img) => {
+              img.addEventListener('error', () => { img.dataset.failed = '1'; img.style.opacity = '0'; });
+              img.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
+                showCoverMenu(event, Number(img.dataset.resultIndex));
+              });
+              img.addEventListener('click', () => {
+                if (img.dataset.failed || !img.naturalWidth) return;
+                const idx = coverItems.findIndex((entry) => entry.name === img.dataset.code);
+                openLightbox(coverItems, idx >= 0 ? idx : 0);
+              });
             });
-          });
-          searchPane.querySelectorAll('button[data-code-download]').forEach((btn) => {
-            btn.addEventListener('click', async () => {
-              const result = data.results[Number(btn.dataset.codeDownload)];
-              btn.disabled = true; btn.textContent = '发送中…';
-              try {
-                const response = await fetch('/api/nya/download', {
-                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(result.view_id ? { view_id: result.view_id, code: '', magnet: result.magnet } : { magnet: result.magnet }),
-                });
-                const out = await readJson(response);
-                if (!response.ok || !out.success) throw new Error(out.error || '失败');
-                btn.textContent = '已发送';
-              } catch (error) { btn.textContent = '失败'; }
-              setTimeout(() => { btn.disabled = false; btn.textContent = '送迅雷'; }, 3000);
+            searchPane.querySelectorAll('[data-group-toggle]').forEach((btn) => {
+              btn.addEventListener('click', () => {
+                const key = btn.dataset.groupToggle;
+                const body = [...searchPane.querySelectorAll('[data-group-body]')].find((node) => node.dataset.groupBody === key);
+                if (!body) return;
+                const open = body.hidden;
+                body.hidden = !open;
+                if (open) expanded.add(key); else expanded.delete(key);
+                btn.textContent = open ? '收起' : `+${btn.dataset.groupExtra} 个资源`;
+                updateAllToggle();
+              });
             });
-          });
-          searchPane.querySelectorAll('button[data-code-copy]').forEach((btn) => {
-            btn.addEventListener('click', async () => {
-              const result = data.results[Number(btn.dataset.codeCopy)];
-              if (!result.magnet) return;
-              try { await navigator.clipboard.writeText(result.magnet); btn.textContent = '已复制'; } catch (e) { btn.textContent = '失败'; }
-              setTimeout(() => { btn.textContent = '磁力'; }, 2000);
+            document.getElementById('plCodeSort')?.addEventListener('change', (event) => {
+              codeSort = event.target.value;
+              renderRows();
             });
-          });
+            document.getElementById('plCodeToggleAll')?.addEventListener('click', () => {
+              const allOpen = groupKeys.length > 0 && groupKeys.every((key) => expanded.has(key));
+              expanded.clear();
+              if (!allOpen) groupKeys.forEach((key) => expanded.add(key));
+              renderRows();
+            });
+            searchPane.querySelectorAll('button[data-code-download]').forEach((btn) => {
+              btn.addEventListener('click', async () => {
+                const result = entries[Number(btn.dataset.codeDownload)]?.result;
+                if (!result) return;
+                btn.disabled = true; btn.textContent = '发送中…';
+                try {
+                  const response = await fetch('/api/nya/download', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(result.view_id ? { view_id: result.view_id, code: '', magnet: result.magnet } : { magnet: result.magnet }),
+                  });
+                  const out = await readJson(response);
+                  if (!response.ok || !out.success) throw new Error(out.error || '失败');
+                  btn.textContent = '已发送';
+                } catch (error) { btn.textContent = '失败'; }
+                setTimeout(() => { btn.disabled = false; btn.textContent = '送迅雷'; }, 3000);
+              });
+            });
+            searchPane.querySelectorAll('button[data-code-copy]').forEach((btn) => {
+              btn.addEventListener('click', async () => {
+                const result = entries[Number(btn.dataset.codeCopy)]?.result;
+                if (!result?.magnet) return;
+                try { await navigator.clipboard.writeText(result.magnet); btn.textContent = '已复制'; } catch (e) { btn.textContent = '失败'; }
+                setTimeout(() => { btn.textContent = '磁力'; }, 2000);
+              });
+            });
+          }
+
+          function updateAllToggle() {
+            const button = document.getElementById('plCodeToggleAll');
+            if (!button) return;
+            const allOpen = groupKeys.length > 0 && groupKeys.every((key) => expanded.has(key));
+            button.textContent = allOpen ? '全部收起' : '全部展开';
+          }
+
+          renderRows();
         } catch (error) {
           searchPane.innerHTML = `<div class="pl-search-loading">${esc(error.message)}</div>`;
         }

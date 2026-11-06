@@ -780,11 +780,16 @@
       }
 
       async function openLocalPhotos(id) {
+        const item = items.find((entry) => entry.id === id);
+        if (!item) {
+          openDetail(id);
+          return;
+        }
         modalBox.classList.remove('pl-detail-box');
         detailDownloadToken += 1;
         stopDetailDownloadPoll();
-        const item = items.find((entry) => entry.id === id);
-        if (!item) return;
+        modal.hidden = false;
+        document.body.style.overflow = 'hidden';
         modalBox.innerHTML = `
           <div style="grid-column:1/-1">
             <button class="pl-close" id="plLocalClose" type="button" aria-label="关闭">×</button>
@@ -2020,13 +2025,13 @@
       }
 
       function closeModal() {
+        modal.hidden = true;
+        document.body.style.overflow = '';
         modalBox.classList.remove('pl-detail-box');
         clearTimeout(photoPollTimer);
         photoLoadToken += 1;
         detailDownloadToken += 1;
         stopDetailDownloadPoll();
-        modal.hidden = true;
-        document.body.style.overflow = '';
       }
 
       modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });

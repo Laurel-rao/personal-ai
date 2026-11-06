@@ -406,7 +406,8 @@ def serve_static(path: Path) -> Response:
     if not path.is_file():
         return error_response(404, "页面文件不存在")
     if path.suffix == ".html":
-        return Response(render_template_string(path.read_text(encoding="utf-8")), mimetype="text/html")
+        return Response(render_template_string(path.read_text(encoding="utf-8")), mimetype="text/html",
+                        headers={"Cache-Control": "no-store"})
     content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     if content_type.startswith("text/") or path.suffix in {".js", ".css"}:
         content_type = f"{content_type}; charset=utf-8"

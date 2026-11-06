@@ -249,9 +249,9 @@
 
         currentSorted = sorted;
         lightboxItems = sorted
-          .map((item) => {
+          .map((item, index) => {
             const code = extractCode(item.title);
-            return code ? { src: coverPreview(code), full: coverFull(code), title: item.title || code, code } : null;
+            return code ? { src: coverPreview(code), full: coverFull(code), title: item.title || code, code, result: item, resultIndex: index } : null;
           })
           .filter(Boolean);
         list.querySelectorAll('.nya-cover img').forEach((img) => {
@@ -367,9 +367,11 @@
 
       async function download(item, btn) {
         const code = extractCode(item.title) || item.view_id;
-        btn.disabled = true;
-        const original = btn.textContent;
-        btn.textContent = '发送中…';
+        const original = btn ? btn.textContent : '送迅雷';
+        if (btn) {
+          btn.disabled = true;
+          btn.textContent = '发送中…';
+        }
         try {
           const response = await fetch('/api/nya/download', {
             method: 'POST',
@@ -379,12 +381,12 @@
           const data = await response.json();
           if (!response.ok || !data.success) throw new Error(data.error || '发送失败');
           setStatus(`已送入迅雷：${data.torrent || '磁力任务'}`);
-          btn.textContent = '已发送';
+          if (btn) btn.textContent = '已发送';
         } catch (error) {
           setStatus(error.message, true);
-          btn.textContent = original;
+          if (btn) btn.textContent = original;
         } finally {
-          setTimeout(() => { btn.disabled = false; if (btn.textContent === '已发送') btn.textContent = original; }, 4000);
+          if (btn) setTimeout(() => { btn.disabled = false; if (btn.textContent === '已发送') btn.textContent = original; }, 4000);
         }
       }
 
@@ -489,8 +491,10 @@
           return;
         }
         if (action === 'thunder') {
-          const trigger = document.querySelector(`.nya-card[data-index="${index}"] .nya-actions button.primary`);
-          if (trigger) download(item, trigger);
+          const trigger = index >= 0
+            ? document.querySelector(`.nya-card[data-index="${index}"] .nya-actions button.primary`)
+            : null;
+          download(item, trigger);
           return;
         }
         if (action === 'magnet') {
@@ -515,6 +519,13 @@
       document.addEventListener('scroll', hideContextMenu, true);
       window.addEventListener('resize', hideContextMenu);
       document.addEventListener('keydown', (event) => { if (event.key === 'Escape') hideContextMenu(); });
+
+      lbImg.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        const entry = lightboxItems[lightboxIndex];
+        if (!entry) return;
+        showContextMenu(event, entry.result || { title: entry.title, code: entry.code }, entry.resultIndex ?? -1, entry.code);
+      });
 
       function openLightbox(index) {
         if (!lightboxItems.length) return;

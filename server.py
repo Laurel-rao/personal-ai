@@ -593,7 +593,7 @@ def _set_hidden(player_id: str, hidden: bool) -> None:
 
 def _am_item(card: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
     extra = (_AM_STATE.get("enrich") or {}).get(card.get("id"), {})
-    dmm_id = str(extra.get("dmm_id") or profile.get("dmmId") or "")
+    dmm_id = str(profile.get("dmmId") or extra.get("dmm_id") or "")
     dmm = _dmm_entry(dmm_id)
     dmm_measure = "-".join(part for part in (
         f"B{dmm['bust']}" if dmm.get("bust") else "",
@@ -2488,7 +2488,7 @@ def _start_player_download(card_id: str, limit: int = 0, codes: str = "") -> tup
     name = card.get("displayName") or profile.get("displayName") or card.get("name") or ""
     jp_name = profile.get("japaneseName") or ""
     roman = card.get("name") or profile.get("name") or ""
-    dmm_id = str(extra.get("dmm_id") or profile.get("dmmId") or "")
+    dmm_id = str(profile.get("dmmId") or extra.get("dmm_id") or "")
     if not dmm_id:
         dmm_id = _resolve_dmm_id(name, jp_name, roman)
     if not dmm_id and not jp_name:
@@ -2587,7 +2587,7 @@ def _download_book_plan(card_id: str) -> dict[str, Any]:
         card = next((item for item in state["cards"] if item.get("id") == card_id), {})
         profile = state["profiles"].get(card_id, {})
         extra = (state.get("enrich") or {}).get(card_id, {})
-        dmm_id = str(extra.get("dmm_id") or profile.get("dmmId") or "")
+        dmm_id = str(profile.get("dmmId") or extra.get("dmm_id") or "")
         if not dmm_id:
             dmm_id = _resolve_dmm_id(info["name"], info["jp"], info["roman"])
         if dmm_id:

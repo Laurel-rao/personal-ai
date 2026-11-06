@@ -15,6 +15,7 @@
     books: "写真集书目",
     preview: "写真集预览",
     pack: "PDF 打包",
+    covers: "封面更新",
   });
   const STATUS_LABELS = Object.freeze({
     running: "运行中",
@@ -265,6 +266,8 @@
         return countOf(task, "books", "本书目");
       case "preview":
         return countOf(task, "images", "张预览图");
+      case "covers":
+        return `官方 ${Number(result.official) || 0} · 截帧 ${Number(result.frame) || 0}`;
       case "pack": {
         const books = Number(result.books) || 0;
         const pages = Number(result.pages) || 0;

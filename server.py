@@ -1145,6 +1145,10 @@ def _run_retry_task(task: dict[str, Any]) -> None:
                 raise RuntimeError(message)
             task_store.log(task_id, message or f"已更新：{'、'.join(changed)}")
             task_store.finish(task_id, "success", {"updated": changed, "message": message})
+        elif kind == "covers":
+            result = _warm_video_covers()
+            task_store.log(task_id, f"官方 {result['official']} · 截帧 {result['frame']}")
+            task_store.finish(task_id, "success", result)
         elif kind == "photos":
             photo_kind = str(payload.get("kind") or "stills")
             result = _photos_payload(card_id, photo_kind, bool(payload.get("refresh")))
@@ -3451,7 +3455,7 @@ def _all_videos() -> tuple[list[dict[str, Any]], str]:
         code = str(item["metadata"].get("code") or "")
         if code:
             item["metadata"]["official_cover_url"] = (
-                "/api/player/official-cover?code=" + urllib.parse.quote(code) + "&v=2"
+                "/api/player/official-cover?code=" + urllib.parse.quote(code) + "&v=3"
             )
         items.append(item)
     items.sort(key=lambda item: item["modified_at"], reverse=True)
@@ -3589,6 +3593,71 @@ def _video_public(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _warm_video_covers() -> dict[str, Any]:
+    """Ensure every local video has an official cover or a frame fallback."""
+    _VIDEO_CACHE.update(at=0.0)
+    items, warning = _all_videos()
+    counts = {"videos": len(items), "official": 0, "frame": 0, "missing": 0}
+
+    def warm(item: dict[str, Any]) -> str:
+        code = str((item.get("metadata") or {}).get("code") or "")
+        if code:
+            try:
+                data = _nya_cover_bytes(code, full=True)
+                if data:
+                    return "official"
+            except Exception:  # noqa: BLE001
+                pass
+        try:
+            return "frame" if _video_thumb(item["id"]) else "missing"
+        except Exception:  # noqa: BLE001
+            return "missing"
+
+    with futures.ThreadPoolExecutor(max_workers=5) as pool:
+        for kind in pool.map(warm, items):
+            counts[kind] = counts.get(kind, 0) + 1
+    counts["warning"] = warning
+    return counts
+
+
+COVER_REFRESH_STATE = DATA_DIR / "player" / "cover-refresh.json"
+
+
+def _cover_last_refresh() -> float:
+    try:
+        return float(json.loads(COVER_REFRESH_STATE.read_text(encoding="utf-8")).get("at") or 0)
+    except (OSError, ValueError, AttributeError):
+        return 0.0
+
+
+def _video_cover_scheduler() -> None:
+    try:
+        interval = int(os.environ.get("VIDEO_COVER_REFRESH_SECONDS") or 86400)
+    except ValueError:
+        interval = 86400
+    interval = max(3600, interval)
+    time.sleep(30)
+    while True:
+        last = _cover_last_refresh()
+        wait = interval - (time.time() - last) if last else 0
+        if wait > 0:
+            time.sleep(min(wait, 3600))
+            continue
+        task = task_store.create("covers", "更新视频封面")
+        task_id = task["id"]
+        task_store.log(task_id, "开始扫描本地视频并更新封面…")
+        try:
+            result = _warm_video_covers()
+            task_store.log(task_id, f"完成：官方 {result['official']}，截帧 {result['frame']}，缺失 {result['missing']}")
+            task_store.finish(task_id, "success", result)
+            COVER_REFRESH_STATE.parent.mkdir(parents=True, exist_ok=True)
+            COVER_REFRESH_STATE.write_text(json.dumps({"at": time.time()}), encoding="utf-8")
+        except Exception as exc:  # noqa: BLE001
+            task_store.log(task_id, f"失败：{exc}")
+            task_store.finish(task_id, "failed", error=str(exc)[:300])
+        time.sleep(interval)
+
+
 @console_bp.get("/api/player/videos")
 def player_videos() -> Response:
     """列出配置的 Movies 目录下可播放的视频及其资料。"""
@@ -3616,38 +3685,16 @@ def player_cover() -> Response:
 OFFICIAL_THUMB_DIR = DATA_DIR / "player" / "official-thumbs"
 
 
-def _official_thumb_bytes(code: str, data: bytes) -> bytes:
-    key = "v2-" + (re.sub(r"[^A-Za-z0-9_-]+", "-", code or "").strip("-").upper() or "cover")
-    target = OFFICIAL_THUMB_DIR / f"{key}.jpg"
-    if target.is_file() and target.stat().st_size > 0:
-        return target.read_bytes()
-    try:
-        from PIL import Image  # 项目 venv 自带 Pillow
-        import io
-        image = Image.open(io.BytesIO(data)).convert("RGB")
-        image.thumbnail((480, 480))
-        OFFICIAL_THUMB_DIR.mkdir(parents=True, exist_ok=True)
-        temporary = target.with_name(f"{target.name}.tmp")
-        image.save(temporary, "JPEG", quality=84, optimize=True)
-        temporary.replace(target)
-        return target.read_bytes()
-    except Exception:  # noqa: BLE001
-        return data
-
-
 @console_bp.get("/api/player/official-cover")
 def player_official_cover() -> Response:
     code = (request.args.get("code") or "").strip()
     if not code:
         return error_response(400, "缺少 code")
-    full = (request.args.get("size") or "small") == "full"
     data = _nya_cover_bytes(code, full=True)
     if not data:
         data = _nya_cover_bytes(code, full=False)
     if not data:
         return error_response(404, "没有官方封面")
-    if not full:
-        data = _official_thumb_bytes(code, data)
     return Response(data, mimetype="image/jpeg",
                     headers={"Cache-Control": "private, max-age=86400"})
 
@@ -4465,6 +4512,7 @@ def create_console_app(config=None) -> Flask:
     task_store.delete_photo_tasks()
     threading.Thread(target=_resume_download_tasks, daemon=True).start()
     threading.Thread(target=_ensure_dmm_proxy, daemon=True).start()
+    threading.Thread(target=_video_cover_scheduler, daemon=True).start()
     app = Flask(__name__, static_folder=None)
     if config:
         app.config.update(config)

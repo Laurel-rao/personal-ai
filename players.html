@@ -435,6 +435,7 @@
           <option value="books">写真集书目</option>
           <option value="preview">写真集预览</option>
           <option value="pack">PDF 打包</option>
+          <option value="covers">封面更新</option>
         </select>
         <select id="plTasksStatus" aria-label="任务状态">
           <option value="">全部状态</option>
@@ -2028,6 +2029,7 @@
       const TASK_KINDS = {
         download: '写真下载', refresh: '资料刷新', photos: '写真查询',
         works: '作品查询', books: '写真集书目', preview: '写真集预览', pack: 'PDF 打包',
+        covers: '封面更新',
       };
       const TASK_STATUS = { running: '运行中', success: '成功', failed: '失败', cancelled: '已取消' };
       let tasksPoll = 0;
@@ -2055,6 +2057,9 @@
         }
         if (task.kind === 'pack') {
           return result.books != null ? `${result.books} 本 / ${result.pages || 0} 页` : '';
+        }
+        if (task.kind === 'covers') {
+          return `官方 ${result.official || 0} · 截帧 ${result.frame || 0}`;
         }
         if (result.count != null) return `${result.count} 项`;
         return '';

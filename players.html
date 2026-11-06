@@ -1596,12 +1596,18 @@
           };
           const results = Array.isArray(data.results) ? data.results : [];
           const entries = results.map((result, index) => ({ result, index, code: coverOf(result.title) }));
-          const coverItems = entries.filter((entry) => entry.code).map((entry) => ({
-            src: `/api/nya/cover?code=${encodeURIComponent(entry.code)}&size=full`,
-            name: entry.code,
-            file: `${entry.code}.jpg`,
-            resultIndex: entry.index,
-          }));
+          const seenCoverCodes = new Set();
+          const coverItems = [];
+          entries.forEach((entry) => {
+            if (!entry.code || seenCoverCodes.has(entry.code)) return;
+            seenCoverCodes.add(entry.code);
+            coverItems.push({
+              src: `/api/nya/cover?code=${encodeURIComponent(entry.code)}&size=full`,
+              name: entry.code,
+              file: `${entry.code}.jpg`,
+              resultIndex: entry.index,
+            });
+          });
           let codeSort = 'downloads';
           const expanded = new Set();
           let groupKeys = [];
@@ -1684,6 +1690,8 @@
               img.addEventListener('click', () => {
                 if (img.dataset.failed || !img.naturalWidth) return;
                 const idx = coverItems.findIndex((entry) => entry.name === img.dataset.code);
+                const chosen = coverItems[idx];
+                if (chosen) chosen.resultIndex = Number(img.dataset.resultIndex);
                 openLightbox(coverItems, idx >= 0 ? idx : 0);
               });
             });

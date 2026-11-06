@@ -51,6 +51,15 @@ python3 -m venv .venv
 
 输入框、按钮及菜单内保留原生键盘行为。画中画、全屏及复制需浏览器支持；不可用时入口禁用并显示原因，失败时提示重试。解码能力沿用浏览器，可下载原文件使用本地播放器打开。
 
+## 外部资源、部署与维护
+
+- [外部资源与服务清单](docs/EXTERNAL_SERVICES.md)：DMM/FANZA、sukebei、btdig、JavDatabase、av-wiki、theidolbase、theactorbase、NDL 等站点的用途、代理、缓存和失败兜底，以及站点改版时的维护流程。
+- [部署与迁移指南](docs/DEPLOYMENT.md)：Linux/macOS 首次部署、目录规划、代理、迅雷/下载器、systemd、Nginx HTTPS、备份和升级回滚。
+- [.env.example](.env.example)：完整环境变量示例；复制为 `.env` 后修改，不要提交真实密钥。
+- 部署自检：`.venv/bin/python tools/check_deployment.py`；加 `--network` 检查代理和外部站点可达性。
+
+媒体目录与下载器支持环境变量覆盖：`MOVIES_DIR`、`NYAA_DIR`、`LOCAL_PHOTO_DIR`；Linux 无迅雷时设置 `THUNDER_ENABLED=0`（只保存 `.torrent`），或配置 `THUNDER_CMD` 指向本机下载器。代理分别用 `NYAA_PROXY` 与 `DMM_PROXY`。
+
 ## 结构
 
 | 入口 | 说明 |

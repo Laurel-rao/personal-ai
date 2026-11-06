@@ -2060,7 +2060,7 @@
                   });
                   const out = await readJson(response);
                   if (!response.ok || !out.success) throw new Error(out.error || '失败');
-                  btn.textContent = '已发送';
+                  btn.textContent = out.launched ? '已发送' : '已保存';
                 } catch (error) { btn.textContent = '失败'; }
                 setTimeout(() => { btn.disabled = false; btn.textContent = '送迅雷'; }, 3000);
               });

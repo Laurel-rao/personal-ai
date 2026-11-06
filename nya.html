@@ -381,7 +381,7 @@
           });
           const data = await response.json();
           if (!response.ok || !data.success) throw new Error(data.error || '发送失败');
-          setStatus(`已送入迅雷：${data.torrent || '磁力任务'}`);
+          setStatus(data.message || `已送入迅雷：${data.torrent || '磁力任务'}`);
           if (btn) btn.textContent = '已发送';
         } catch (error) {
           setStatus(error.message, true);

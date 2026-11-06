@@ -16,10 +16,12 @@ import mimetypes
 import os
 import re
 import hashlib
+import shlex
 import shutil
 import socket
 import ssl
 import subprocess
+import sys
 import threading
 import time
 import unicodedata
@@ -101,6 +103,8 @@ NYAA_PROXY = os.environ.get("NYAA_PROXY", "http://127.0.0.1:7897")
 NYAA_BASE = os.environ.get("NYAA_BASE", "https://sukebei.nyaa.si").rstrip("/")
 NYAA_DIR = Path(os.environ.get("NYAA_DIR", str(Path.home() / "Movies" / "Videos"))).expanduser()
 THUNDER_APP = os.environ.get("THUNDER_APP", "Thunder")
+THUNDER_ENABLED = os.environ.get("THUNDER_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
+THUNDER_CMD = os.environ.get("THUNDER_CMD", "").strip()
 JAVDB_BASE = os.environ.get("JAVDB_BASE", "https://javdb.com").rstrip("/")
 NYAA_COVER_DIR = DATA_DIR / "nya-covers"
 _NYA_COVER_CACHE: dict[str, bytes] = {}
@@ -228,6 +232,8 @@ def _public_proxy(value: str) -> str:
 
 def _ensure_dmm_proxy() -> None:
     """If DMM_PROXY points at the local 7898 listener and it is down, start it."""
+    if sys.platform != "darwin":
+        return
     proxy = os.environ.get("DMM_PROXY", "").strip()
     if not proxy:
         return
@@ -2321,7 +2327,7 @@ def api_players_works() -> Response:
         return error_response(502, f"作品获取失败：{exc}")
 
 
-_LOCAL_PHOTO_DIR = Path.home() / "Movies" / "写真"
+_LOCAL_PHOTO_DIR = Path(os.environ.get("LOCAL_PHOTO_DIR", str(Path.home() / "Movies" / "写真"))).expanduser().resolve()
 _LOCAL_STATS: dict[str, tuple[float, int, int]] = {}
 _LOCAL_STATS_TTL = 60.0
 
@@ -3500,6 +3506,19 @@ def api_nya_releases() -> Response:
 
 
 
+def _thunder_command(target: str) -> list[str]:
+    if not THUNDER_ENABLED:
+        return []
+    if THUNDER_CMD:
+        try:
+            return shlex.split(THUNDER_CMD) + [target]
+        except ValueError:
+            return []
+    if sys.platform == "darwin":
+        return ["open", "-a", THUNDER_APP, target]
+    return []
+
+
 @console_bp.post("/api/nya/download")
 def api_nya_download() -> Response:
     payload = request.get_json(silent=True) or {}
@@ -3520,13 +3539,28 @@ def api_nya_download() -> Response:
         torrent_path = folder / f"{folder.name}.torrent"
         torrent_path.write_bytes(data)
     target = str(torrent_path) if torrent_path else magnet
-    try:
-        subprocess.Popen(["open", "-a", THUNDER_APP, target])
-    except Exception as exc:  # noqa: BLE001
-        return error_response(500, f"调用迅雷失败：{exc}")
+    command = _thunder_command(target)
+    launched = False
+    warning = ""
+    if command:
+        try:
+            subprocess.Popen(command)
+            launched = True
+        except OSError as exc:
+            warning = f"调用迅雷失败：{exc}"
+    if not launched:
+        if torrent_path:
+            warning = warning or "未配置迅雷启动命令，种子已保存，可手动打开"
+            message = f"种子已保存：{torrent_path}"
+        else:
+            return error_response(400, warning or "当前没有可保存的种子文件，请配置 THUNDER_CMD 后再发送磁力")
+    else:
+        message = f"已送入 {THUNDER_APP}"
     return jsonify({
         "success": True,
-        "message": f"已送入 {THUNDER_APP}",
+        "message": message,
+        "launched": launched,
+        "warning": warning,
         "torrent": str(torrent_path) if torrent_path else None,
         "folder": str(torrent_path.parent) if torrent_path else None,
         "magnet": magnet or None,
@@ -4385,6 +4419,8 @@ def api_settings_dmm_proxy_save() -> Response:
 @console_bp.post("/api/settings/dmm-proxy/start")
 def api_settings_dmm_proxy_start() -> Response:
     """启动本机独立日本出口（tools/dmm_jp_proxy.sh）。"""
+    if sys.platform != "darwin":
+        return error_response(400, "内置日本出口启动仅支持 macOS；请在 .env 配置外部 DMM_PROXY")
     script = ROOT / "tools" / "dmm_jp_proxy.sh"
     if not script.is_file():
         return error_response(404, "找不到 tools/dmm_jp_proxy.sh")

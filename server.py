@@ -2665,6 +2665,7 @@ def api_players_photos_delete() -> Response:
         return error_response(400, "没有本地写真")
     deleted: list[str] = []
     failed: list[str] = []
+    affected_books: set[Path] = set()
     suffixes = {".jpg", ".jpeg", ".png", ".webp"}
     for raw in raw_paths[:500]:
         relative = str(raw or "").strip()
@@ -2685,8 +2686,17 @@ def api_players_photos_delete() -> Response:
         try:
             target.unlink()
             deleted.append(relative)
+            affected_books.add(target.parent.parent if target.parent.name == "spreads" else target.parent)
         except OSError:
             failed.append(relative)
+    for book in affected_books:
+        try:
+            has_pages = any(book.glob("page_*.jpg"))
+            has_spreads = any((book / "spreads").glob("spread_*.jpg"))
+            if not has_pages and not has_spreads:
+                (book / ".done").unlink(missing_ok=True)
+        except OSError:
+            pass
     return jsonify({"success": True, "deleted": len(deleted), "files": deleted, "failed": failed})
 
 

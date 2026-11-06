@@ -51,6 +51,10 @@ try:
 
     remaining = client.get(f"/api/players/photos?id={player['id']}&kind=local").get_json()
     assert remaining["photos"], remaining
+
+    second = next(path for path in remaining["files"] if path.endswith("page_002.jpg"))
+    client.post("/api/players/photos/delete", json={"id": player["id"], "paths": [second]})
+    assert not (book / ".done").exists(), "empty book should be downloadable again"
 finally:
     server._AM_DIR = original_dir
     server._AM_USER_FILE = original_file

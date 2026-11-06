@@ -2615,7 +2615,11 @@ def _photos_payload(card_id: str, kind: str, refresh: bool = False) -> dict[str,
     if not name:
         raise LookupError("没有找到这位选手")
     if kind == "local":
-        return {"name": name, "photos": _local_photos(name), "source": "local"}
+        photos = _local_photos(name)
+        prefix = f"/api/players/local-photo/{urllib.parse.quote(name)}/"
+        files = [urllib.parse.unquote(src[len(prefix):]) if src.startswith(prefix) else ""
+                 for src in photos]
+        return {"name": name, "photos": photos, "files": files, "source": "local"}
     photos = _player_photos(card_id, name, roman_name=roman_name, sources=sources, kind=kind,
                             jp_name_for_photos=jp_name, force=refresh)
     source = ""
@@ -2644,6 +2648,46 @@ def api_players_photos() -> Response:
         return jsonify({"success": True, **result})
     except Exception as exc:  # noqa: BLE001
         return error_response(502, f"写真加载失败：{exc}")
+
+
+@console_bp.post("/api/players/photos/delete")
+def api_players_photos_delete() -> Response:
+    payload = request.get_json(silent=True) or {}
+    card_id = str(payload.get("id") or "").strip()
+    info = _task_player(card_id)
+    if not info:
+        return error_response(404, "没有找到这位选手")
+    raw_paths = payload.get("paths")
+    if not isinstance(raw_paths, list) or not raw_paths:
+        return error_response(400, "请选择要删除的图片")
+    base = (_LOCAL_PHOTO_DIR / info["name"]).resolve()
+    if not base.is_dir():
+        return error_response(400, "没有本地写真")
+    deleted: list[str] = []
+    failed: list[str] = []
+    suffixes = {".jpg", ".jpeg", ".png", ".webp"}
+    for raw in raw_paths[:500]:
+        relative = str(raw or "").strip()
+        if not relative or relative.startswith("/") or "\\" in relative or "\x00" in relative:
+            failed.append(relative)
+            continue
+        target = (base / relative).resolve()
+        if base not in target.parents or not target.is_file() or target.suffix.lower() not in suffixes:
+            failed.append(relative)
+            continue
+        parts = target.relative_to(base).parts
+        leaf = parts[-1].lower()
+        is_page = len(parts) >= 2 and leaf.startswith("page_")
+        is_spread = len(parts) >= 2 and parts[-2] == "spreads" and leaf.startswith("spread_")
+        if not (is_page or is_spread):
+            failed.append(relative)
+            continue
+        try:
+            target.unlink()
+            deleted.append(relative)
+        except OSError:
+            failed.append(relative)
+    return jsonify({"success": True, "deleted": len(deleted), "files": deleted, "failed": failed})
 
 
 @console_bp.get("/api/players/photo/<path:name>")

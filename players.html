@@ -179,6 +179,21 @@
     .pl-photos img { width: 100%; height: 100%; object-fit: contain; background: #0f1218; display: block; transition: transform .2s ease; }
     .pl-photos a:hover img { transform: scale(1.06); }
     .pl-photos .loading { grid-column: 1 / -1; color: var(--page-muted, #7b8795); font-size: 12.5px; padding: 10px 0; }
+    .pl-photo-toolbar { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; flex-wrap: wrap; }
+    .pl-photo-toolbar[hidden] { display: none; }
+    .pl-photo-toolbar button { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 7px; padding: 4px 9px; font-size: 11.5px; cursor: pointer; }
+    .pl-photo-toolbar button:hover { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); }
+    .pl-photo-toolbar button.danger { color: #b03a2e; }
+    .pl-photo-toolbar button.danger:hover { border-color: #b03a2e; color: #b03a2e; }
+    .pl-photo-toolbar button:disabled { opacity: .5; cursor: default; }
+    .pl-photo-toolbar span { color: var(--page-muted, #7b8795); font-size: 11.5px; }
+    .pl-photos a { position: relative; }
+    .pl-photo-check { position: absolute; top: 6px; right: 6px; z-index: 2; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(15,18,24,.62); border: 2px solid #fff; color: #fff; font-size: 12px; font-weight: 700; opacity: 0; transform: scale(.86); transition: opacity .15s ease, transform .15s ease, background .15s ease; pointer-events: none; }
+    .pl-photos.selecting a { cursor: pointer; }
+    .pl-photos.selecting .pl-photo-check { opacity: 1; transform: scale(1); }
+    .pl-photos a.selected { outline: 3px solid var(--page-primary, #087f65); outline-offset: -3px; }
+    .pl-photos a.selected .pl-photo-check { background: var(--page-primary, #087f65); opacity: 1; }
+    .pl-photos a.selected img { opacity: .72; }
     .pl-photo-tabs { display: inline-flex; gap: 4px; margin-left: auto; }
     .pl-photo-tabs button { border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-muted, #7b8795); border-radius: 999px; padding: 2px 10px; font-size: 11px; cursor: pointer; }
     .pl-photo-tabs button.active { border-color: var(--page-primary, #087f65); color: var(--page-primary, #087f65); background: var(--page-primary-soft, #edf7f2); }
@@ -905,6 +920,12 @@
                     <span class="pl-photo-tabs"><button type="button" data-kind="stills" class="active">剧照</button><button type="button" data-kind="daily">日常照</button><button type="button" data-kind="local">本地写真</button></span>
                     <button class="pl-photo-refresh" id="plPhotoRefresh" type="button">换一批</button>
                   </div>
+                  <div class="pl-photo-toolbar" id="plPhotoToolbar" hidden>
+                    <button type="button" id="plPhotoSelect">选择</button>
+                    <button type="button" id="plPhotoSelectAll" hidden>全选</button>
+                    <button type="button" id="plPhotoDelete" class="danger" hidden disabled>删除选中</button>
+                    <span id="plPhotoSelected"></span>
+                  </div>
                   <div class="pl-photos" id="plPhotos"></div>
                 </div>
                 <div class="pl-detail-panel" data-detail-panel="videos" hidden>
@@ -919,12 +940,23 @@
             </div>`;
 
           let photoKind = 'stills';
+          let photoFiles = [];
+          let photoIsLocal = false;
+          let photoSelecting = false;
+          let photoSelected = new Set();
           const loadPhotos = async (refresh, kind) => {
             const box = document.getElementById('plPhotos');
             const counter = document.getElementById('plPhotoCount');
             if (!box) return;
             const targetKind = kind || photoKind || 'stills';
             photoKind = targetKind;
+            photoFiles = [];
+            photoIsLocal = false;
+            photoSelecting = false;
+            photoSelected = new Set();
+            box.classList.remove('selecting');
+            const toolbar = document.getElementById('plPhotoToolbar');
+            if (toolbar) toolbar.hidden = true;
             box.innerHTML = `<div class="loading">正在抓取${targetKind === 'daily' ? '日常照' : '剧照'}（首次约 10-40 秒）…</div>`;
             try {
               const response = await fetch(`/api/players/photos?id=${encodeURIComponent(item.id)}${refresh ? '&refresh=1' : ''}&kind=${targetKind}`);
@@ -932,11 +964,32 @@
               if (!photos.success) throw new Error(photos.error || '加载失败');
               const list = photos.photos || [];
               if (!list.length) { box.innerHTML = '<div class="loading">暂无写真图</div>'; return; }
+              photoFiles = Array.isArray(photos.files) ? photos.files : [];
+              photoIsLocal = photos.source === 'local' && photoFiles.length === list.length;
+              photoSelected = new Set();
+              const toolbar = document.getElementById('plPhotoToolbar');
+              const selectBtn = document.getElementById('plPhotoSelect');
+              if (toolbar) toolbar.hidden = !photoIsLocal;
+              if (selectBtn) { selectBtn.hidden = !photoIsLocal; selectBtn.textContent = '选择'; }
+              const allBtn = document.getElementById('plPhotoSelectAll');
+              const deleteBtn = document.getElementById('plPhotoDelete');
+              if (allBtn) allBtn.hidden = true;
+              if (deleteBtn) { deleteBtn.hidden = true; deleteBtn.disabled = true; deleteBtn.textContent = '删除选中'; }
+              const selectedLabel = document.getElementById('plPhotoSelected');
+              if (selectedLabel) selectedLabel.textContent = '';
               const gridSrc = (src) => (photos.source === 'local' ? `${src}?w=420` : src);
-              box.innerHTML = list.map((src, index) => `<a href="${esc(src)}" data-index="${index}" title="查看第 ${index + 1} 张"><img loading="lazy" src="${esc(gridSrc(src))}" alt="图片 ${index + 1}"></a>`).join('');
+              box.innerHTML = list.map((src, index) => `<a href="${esc(src)}" data-index="${index}" title="查看第 ${index + 1} 张"><img loading="lazy" src="${esc(gridSrc(src))}" alt="图片 ${index + 1}"><span class="pl-photo-check">✓</span></a>`).join('');
               box.querySelectorAll('a[data-index]').forEach((link) => {
                 link.addEventListener('click', (event) => {
                   event.preventDefault();
+                  if (photoSelecting) {
+                    const index = Number(link.dataset.index);
+                    if (photoSelected.has(index)) photoSelected.delete(index);
+                    else photoSelected.add(index);
+                    link.classList.toggle('selected', photoSelected.has(index));
+                    updatePhotoSelection();
+                    return;
+                  }
                   const heavy = photos.source === 'local';
                   openLightbox(list.map((src, i) => ({
                     src: heavy ? `${src}?w=1200` : src,
@@ -1049,6 +1102,65 @@
             });
           });
           document.getElementById('plPhotoRefresh')?.addEventListener('click', () => loadPhotos(true));
+
+          function updatePhotoSelection() {
+            const box = document.getElementById('plPhotos');
+            const selectBtn = document.getElementById('plPhotoSelect');
+            const allBtn = document.getElementById('plPhotoSelectAll');
+            const deleteBtn = document.getElementById('plPhotoDelete');
+            const label = document.getElementById('plPhotoSelected');
+            if (!box || !selectBtn) return;
+            box.classList.toggle('selecting', photoSelecting);
+            selectBtn.textContent = photoSelecting ? '取消选择' : '选择';
+            if (allBtn) {
+              allBtn.hidden = !photoSelecting;
+              allBtn.textContent = photoSelected.size === photoFiles.length && photoFiles.length ? '取消全选' : '全选';
+            }
+            if (deleteBtn) {
+              deleteBtn.hidden = !photoSelecting;
+              deleteBtn.disabled = photoSelected.size === 0;
+              deleteBtn.textContent = `删除选中${photoSelected.size ? ` (${photoSelected.size})` : ''}`;
+            }
+            if (label) label.textContent = photoSelecting ? `已选 ${photoSelected.size} 张` : '';
+            box.querySelectorAll('a[data-index]').forEach((link) => {
+              link.classList.toggle('selected', photoSelected.has(Number(link.dataset.index)));
+            });
+          }
+
+          document.getElementById('plPhotoSelect')?.addEventListener('click', () => {
+            if (!photoIsLocal) return;
+            photoSelecting = !photoSelecting;
+            if (!photoSelecting) photoSelected.clear();
+            updatePhotoSelection();
+          });
+          document.getElementById('plPhotoSelectAll')?.addEventListener('click', () => {
+            if (photoSelected.size === photoFiles.length) photoSelected.clear();
+            else photoFiles.forEach((_file, index) => photoSelected.add(index));
+            updatePhotoSelection();
+          });
+          document.getElementById('plPhotoDelete')?.addEventListener('click', async () => {
+            const deleteBtn = document.getElementById('plPhotoDelete');
+            const label = document.getElementById('plPhotoSelected');
+            const paths = [...photoSelected].sort((a, b) => a - b).map((index) => photoFiles[index]).filter(Boolean);
+            if (!paths.length) return;
+            if (!window.confirm(`删除选中的 ${paths.length} 张本地图片？删除后不可恢复。`)) return;
+            deleteBtn.disabled = true;
+            deleteBtn.textContent = '删除中…';
+            try {
+              const response = await fetch('/api/players/photos/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: item.id, paths }),
+              });
+              const result = await readJson(response);
+              if (!response.ok || !result.success) throw new Error(result.error || '删除失败');
+              await loadPhotos(false, 'local');
+              load(true);
+            } catch (error) {
+              if (label) label.textContent = `删除失败：${error.message}`;
+              if (deleteBtn) { deleteBtn.disabled = false; deleteBtn.textContent = `删除选中 (${paths.length})`; }
+            }
+          });
 
           modalBox.querySelectorAll('.pl-variants img').forEach((thumb) => {
             thumb.addEventListener('click', () => {

@@ -357,9 +357,11 @@
     .pl-search-cover-empty { background: #0f1218; }
     .pl-search-card-body { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; padding: 7px 8px; }
     .pl-search-card .pl-search-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 0; font-size: 12px; line-height: 1.35; }
-    .pl-search-card .pl-search-meta { display: flex; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; font-size: 9px; line-height: 1.3; gap: 3px; margin-top: 0; }
+    .pl-search-card .pl-search-meta { display: flex; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; font-size: 9.5px; line-height: 1.3; gap: 5px; margin-top: 0; }
     .pl-search-card .pl-search-meta span { flex: 0 0 auto; }
-    .pl-search-card .pl-search-actions { flex-wrap: nowrap; gap: 4px; margin-top: auto; }
+    .pl-search-card .pl-search-actions { flex-wrap: nowrap; align-items: center; gap: 4px; margin-top: auto; }
+    .pl-search-stats { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; color: var(--page-muted, #7b8795); font-size: 9px; white-space: nowrap; flex: 0 0 auto; }
+    .pl-search-stats .seed { color: #0f9d58; }
     .pl-search-card .pl-search-actions button { padding: 4px 6px; font-size: 10px; }
     .pl-search-card .pl-search-group-toggle { padding: 4px 6px; }
     .pl-search-group-toggle { border-color: var(--page-primary, #087f65) !important; color: var(--page-primary, #087f65) !important; }
@@ -1652,11 +1654,12 @@
               ${cover ? `<img class="pl-search-cover" loading="lazy" src="${cover}" alt="${esc(code)}" data-cover="${esc(cover)}" data-code="${esc(code)}" data-result-index="${index}">` : '<div class="pl-search-cover pl-search-cover-empty"></div>'}
               <div class="pl-search-card-body">
                 <div class="pl-search-title" title="${esc(result.title)}">${esc(result.title)}</div>
-                <div class="pl-search-meta"><span>${esc(code || '')}</span><span>${esc(String(result.size || '—').replace(/\s*(GiB|GB)\b/i, 'G').replace(/\s*(MiB|MB)\b/i, 'M'))}</span><span class="seed">种${result.seeders || 0}</span><span>下${result.downloads || result.leechers || 0}</span><span>${esc((result.uploaded_at || '').slice(0, 10))}</span></div>
+                <div class="pl-search-meta"><span>${esc(code || '')}</span><span>${esc(String(result.size || '—').replace(/\s*(GiB|GB)\b/i, 'G').replace(/\s*(MiB|MB)\b/i, 'M'))}</span><span>${esc((result.uploaded_at || '').slice(0, 10))}</span></div>
                 <div class="pl-search-actions">
                   ${groupToggle}
                   <button type="button" class="primary" data-code-download="${index}">送迅雷</button>
                   <button type="button" data-code-copy="${index}">磁力</button>
+                  <span class="pl-search-stats"><span class="seed">种${result.seeders || 0}</span><span>下${result.downloads || result.leechers || 0}</span></span>
                 </div>
               </div>
             </div>`;

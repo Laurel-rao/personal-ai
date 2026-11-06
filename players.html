@@ -202,17 +202,24 @@
     .pl-lb[hidden] { display: none; }
     .pl-lb-stage { position: absolute; inset: 60px 80px 76px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: grab; }
     .pl-lb-stage.dragging { cursor: grabbing; }
-    .pl-lb-stage img { max-width: 100%; max-height: 100%; user-select: none; -webkit-user-drag: none; transform-origin: center center; transition: transform .12s ease-out; }
+    .pl-lb-frame { position: relative; display: inline-block; line-height: 0; max-width: 100%; max-height: 100%; }
+    .pl-lb-frame img { display: block; max-width: calc(100vw - 160px); max-height: calc(100vh - 140px); user-select: none; -webkit-user-drag: none; transform-origin: center center; transition: transform .12s ease-out; }
     .pl-lb-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 10px; color: #dfe6f3; font-size: 13px; background: rgba(10,14,20,.72); padding: 10px 16px; border-radius: 999px; border: 0; box-shadow: 0 6px 20px rgba(0,0,0,.35); z-index: 2; }
     .pl-lb-loading[hidden] { display: none; }
     .pl-lb-spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.25); border-top-color: #8fd0ff; border-radius: 50%; animation: plLbSpin .8s linear infinite; }
     @keyframes plLbSpin { to { transform: rotate(360deg); } }
     .pl-lb-stage img { transition: opacity .15s ease; }
-    .pl-lb-btn { border: 0; background: rgba(255,255,255,.12); color: #fff; width: 44px; height: 44px; border-radius: 50%; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .pl-lb-btn { border: 1px solid rgba(255,255,255,.18); background: rgba(15,18,24,.55); color: #fff; width: 44px; height: 44px; border-radius: 50%; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
     .pl-lb-btn:hover { background: rgba(255,255,255,.24); }
     .pl-lb-close { position: absolute; top: 16px; right: 18px; }
-    .pl-lb-prev { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); }
-    .pl-lb-next { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); }
+    .pl-lb-prev { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 3; }
+    .pl-lb-next { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 3; }
+    @media (max-width: 700px) {
+      .pl-lb-stage { inset: 56px 12px 76px; }
+      .pl-lb-frame img { max-width: calc(100vw - 24px); max-height: calc(100vh - 150px); }
+      .pl-lb-prev { left: 6px; }
+      .pl-lb-next { right: 6px; }
+    }
     .pl-lb-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: linear-gradient(transparent, rgba(0,0,0,.8)); color: #e8eef6; font-size: 13px; }
     .pl-lb-bar .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #cfd9e6; }
     .pl-lb-bar .zoom { color: #9fb0c4; font-variant-numeric: tabular-nums; }
@@ -288,12 +295,14 @@
 
   <div class="pl-lb" id="plLightbox" hidden role="dialog" aria-modal="true" aria-label="图片查看">
     <div class="pl-lb-stage" id="plLbStage">
-      <img id="plLbImg" alt="" />
+      <div class="pl-lb-frame" id="plLbFrame">
+        <img id="plLbImg" alt="" />
+        <button class="pl-lb-btn pl-lb-prev" id="plLbPrev" type="button" aria-label="上一张">‹</button>
+        <button class="pl-lb-btn pl-lb-next" id="plLbNext" type="button" aria-label="下一张">›</button>
+      </div>
       <div class="pl-lb-loading" id="plLbLoading" hidden><span class="pl-lb-spinner"></span><span id="plLbLoadingText">加载中…</span></div>
     </div>
     <button class="pl-lb-btn pl-lb-close" id="plLbClose" type="button" aria-label="关闭">×</button>
-    <button class="pl-lb-btn pl-lb-prev" id="plLbPrev" type="button" aria-label="上一张">‹</button>
-    <button class="pl-lb-btn pl-lb-next" id="plLbNext" type="button" aria-label="下一张">›</button>
     <div class="pl-lb-bar">
       <span class="title" id="plLbTitle"></span>
       <span class="zoom" id="plLbZoom">100%</span>
@@ -1125,6 +1134,9 @@
       document.getElementById('plLbClose').addEventListener('click', closeLightbox);
       document.getElementById('plLbPrev').addEventListener('click', () => lbStep(-1));
       document.getElementById('plLbNext').addEventListener('click', () => lbStep(1));
+      ['plLbPrev', 'plLbNext', 'plLbClose'].forEach((id) => {
+        document.getElementById(id).addEventListener('mousedown', (event) => event.stopPropagation());
+      });
       document.getElementById('plLbZoomIn').addEventListener('click', () => lbSetScale(lbScale * 1.25));
       document.getElementById('plLbZoomOut').addEventListener('click', () => lbSetScale(lbScale / 1.25));
       document.getElementById('plLbReset').addEventListener('click', () => lbSetScale(1));

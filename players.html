@@ -355,11 +355,13 @@
     .pl-search-card.variant { background: #fafbfc; }
     .pl-search-card .pl-search-cover { width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; flex: none; border: 0; border-radius: 0; }
     .pl-search-cover-empty { background: #0f1218; }
-    .pl-search-card-body { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; padding: 8px; }
-    .pl-search-card .pl-search-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.7em; font-size: 12px; line-height: 1.35; }
-    .pl-search-card .pl-search-meta { font-size: 10.5px; gap: 4px 8px; margin-top: 0; }
-    .pl-search-card .pl-search-actions { flex-wrap: wrap; gap: 5px; margin-top: auto; }
-    .pl-search-card .pl-search-actions button { padding: 4px 7px; font-size: 10.5px; }
+    .pl-search-card-body { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; padding: 7px 8px; }
+    .pl-search-card .pl-search-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 0; font-size: 12px; line-height: 1.35; }
+    .pl-search-card .pl-search-meta { display: flex; flex-wrap: nowrap; overflow: hidden; white-space: nowrap; font-size: 9px; line-height: 1.3; gap: 3px; margin-top: 0; }
+    .pl-search-card .pl-search-meta span { flex: 0 0 auto; }
+    .pl-search-card .pl-search-actions { flex-wrap: nowrap; gap: 4px; margin-top: auto; }
+    .pl-search-card .pl-search-actions button { padding: 4px 6px; font-size: 10px; }
+    .pl-search-card .pl-search-group-toggle { padding: 4px 6px; }
     .pl-search-group-toggle { border-color: var(--page-primary, #087f65) !important; color: var(--page-primary, #087f65) !important; }
     .pl-search-variants { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 2px 0 6px; }
     .pl-search-variants[hidden] { display: none; }
@@ -1643,14 +1645,14 @@
             const { result, index, code } = entry;
             const cover = code ? `/api/nya/cover?code=${encodeURIComponent(code)}&size=full` : '';
             const groupToggle = options.groupKey && options.groupCount > 1
-              ? `<button type="button" class="pl-search-group-toggle" data-group-toggle="${esc(options.groupKey)}" data-group-extra="${options.groupCount - 1}">${options.open ? '收起' : `+${options.groupCount - 1} 个资源`}</button>`
+              ? `<button type="button" class="pl-search-group-toggle" data-group-toggle="${esc(options.groupKey)}" data-group-extra="${options.groupCount - 1}" title="${options.open ? '收起同番号资源' : `展开另外 ${options.groupCount - 1} 个资源`}">${options.open ? '收起' : `+${options.groupCount - 1}`}</button>`
               : '';
             return `
             <div class="pl-search-card${options.variant ? ' variant' : ''}">
               ${cover ? `<img class="pl-search-cover" loading="lazy" src="${cover}" alt="${esc(code)}" data-cover="${esc(cover)}" data-code="${esc(code)}" data-result-index="${index}">` : '<div class="pl-search-cover pl-search-cover-empty"></div>'}
               <div class="pl-search-card-body">
                 <div class="pl-search-title" title="${esc(result.title)}">${esc(result.title)}</div>
-                <div class="pl-search-meta"><span>${esc(code || '')}</span><span>${esc(result.size || '—')}</span><span class="seed">做种 ${result.seeders}</span><span>下载 ${result.downloads || result.leechers}</span><span>${esc((result.uploaded_at || '').slice(0, 10))}</span></div>
+                <div class="pl-search-meta"><span>${esc(code || '')}</span><span>${esc(String(result.size || '—').replace(/\s*(GiB|GB)\b/i, 'G').replace(/\s*(MiB|MB)\b/i, 'M'))}</span><span class="seed">种${result.seeders || 0}</span><span>下${result.downloads || result.leechers || 0}</span><span>${esc((result.uploaded_at || '').slice(0, 10))}</span></div>
                 <div class="pl-search-actions">
                   ${groupToggle}
                   <button type="button" class="primary" data-code-download="${index}">送迅雷</button>

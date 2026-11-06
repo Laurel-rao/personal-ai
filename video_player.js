@@ -284,6 +284,10 @@
     state.dragging = false;
     state.lastSavedAt = 0;
     video.pause();
+    // Flush the previous decoder/source before attaching a new file. Rapid playlist
+    // jumps otherwise leave Chrome decoding the old MP4 and report MEDIA_ERR_DECODE.
+    video.removeAttribute('src');
+    video.load();
     state.activeItem = item;
     const saved = resumeAt ?? storage.read(`player-time:${item.id}`, 0);
     state.resumeAt = Number.isFinite(saved) && saved > 0 ? saved : 0;

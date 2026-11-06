@@ -3506,6 +3506,42 @@ def _nya_cover_is_placeholder(data: bytes) -> bool:
         return len(data) < 6000
 
 
+_JAVDATABASE_FIRST = {"ABP", "ABW", "ABF", "CHN"}
+
+
+def _javdatabase_cover_bytes(code: str, timeout: int = 8) -> bytes | None:
+    match = re.match(r"^([A-Za-z]{2,8})[-_ ]?0*(\d{1,4})", (code or "").strip())
+    if not match:
+        return None
+    slug = f"{match.group(1).lower()}-{match.group(2).zfill(3)}"
+    url = f"https://www.javdatabase.com/covers/full/pb/pb_e_{slug}.webp"
+    proxy_url = effective_setting("DMM_PROXY", "") or NYAA_PROXY
+    proxy = {"http": proxy_url, "https": proxy_url} if proxy_url else {}
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxy))
+    try:
+        request = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+            "Referer": "https://www.javdatabase.com/",
+            "Accept": "image/webp,image/*,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        })
+        with opener.open(request, timeout=timeout) as response:
+            raw = response.read()
+    except Exception:  # noqa: BLE001
+        return None
+    if len(raw) < 5000:
+        return None
+    try:
+        from PIL import Image
+        import io
+        image = Image.open(io.BytesIO(raw)).convert("RGB")
+        output = io.BytesIO()
+        image.save(output, "JPEG", quality=90, optimize=True)
+        return output.getvalue()
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _nya_cover_bytes(code: str, full: bool = False, timeout: int = 15) -> bytes | None:
     """取封面图（DMM 官方 CDN 优先），内存+磁盘缓存；full=True 取大图。"""
     key = re.sub(r"[^A-Za-z0-9_-]+", "-", code or "").strip("-").upper()
@@ -3531,19 +3567,24 @@ def _nya_cover_bytes(code: str, full: bool = False, timeout: int = 15) -> bytes 
     if not full:
         urls = [u for u in urls if u.endswith("ps.jpg")] + [u for u in urls if not u.endswith("ps.jpg")]
     data = None
+    label_match = re.match(r"^([A-Za-z]{2,8})", (code or "").strip())
+    label = label_match.group(1).upper() if label_match else ""
     with _NYA_COVER_SEMAPHORE:
         with _NYA_COVER_LOCK:
             if _NYA_COVER_MISS.get(key, 0) and time.time() - _NYA_COVER_MISS[key] < _NYA_COVER_MISS_TTL:
                 return None
+        if label in _JAVDATABASE_FIRST:
+            data = _javdatabase_cover_bytes(code, timeout=min(8, max(4, timeout)))
         deadline = time.time() + max(1, timeout)
-        for url in urls:
-            remaining = deadline - time.time()
-            if remaining <= 0:
-                break
-            candidate = _nya_cover_fetch(url, timeout=max(1, int(remaining)))
-            if candidate and not _nya_cover_is_placeholder(candidate):
-                data = candidate
-                break
+        if data is None:
+            for url in urls:
+                remaining = deadline - time.time()
+                if remaining <= 0:
+                    break
+                candidate = _nya_cover_fetch(url, timeout=max(1, int(remaining)))
+                if candidate and not _nya_cover_is_placeholder(candidate):
+                    data = candidate
+                    break
         if data is None and deadline - time.time() > 0:
             cover_url = (_release_date(code) or {}).get("cover") or ""
             if cover_url:

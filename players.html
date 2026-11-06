@@ -1863,8 +1863,8 @@
             if (!entry.code || seenCoverCodes.has(entry.code)) return;
             seenCoverCodes.add(entry.code);
             coverItems.push({
-              src: `/api/nya/cover?code=${encodeURIComponent(entry.code)}&size=medium&v=3`,
-              full: `/api/nya/cover?code=${encodeURIComponent(entry.code)}&size=full&v=3`,
+              src: `/api/nya/cover?code=${encodeURIComponent(entry.code)}&size=medium&v=4`,
+              full: `/api/nya/cover?code=${encodeURIComponent(entry.code)}&size=full&v=4`,
               name: entry.code,
               file: `${entry.code}.jpg`,
               resultIndex: entry.index,
@@ -1888,7 +1888,7 @@
           function resultRow(entry, options = {}) {
             const { result, index, code } = entry;
             const local = localByKey[codeKey(code)];
-            const cover = code ? `/api/nya/cover?code=${encodeURIComponent(code)}&size=medium&v=3` : '';
+            const cover = code ? `/api/nya/cover?code=${encodeURIComponent(code)}&size=medium&v=4` : '';
             const localThumb = local?.thumb_url || '';
             const coverSrc = cover || localThumb;
             const localBadge = local

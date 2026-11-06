@@ -917,9 +917,9 @@
           const variants = data.variants || [];
           const stats = item.stats || {};
           const statKeys = ['FAC', 'BDY', 'SKL', 'POP', 'CHA', 'PRF'];
-          const statCards = statKeys.filter((key) => stats[key] != null).map((key) => `
-            <div class="pl-stat pl-stat-editable" data-stat="${key}" title="点击修改 ${key}"><div class="pl-stat-label">${key}</div><div class="pl-stat-value">${stats[key]}</div>
-              <div class="pl-stat-bar"><i style="width:${Math.min(100, stats[key])}%"></i></div></div>`).join('');
+          const statCards = statKeys.map((key) => `
+            <div class="pl-stat pl-stat-editable" data-stat="${key}" title="点击修改 ${key}"><div class="pl-stat-label">${key}</div><div class="pl-stat-value">${stats[key] ?? '—'}</div>
+              <div class="pl-stat-bar"><i style="width:${stats[key] != null ? Math.min(100, stats[key]) : 0}%"></i></div></div>`).join('');
           const variantStrip = variants.length > 1 ? `
             <div class="pl-variants">${variants.map((v, i) => `<img class="${i === 0 ? 'active' : ''}" src="${esc(v.card_image)}" data-variant="${i}" alt="变体 ${v.variant || i + 1}" title="变体 ${v.variant || i + 1} · 总评 ${v.overall ?? '—'}">`).join('')}</div>` : '';
           const tags = (data.tags || []).map((tag) => `<span>${esc(tag)}</span>`).join('') || '<span style="background:none;color:#8b93a7">暂无标签</span>';
@@ -1061,7 +1061,7 @@
               const key = card.dataset.stat;
               const valueEl = card.querySelector('.pl-stat-value');
               if (!valueEl) return;
-              const original = valueEl.textContent.trim();
+              const original = valueEl.textContent.trim() === '—' ? '' : valueEl.textContent.trim();
               const input = document.createElement('input');
               input.type = 'number';
               input.min = '0';
@@ -1081,7 +1081,13 @@
                   restore();
                   return;
                 }
-                const number = Number(input.value);
+                const raw = input.value.trim();
+                if (!raw) {
+                  done = true;
+                  restore();
+                  return;
+                }
+                const number = Number(raw);
                 if (!Number.isInteger(number) || number < 0 || number > 100) {
                   window.alert('评分需为 0–100 的整数');
                   input.focus();

@@ -48,7 +48,9 @@
     .nya-meta .leech { color: #d0555b; }
     .nya-meta .src { color: #4a67b3; }
     .nya-meta .rel { color: #b86e00; }
-    .nya-meta .actor { color: var(--page-primary, #087f65); }
+    .nya-meta .actor { display: inline-flex; align-items: center; gap: 4px; color: var(--page-primary, #087f65); }
+    .nya-meta .actor a { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 4px; background: var(--page-primary-soft, #edf7f2); color: var(--page-primary, #087f65); font-size: 11px; line-height: 1; text-decoration: none; }
+    .nya-meta .actor a:hover { background: var(--page-primary, #087f65); color: #fff; }
     .nya-actions { display: flex; gap: 6px; margin-top: 2px; }
     .nya-actions button { flex: 1; border: 1px solid var(--page-line, #e3e9ee); background: var(--page-surface, #fff); color: var(--page-text, #243242); border-radius: 8px; padding: 7px 6px; font-size: 12px; cursor: pointer; white-space: nowrap; }
     .nya-actions button.primary { background: var(--page-primary, #087f65); border: 0; color: #fff; font-weight: 600; }
@@ -300,7 +302,21 @@
           const detail = [info.studio, (info.genres || []).join(' / '), info.runtime, info.actress].filter(Boolean).join(' · ');
           node.title = detail || '该番号未收录发售信息';
           const actorNode = node.parentElement?.querySelector('span.actor');
-          if (actorNode) actorNode.textContent = info.actress || '';
+          if (actorNode) {
+            actorNode.textContent = '';
+            if (info.actress) {
+              const displayName = info.player_name || info.actress;
+              actorNode.append(document.createTextNode(displayName));
+              if (info.player_id) {
+                const link = document.createElement('a');
+                link.href = `/players?player_id=${encodeURIComponent(info.player_id)}`;
+                link.title = `查看 ${displayName} 的选手详情`;
+                link.setAttribute('aria-label', `查看 ${displayName} 的选手详情`);
+                link.textContent = '↗';
+                actorNode.append(link);
+              }
+            }
+          }
         });
       }
 

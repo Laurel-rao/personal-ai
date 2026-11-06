@@ -3447,12 +3447,24 @@ def api_nya_releases() -> Response:
     if not codes:
         return error_response(400, "缺少 codes")
     result: dict[str, dict[str, Any]] = {}
+    name_index = _library_name_index()
 
     def fetch(code: str) -> tuple[str, dict[str, Any]]:
         return code, _release_date(code)
 
     with futures.ThreadPoolExecutor(max_workers=12) as pool:
         for code, info in pool.map(fetch, codes):
+            actress = str(info.get("actress") or "")
+            player = None
+            for part in re.split(r"[/,、|&]+", actress):
+                key = _name_key(part)
+                if not key:
+                    continue
+                player = name_index.get("name:" + key) or name_index.get(_person_key({"name": part}, {}))
+                if player:
+                    break
+            if player:
+                info = {**info, "player_id": player["id"], "player_name": player["name"]}
             result[code.upper()] = info
     return jsonify({"success": True, "items": result})
 
@@ -3762,13 +3774,27 @@ def _wiki_release(code: str) -> str:
     return ""
 
 
+def _javdatabase_page(path: str, timeout: int = 15) -> str:
+    proxy_url = effective_setting("DMM_PROXY", "") or NYAA_PROXY
+    proxy = {"http": proxy_url, "https": proxy_url} if proxy_url else {}
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxy))
+    request = urllib.request.Request(f"https://www.javdatabase.com{path}", headers={
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+        "Referer": "https://www.javdatabase.com/",
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+    })
+    with opener.open(request, timeout=timeout) as response:
+        return response.read().decode("utf-8", "ignore")
+
+
 def _javdatabase_info(code: str) -> dict[str, Any]:
     """javdatabase：发售日/厂牌/类型/时长/演员/封面，覆盖率高。"""
     slug = re.sub(r"[^a-z0-9-]+", "-", code.lower()).strip("-")
     if not slug:
         return {}
     try:
-        html = _nya_fetch(f"https://www.javdatabase.com/movies/{slug}/").decode("utf-8", "ignore")
+        html = _javdatabase_page(f"/movies/{slug}/")
     except Exception:  # noqa: BLE001
         return {}
     if "Release Date" not in html:

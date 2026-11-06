@@ -104,7 +104,10 @@ THUNDER_APP = os.environ.get("THUNDER_APP", "Thunder")
 JAVDB_BASE = os.environ.get("JAVDB_BASE", "https://javdb.com").rstrip("/")
 NYAA_COVER_DIR = DATA_DIR / "nya-covers"
 _NYA_COVER_CACHE: dict[str, bytes] = {}
+_NYA_COVER_MISS: dict[str, float] = {}
 _NYA_COVER_LOCK = threading.Lock()
+_NYA_COVER_SEMAPHORE = threading.Semaphore(4)
+_NYA_COVER_MISS_TTL = 6 * 3600
 
 IMAGE_TOOL = {
     "type": "function",
@@ -3485,7 +3488,7 @@ def _nya_cover_is_placeholder(data: bytes) -> bool:
         return len(data) < 6000
 
 
-def _nya_cover_bytes(code: str, full: bool = False) -> bytes | None:
+def _nya_cover_bytes(code: str, full: bool = False, timeout: int = 15) -> bytes | None:
     """取封面图（DMM 官方 CDN 优先），内存+磁盘缓存；full=True 取大图。"""
     key = re.sub(r"[^A-Za-z0-9_-]+", "-", code or "").strip("-").upper()
     if not key:
@@ -3494,8 +3497,11 @@ def _nya_cover_bytes(code: str, full: bool = False) -> bytes | None:
         key = key + "~thumb"
     with _NYA_COVER_LOCK:
         cached_bytes = _NYA_COVER_CACHE.get(key)
+        missed_at = _NYA_COVER_MISS.get(key, 0)
     if cached_bytes:
         return cached_bytes
+    if missed_at and time.time() - missed_at < _NYA_COVER_MISS_TTL:
+        return None
     cached_file = NYAA_COVER_DIR / f"{key}.jpg"
     if cached_file.is_file():
         data = cached_file.read_bytes()
@@ -3507,19 +3513,35 @@ def _nya_cover_bytes(code: str, full: bool = False) -> bytes | None:
     if not full:
         urls = [u for u in urls if u.endswith("ps.jpg")] + [u for u in urls if not u.endswith("ps.jpg")]
     data = None
-    for url in urls:
-        candidate = _nya_cover_fetch(url)
-        if candidate and not _nya_cover_is_placeholder(candidate):
-            data = candidate
-            break
-    if data is None:
-        cover_url = (_release_date(code) or {}).get("cover") or ""
-        if cover_url:
-            candidate = _nya_cover_fetch(cover_url)
+    with _NYA_COVER_SEMAPHORE:
+        with _NYA_COVER_LOCK:
+            if _NYA_COVER_MISS.get(key, 0) and time.time() - _NYA_COVER_MISS[key] < _NYA_COVER_MISS_TTL:
+                return None
+        deadline = time.time() + max(1, timeout)
+        for url in urls:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            candidate = _nya_cover_fetch(url, timeout=max(1, int(remaining)))
             if candidate and not _nya_cover_is_placeholder(candidate):
                 data = candidate
+                break
+        if data is None and deadline - time.time() > 0:
+            cover_url = (_release_date(code) or {}).get("cover") or ""
+            if cover_url:
+                remaining = deadline - time.time()
+                if remaining > 0:
+                    candidate = _nya_cover_fetch(cover_url, timeout=max(1, int(remaining)))
+                    if candidate and not _nya_cover_is_placeholder(candidate):
+                        data = candidate
     if data is None:
+        with _NYA_COVER_LOCK:
+            _NYA_COVER_MISS[key] = time.time()
+            if len(_NYA_COVER_MISS) > 800:
+                _NYA_COVER_MISS.pop(next(iter(_NYA_COVER_MISS)))
         return None
+    with _NYA_COVER_LOCK:
+        _NYA_COVER_MISS.pop(key, None)
     try:
         NYAA_COVER_DIR.mkdir(parents=True, exist_ok=True)
         cached_file.write_bytes(data)
@@ -3703,7 +3725,7 @@ def api_nya_cover() -> Response:
     if not code:
         return error_response(400, "缺少 code")
     size = request.args.get("size") or "thumb"
-    data = _nya_cover_bytes(code, full=size in {"full", "medium"})
+    data = _nya_cover_bytes(code, full=size in {"full", "medium"}, timeout=6)
     if not data:
         return error_response(404, "没有封面")
     if size == "medium":
@@ -4001,9 +4023,9 @@ def player_official_cover() -> Response:
     if not code:
         return error_response(400, "缺少 code")
     size = request.args.get("size") or "medium"
-    data = _nya_cover_bytes(code, full=True)
+    data = _nya_cover_bytes(code, full=True, timeout=8)
     if not data:
-        data = _nya_cover_bytes(code, full=False)
+        data = _nya_cover_bytes(code, full=False, timeout=6)
     if not data:
         return error_response(404, "没有官方封面")
     if size != "full":

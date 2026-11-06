@@ -59,6 +59,7 @@
   const state = {
     items: [], filtered: [], activeItem: null, format: 'all', query: '',
     favorites: new Set(Array.isArray(savedFavorites) ? savedFavorites.filter((item) => typeof item === 'string') : []),
+    showHidden: false,
     generation: 0, refreshGeneration: 0, metadataReady: false, resumeAt: 0,
     lastSavedAt: 0, dragging: false, scrubPaused: true, keyboard: false,
     hideTimer: null, toastTimer: null, clickTimer: null, wakeOnly: false,
@@ -158,7 +159,8 @@
       const coverSrc = metadata.cover_url || metadata.official_cover_url || metadata.thumb_url;
       const coverFallback = metadata.thumb_url && metadata.thumb_url !== coverSrc ? metadata.thumb_url : '';
       const cover = coverSrc ? `<img src="${escape(coverSrc)}" data-fallback="${escape(coverFallback)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : '';
-      return `<button class="playlist-item${item.id === state.activeItem?.id ? ' active' : ''}" type="button" data-index="${index}" title="${escape(item.filename || item.title)}" aria-current="${item.id === state.activeItem?.id}" aria-label="播放 ${escape(item.title)}"><span class="playlist-thumb">${cover}<span>${escape(metadata.code || '▶')}</span></span><span class="playlist-item-body"><strong class="playlist-item-title">${escape(item.title)}</strong>${details ? `<span class="playlist-catalog-line">${escape(details)}</span>` : ''}<span class="playlist-item-meta"><span>${escape(item.extension.toUpperCase())}</span><span>${escape(formatSize(item.size))}</span></span></span></button>`;
+      const hiddenBadge = item.hidden ? '<span class="playlist-hidden-badge">已隐藏</span>' : '';
+      return `<button class="playlist-item${item.id === state.activeItem?.id ? ' active' : ''}${item.hidden ? ' is-hidden' : ''}" type="button" data-index="${index}" title="${escape(item.filename || item.title)}" aria-current="${item.id === state.activeItem?.id}" aria-label="播放 ${escape(item.title)}"><span class="playlist-thumb">${cover}<span>${escape(metadata.code || '▶')}</span></span><span class="playlist-item-body"><strong class="playlist-item-title">${escape(item.title)}${hiddenBadge}</strong>${details ? `<span class="playlist-catalog-line">${escape(details)}</span>` : ''}<span class="playlist-item-meta"><span>${escape(item.extension.toUpperCase())}</span><span>${escape(formatSize(item.size))}</span></span></span></button>`;
     }).join('') : '<div class="playlist-empty">没有符合条件的视频</div>';
     renderNavigation();
   }
@@ -392,7 +394,7 @@
     const generation = ++state.refreshGeneration;
     $('playerStatus').textContent = '读取本地片库';
     try {
-      const response = await fetch('/api/player/videos');
+      const response = await fetch(`/api/player/videos${state.showHidden ? '?show_hidden=1' : ''}`);
       if (!response.ok) throw new Error('片库请求失败');
       const data = await response.json();
       if (!Array.isArray(data.items)) throw new Error('片库格式无效');
@@ -417,6 +419,93 @@
       notify('片库读取失败，已保留当前播放');
     }
   }
+
+  const videoContextMenu = $('videoContextMenu');
+  const videoMenuHide = $('videoMenuHide');
+  const videoMenuDelete = $('videoMenuDelete');
+  let contextVideo = null;
+
+  function hideVideoMenu() {
+    videoContextMenu.hidden = true;
+    contextVideo = null;
+  }
+
+  function showVideoMenu(event, item) {
+    if (!item) return;
+    contextVideo = item;
+    videoMenuHide.textContent = item.hidden ? '取消隐藏' : '不展示';
+    videoContextMenu.hidden = false;
+    const width = videoContextMenu.offsetWidth || 140;
+    const height = videoContextMenu.offsetHeight || 80;
+    videoContextMenu.style.left = `${Math.max(8, Math.min(event.clientX, window.innerWidth - width - 8))}px`;
+    videoContextMenu.style.top = `${Math.max(8, Math.min(event.clientY, window.innerHeight - height - 8))}px`;
+  }
+
+  async function postVideoAction(path, item, body = {}) {
+    try {
+      const response = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, ...body }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || '操作失败');
+      return true;
+    } catch (error) {
+      notify(error.message || '操作失败');
+      return false;
+    }
+  }
+
+  videoMenuHide.addEventListener('click', async () => {
+    const item = contextVideo;
+    hideVideoMenu();
+    if (!item) return;
+    if (await postVideoAction('/api/player/videos/hide', item, { hidden: !item.hidden })) {
+      await refresh();
+      notify(item.hidden ? '已恢复展示' : '已设为不展示');
+    }
+  });
+
+  videoMenuDelete.addEventListener('click', async () => {
+    const item = contextVideo;
+    hideVideoMenu();
+    if (!item) return;
+    if (!window.confirm(`删除文件「${item.filename || item.title}」？删除后不可恢复。`)) return;
+    if (!await postVideoAction('/api/player/videos/delete', item)) return;
+    if (state.activeItem?.id === item.id) {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      state.activeItem = null;
+      state.metadataReady = false;
+      $('stageError').hidden = true;
+      renderItem();
+    }
+    await refresh();
+    notify('文件已删除');
+  });
+
+  $('playlistList').addEventListener('contextmenu', (event) => {
+    const button = event.target.closest('[data-index]');
+    if (!button) return;
+    event.preventDefault();
+    showVideoMenu(event, state.filtered[Number(button.dataset.index)]);
+  });
+  stage.addEventListener('contextmenu', (event) => {
+    if (!state.activeItem) return;
+    event.preventDefault();
+    showVideoMenu(event, state.activeItem);
+  });
+  document.addEventListener('click', hideVideoMenu);
+  document.addEventListener('scroll', hideVideoMenu, true);
+  window.addEventListener('resize', hideVideoMenu);
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') hideVideoMenu(); });
+
+  $('showHiddenVideos').addEventListener('change', (event) => {
+    state.showHidden = event.target.checked;
+    refresh();
+  });
 
   $('playlistList').addEventListener('click', (event) => {
     const button = event.target.closest('[data-index]');

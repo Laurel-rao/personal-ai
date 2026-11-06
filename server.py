@@ -3990,18 +3990,89 @@ def _video_cover_scheduler() -> None:
         time.sleep(interval)
 
 
+HIDDEN_VIDEO_FILE = DATA_DIR / "player" / "hidden-videos.json"
+
+
+def _hidden_video_ids() -> set[str]:
+    try:
+        rows = json.loads(HIDDEN_VIDEO_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return {str(item) for item in rows if isinstance(item, str)} if isinstance(rows, list) else set()
+
+
+def _write_hidden_videos(ids: set[str]) -> None:
+    HIDDEN_VIDEO_FILE.parent.mkdir(parents=True, exist_ok=True)
+    temporary = HIDDEN_VIDEO_FILE.with_name(f"{HIDDEN_VIDEO_FILE.name}.tmp")
+    temporary.write_text(json.dumps(sorted(ids), ensure_ascii=False, indent=1), encoding="utf-8")
+    temporary.replace(HIDDEN_VIDEO_FILE)
+
+
+def _video_target(relative: str) -> Path | None:
+    relative = str(relative or "").strip()
+    if not relative:
+        return None
+    target = (MOVIES_DIR / relative).resolve()
+    if MOVIES_DIR not in target.parents or not target.is_file() or target.suffix.lower() not in PLAYER_EXTENSIONS:
+        return None
+    return target
+
+
 @console_bp.get("/api/player/videos")
 def player_videos() -> Response:
     """列出配置的 Movies 目录下可播放的视频及其资料。"""
     items, warning = _all_videos()
     if not MOVIES_DIR.is_dir():
         return jsonify({"items": [], "directory": str(MOVIES_DIR), "error": "Movies 目录不存在"})
+    hidden = _hidden_video_ids()
+    show_hidden = request.args.get("show_hidden") == "1"
+    visible = []
+    for item in items:
+        if item["id"] in hidden and not show_hidden:
+            continue
+        visible.append({**item, "hidden": item["id"] in hidden})
     return jsonify({
-        "items": items,
+        "items": visible,
         "directory": str(MOVIES_DIR),
-        "catalog": catalog_summary(items),
+        "catalog": catalog_summary(visible),
         "catalog_warning": warning,
+        "hidden_count": len(hidden),
     })
+
+
+@console_bp.post("/api/player/videos/hide")
+def api_player_video_hide() -> Response:
+    payload = request.get_json(silent=True) or {}
+    relative = str(payload.get("id") or "").strip()
+    target = _video_target(relative)
+    if target is None:
+        return error_response(404, "视频不存在")
+    hidden = _hidden_video_ids()
+    should_hide = bool(payload.get("hidden"))
+    if should_hide:
+        hidden.add(relative)
+    else:
+        hidden.discard(relative)
+    _write_hidden_videos(hidden)
+    return jsonify({"success": True, "hidden": should_hide, "count": len(hidden)})
+
+
+@console_bp.post("/api/player/videos/delete")
+def api_player_video_delete() -> Response:
+    payload = request.get_json(silent=True) or {}
+    relative = str(payload.get("id") or "").strip()
+    target = _video_target(relative)
+    if target is None:
+        return error_response(404, "视频不存在")
+    try:
+        target.unlink()
+    except OSError as exc:
+        return error_response(500, f"删除失败：{exc}")
+    hidden = _hidden_video_ids()
+    hidden.discard(relative)
+    _write_hidden_videos(hidden)
+    _VIDEO_CACHE.update(at=0.0)
+    return jsonify({"success": True, "id": relative})
 
 
 @console_bp.get("/api/player/cover")

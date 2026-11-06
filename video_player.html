@@ -76,10 +76,15 @@
       <p class="catalog-progress" id="catalogProgress" role="status">正在读取资料状态…</p>
       <label class="playlist-search"><span aria-hidden="true">⌕</span><input id="searchInput" type="search" aria-label="搜索片名、演员或编号" placeholder="搜索片名、演员或编号" autocomplete="off"></label>
       <div class="format-tabs" role="group" aria-label="视频格式"><button class="format-tab active" data-format="all" type="button" aria-pressed="true">全部</button><button class="format-tab" data-format="mp4" type="button" aria-pressed="false">MP4</button><button class="format-tab" data-format="mov" type="button" aria-pressed="false">MOV</button><button class="format-tab" data-format="mkv" type="button" aria-pressed="false">MKV</button><button class="format-tab" data-format="avi" type="button" aria-pressed="false">AVI</button></div>
+      <label class="show-hidden-videos"><input id="showHiddenVideos" type="checkbox"> 显示隐藏</label>
       <div class="playlist-list" id="playlistList" aria-live="polite"><div class="playlist-empty">正在读取片库…</div></div>
       <div class="playlist-footer"><span id="playlistFooterText">0 部视频</span><span class="keyboard-hint"><kbd>Shift+P/N</kbd> 选集</span></div>
     </aside>
   </main>
-  <script src="./video_player.js?v=20261107-2"></script>
+  <div class="video-context-menu" id="videoContextMenu" hidden role="menu">
+    <button id="videoMenuHide" type="button">不展示</button>
+    <button id="videoMenuDelete" type="button" class="danger">删除文件</button>
+  </div>
+  <script src="./video_player.js?v=20261107-3"></script>
 </body>
 </html>

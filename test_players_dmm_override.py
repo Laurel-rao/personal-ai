@@ -19,7 +19,8 @@ try:
     server._AM_USER_FILE = tmp / "player-user.json"
     server._AM_STATE.update(mtime=0.0, cards=[], profiles={}, tags={}, comments={}, enrich={})
     (tmp / "players-merged.json").write_text(json.dumps([
-        {"card": {"id": "rara-test", "displayName": "RARA", "name": "RARA", "variant": 1},
+        {"card": {"id": "rara-test", "displayName": "RARA", "name": "RARA", "variant": 1,
+                  "stats": {"FAC": 80, "BDY": 81, "SKL": 82, "POP": 83, "CHA": 84, "PRF": 85}},
          "profile": {"displayName": "RARA", "name": "RARA"}},
     ], ensure_ascii=False), encoding="utf-8")
     (tmp / "dmm-actresses.json").write_text(json.dumps([
@@ -39,6 +40,12 @@ try:
     item = saved.get_json()["item"]
     assert item["dmm_id"] == "1086062" and item["card_image"].endswith("siraisi_momo3.jpg"), item
     assert (tmp / "player-overrides.json").is_file()
+
+    stats = client.post("/api/players/stats", json={"id": "rara-test", "stats": {"FAC": 99, "BDY": 101}})
+    assert stats.status_code == 400, stats.data
+    stats = client.post("/api/players/stats", json={"id": "rara-test", "stats": {"FAC": "99"}})
+    assert stats.status_code == 200 and stats.get_json()["item"]["stats"]["FAC"] == 99, stats.data
+    assert client.get("/api/players/detail?id=rara-test").get_json()["item"]["stats"]["FAC"] == 99
 
     cleared = client.post("/api/players/dmm-id", json={"id": "rara-test", "dmmId": ""})
     assert cleared.get_json()["item"].get("dmm_id") in (None, ""), cleared.data

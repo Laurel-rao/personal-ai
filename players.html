@@ -252,6 +252,9 @@
     .pl-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); gap: 20px; align-items: start; }
     .pl-detail-panel[data-detail-panel="overview"] .pl-stat-grid { gap: 4px; margin-bottom: 8px; }
     .pl-detail-panel[data-detail-panel="overview"] .pl-stat { padding: 3px 6px; border-radius: 7px; }
+    .pl-stat-editable { cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+    .pl-stat-editable:hover { border-color: var(--page-primary, #087f65); background: var(--page-primary-soft, #edf7f2); }
+    .pl-stat-input { width: 100%; min-width: 0; border: 1px solid var(--page-primary, #087f65); border-radius: 4px; background: #fff; color: var(--page-text, #243242); font-size: 13px; font-weight: 700; line-height: 1.2; padding: 0 2px; outline: none; }
     .pl-detail-panel[data-detail-panel="overview"] .pl-stat-label { font-size: 8.5px; letter-spacing: .04em; }
     .pl-detail-panel[data-detail-panel="overview"] .pl-stat-value { font-size: 13px; margin: 0 0 2px; }
     .pl-detail-panel[data-detail-panel="overview"] .pl-stat-bar { height: 2px; }
@@ -893,7 +896,7 @@
           const stats = item.stats || {};
           const statKeys = ['FAC', 'BDY', 'SKL', 'POP', 'CHA', 'PRF'];
           const statCards = statKeys.filter((key) => stats[key] != null).map((key) => `
-            <div class="pl-stat"><div class="pl-stat-label">${key}</div><div class="pl-stat-value">${stats[key]}</div>
+            <div class="pl-stat pl-stat-editable" data-stat="${key}" title="点击修改 ${key}"><div class="pl-stat-label">${key}</div><div class="pl-stat-value">${stats[key]}</div>
               <div class="pl-stat-bar"><i style="width:${Math.min(100, stats[key])}%"></i></div></div>`).join('');
           const variantStrip = variants.length > 1 ? `
             <div class="pl-variants">${variants.map((v, i) => `<img class="${i === 0 ? 'active' : ''}" src="${esc(v.card_image)}" data-variant="${i}" alt="变体 ${v.variant || i + 1}" title="变体 ${v.variant || i + 1} · 总评 ${v.overall ?? '—'}">`).join('')}</div>` : '';
@@ -1028,6 +1031,64 @@
                 ? `${video.official_cover_url}${video.official_cover_url.includes('?') ? '&' : '?'}size=full`
                 : '';
               openLightbox([{ src, full, name: `${video.code || video.title} 封面`, file: `${video.code || 'cover'}.jpg` }], 0);
+            });
+          });
+          modalBox.querySelectorAll('.pl-stat-editable[data-stat]').forEach((card) => {
+            card.addEventListener('click', () => {
+              if (card.querySelector('input')) return;
+              const key = card.dataset.stat;
+              const valueEl = card.querySelector('.pl-stat-value');
+              if (!valueEl) return;
+              const original = valueEl.textContent.trim();
+              const input = document.createElement('input');
+              input.type = 'number';
+              input.min = '0';
+              input.max = '100';
+              input.step = '1';
+              input.className = 'pl-stat-input';
+              input.value = original;
+              valueEl.replaceWith(input);
+              input.focus();
+              input.select();
+              let done = false;
+              const restore = () => { if (input.parentNode) input.replaceWith(valueEl); };
+              const finish = async (save) => {
+                if (done) return;
+                if (!save) {
+                  done = true;
+                  restore();
+                  return;
+                }
+                const number = Number(input.value);
+                if (!Number.isInteger(number) || number < 0 || number > 100) {
+                  window.alert('评分需为 0–100 的整数');
+                  input.focus();
+                  return;
+                }
+                done = true;
+                input.disabled = true;
+                try {
+                  const response = await fetch('/api/players/stats', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: item.id, stats: { [key]: number } }),
+                  });
+                  const result = await readJson(response);
+                  if (!response.ok || !result.success) throw new Error(result.error || '保存失败');
+                  await load(true);
+                  openDetail(item.id);
+                } catch (error) {
+                  done = false;
+                  input.disabled = false;
+                  input.focus();
+                  window.alert(`保存失败：${error.message}`);
+                }
+              };
+              input.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') { event.preventDefault(); finish(true); }
+                else if (event.key === 'Escape') { event.preventDefault(); finish(false); }
+              });
+              input.addEventListener('blur', () => finish(true));
             });
           });
           let photoKind = 'stills';

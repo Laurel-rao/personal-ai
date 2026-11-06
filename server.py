@@ -516,9 +516,22 @@ def _am_load() -> dict[str, Any]:
         if items:
             comments[row.get("playerId", "")] = items
     overrides = _am_overrides()
+    stat_keys = {"FAC", "BDY", "SKL", "POP", "CHA", "PRF"}
+    for card in cards:
+        patch = overrides.get(str(card.get("id"))) or {}
+        patch_stats = patch.get("stats")
+        if isinstance(patch_stats, dict):
+            merged_stats = dict(card.get("stats") or {})
+            for key, value in patch_stats.items():
+                if key in stat_keys:
+                    try:
+                        merged_stats[key] = max(0, min(100, int(value)))
+                    except (TypeError, ValueError):
+                        pass
+            card["stats"] = merged_stats
     for player_id, patch in overrides.items():
         if player_id in profiles:
-            profiles[player_id].update(patch)
+            profiles[player_id].update({key: value for key, value in patch.items() if key != "stats"})
     groups: dict[str, list[dict[str, Any]]] = {}
     for card in cards:
         groups.setdefault(_person_key(card, profiles.get(card["id"], {})), []).append(card)
@@ -934,12 +947,19 @@ def _write_am_overrides(overrides: dict[str, dict[str, Any]]) -> None:
 
 def _set_dmm_override(player_id: str, dmm_id: str) -> None:
     overrides = _am_overrides()
+    patch = overrides.setdefault(player_id, {})
     if dmm_id:
         entry = _dmm_entry(dmm_id)
-        overrides[player_id] = {"dmmId": dmm_id, "dmmImage": str(entry.get("image") or "")}
-        if not overrides[player_id]["dmmImage"]:
-            overrides[player_id].pop("dmmImage", None)
+        patch["dmmId"] = dmm_id
+        image = str(entry.get("image") or "")
+        if image:
+            patch["dmmImage"] = image
+        else:
+            patch.pop("dmmImage", None)
     else:
+        patch.pop("dmmId", None)
+        patch.pop("dmmImage", None)
+    if not patch:
         overrides.pop(player_id, None)
     _write_am_overrides(overrides)
 
@@ -1400,6 +1420,42 @@ def api_players_dmm_id() -> Response:
     refreshed = _am_load()
     return jsonify({"success": True, "item": _am_item(card, refreshed["profiles"].get(card_id, {})),
                     "dmmId": dmm_id})
+
+
+@console_bp.post("/api/players/stats")
+def api_players_stats() -> Response:
+    payload = request.get_json(silent=True) or {}
+    card_id = str(payload.get("id") or "").strip()
+    stats = payload.get("stats")
+    if not card_id or not isinstance(stats, dict) or not stats:
+        return error_response(400, "缺少评分数据")
+    allowed = {"FAC", "BDY", "SKL", "POP", "CHA", "PRF"}
+    clean: dict[str, int] = {}
+    for key, value in stats.items():
+        if key not in allowed:
+            continue
+        try:
+            number = int(value)
+        except (TypeError, ValueError):
+            return error_response(400, f"{key} 必须是数字")
+        if not 0 <= number <= 100:
+            return error_response(400, f"{key} 需在 0–100 之间")
+        clean[key] = number
+    if not clean:
+        return error_response(400, "没有可保存的评分")
+    state = _am_load()
+    card = next((item for item in state["cards"] if item.get("id") == card_id), None)
+    if card is None:
+        return error_response(404, "没有找到这位选手")
+    overrides = _am_overrides()
+    patch = overrides.setdefault(card_id, {})
+    current = patch.get("stats") if isinstance(patch.get("stats"), dict) else {}
+    patch["stats"] = {**current, **clean}
+    _write_am_overrides(overrides)
+    refreshed = _am_load()
+    refreshed_card = next((item for item in refreshed["cards"] if item.get("id") == card_id), card)
+    return jsonify({"success": True, "item": _am_item(refreshed_card, refreshed["profiles"].get(card_id, {})),
+                    "stats": patch["stats"]})
 
 
 @console_bp.post("/api/players/update")

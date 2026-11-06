@@ -56,10 +56,19 @@
     .nya-empty { grid-column: 1 / -1; padding: 40px 0; text-align: center; color: var(--page-muted, #7b8795); font-size: 14px; }
     .nya-hint { margin-top: 22px; font-size: 12px; color: var(--page-muted, #7b8795); line-height: 1.7; }
     .nya-hint code { background: #eef2f5; padding: 1px 6px; border-radius: 5px; }
-    .nya-lightbox { position: fixed; inset: 0; z-index: 999; display: flex; align-items: center; justify-content: center; background: rgba(23,32,43,.55); backdrop-filter: blur(3px); }
+    .nya-context-menu { position: fixed; z-index: 2147483100; min-width: 136px; padding: 4px; border: 1px solid var(--page-line, #e3e9ee); border-radius: 8px; background: var(--page-surface, #fff); box-shadow: 0 14px 40px rgba(23,32,43,.25); }
+    .nya-context-menu[hidden] { display: none !important; }
+    .nya-context-menu button { display: block; width: 100%; border: 0; border-radius: 5px; background: none; color: var(--page-text, #243242); text-align: left; padding: 7px 9px; font-size: 12px; cursor: pointer; }
+    .nya-context-menu button:hover { background: var(--page-primary-soft, #edf7f2); color: var(--page-primary, #087f65); }
+    .nya-context-menu button[hidden] { display: none; }
+    .nya-lightbox { position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: center; justify-content: center; background: rgba(23,32,43,.55); backdrop-filter: blur(3px); }
     .nya-lightbox[hidden] { display: none; }
-    .nya-lb-img { max-width: min(92vw, 1400px); max-height: 82vh; object-fit: contain; border-radius: 8px; box-shadow: 0 20px 60px rgba(23,32,43,.35); background: #0f1218; }
-    .nya-lb-close, .nya-lb-prev, .nya-lb-next { position: absolute; border: 0; background: rgba(255,255,255,.85); color: #243242; cursor: pointer; border-radius: 50%; width: 46px; height: 46px; font-size: 24px; line-height: 1; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(23,32,43,.25); }
+    .nya-lb-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 10px; color: #eef2f7; font-size: 13px; background: rgba(15,20,28,.72); padding: 10px 16px; border-radius: 999px; border: 0; box-shadow: 0 6px 20px rgba(0,0,0,.35); z-index: 2; }
+    .nya-lb-loading[hidden] { display: none; }
+    .nya-lb-spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.25); border-top-color: #8fd0ff; border-radius: 50%; animation: nyaLbSpin .8s linear infinite; }
+    @keyframes nyaLbSpin { to { transform: rotate(360deg); } }
+    .nya-lb-img { transition: opacity .15s ease; max-width: min(92vw, 1400px); max-height: 82vh; object-fit: contain; border-radius: 8px; box-shadow: 0 20px 60px rgba(23,32,43,.35); background: #0f1218; }
+    .nya-lb-close, .nya-lb-prev, .nya-lb-next { position: absolute; z-index: 3; border: 0; background: rgba(255,255,255,.85); color: #243242; cursor: pointer; border-radius: 50%; width: 46px; height: 46px; font-size: 24px; line-height: 1; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(23,32,43,.25); }
     .nya-lb-close { top: 18px; right: 18px; }
     .nya-lb-prev { left: 18px; top: 50%; transform: translateY(-50%); }
     .nya-lb-next { right: 18px; top: 50%; transform: translateY(-50%); }
@@ -113,10 +122,19 @@
     </p>
   </div>
 
+  <div class="nya-context-menu" id="nyaContextMenu" hidden role="menu">
+    <button type="button" data-action="preview">查看大图</button>
+    <button type="button" data-action="thunder">送迅雷</button>
+    <button type="button" data-action="magnet">复制磁力</button>
+    <button type="button" data-action="code">复制番号</button>
+    <button type="button" data-action="cover">下载封面</button>
+  </div>
+
   <div class="nya-lightbox" id="nyaLightbox" hidden role="dialog" aria-modal="true" aria-label="封面预览">
     <button class="nya-lb-close" id="nyaLbClose" type="button" aria-label="关闭">×</button>
     <button class="nya-lb-prev" id="nyaLbPrev" type="button" aria-label="上一张">‹</button>
     <img class="nya-lb-img" id="nyaLbImg" alt="" />
+    <div class="nya-lb-loading" id="nyaLbLoading" hidden><span class="nya-lb-spinner"></span><span id="nyaLbLoadingText">加载中…</span></div>
     <button class="nya-lb-next" id="nyaLbNext" type="button" aria-label="下一张">›</button>
     <div class="nya-lb-bar">
       <span class="title" id="nyaLbTitle"></span>
@@ -147,6 +165,7 @@
       const sortSelect = document.getElementById('nyaSort');
       const filterWrap = document.getElementById('nyaFilters');
       let currentResults = [];
+      let currentSorted = [];
       let activeFilter = 'all';
       let activeSort = 'default';
 
@@ -165,6 +184,9 @@
         const mult = unit.startsWith('T') ? 1e12 : unit.startsWith('G') ? 1e9 : unit.startsWith('M') ? 1e6 : 1e3;
         return parseFloat(match[1]) * mult;
       };
+
+      const coverPreview = (code) => `/api/nya/cover?code=${encodeURIComponent(code)}&size=medium&v=2`;
+      const coverFull = (code) => `/api/nya/cover?code=${encodeURIComponent(code)}&size=full&v=2`;
 
       function render(results) {
         currentResults = results || [];
@@ -194,9 +216,9 @@
           if (item.duration) badges.push(`<span>${esc(item.duration)}</span>`);
           const date = item.uploaded_at ? esc(item.uploaded_at.slice(0, 10)) : '';
           return `
-          <article class="nya-card">
+          <article class="nya-card" data-index="${index}">
             <div class="nya-cover${code ? '' : ' empty'}">
-              ${code ? `<img src="/api/nya/cover?code=${encodeURIComponent(code)}" alt="" loading="lazy" onerror="this.parentNode.classList.add('empty')">` : ''}
+              ${code ? `<img src="${coverPreview(code)}" alt="" loading="lazy" onerror="this.parentNode.classList.add('empty')">` : ''}
               <span class="nya-noimg">无封面</span>
             </div>
             <div class="nya-name" title="${esc(item.title || item.view_id)}">${esc(item.title || item.view_id)}</div>
@@ -222,15 +244,26 @@
         });
         loadReleaseDates();
 
+        currentSorted = sorted;
         lightboxItems = sorted
           .map((item) => {
             const code = extractCode(item.title);
-            return code ? { src: `/api/nya/cover?code=${encodeURIComponent(code)}`, title: item.title || code, code } : null;
+            return code ? { src: coverPreview(code), full: coverFull(code), title: item.title || code, code } : null;
           })
           .filter(Boolean);
         list.querySelectorAll('.nya-cover img').forEach((img) => {
           const idx = lightboxItems.findIndex((entry) => entry.src === img.getAttribute('src'));
           img.addEventListener('click', () => openLightbox(idx >= 0 ? idx : 0));
+        });
+        list.querySelectorAll('.nya-cover').forEach((cover) => {
+          cover.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            const card = cover.closest('.nya-card');
+            const index = Number(card?.dataset.index);
+            const item = currentSorted[index];
+            if (!item) return;
+            showContextMenu(event, item, index, extractCode(item.title));
+          });
         });
 
         list.querySelectorAll('button[data-copy]').forEach((btn) => {
@@ -339,25 +372,132 @@
       }
 
       // ---------------- 灯箱 ----------------
+      let lbToken = 0;
       let lightboxItems = [];
       let lightboxIndex = 0;
       const lightbox = document.getElementById('nyaLightbox');
+      if (lightbox && lightbox.parentElement !== document.body) document.body.appendChild(lightbox);
       const lbImg = document.getElementById('nyaLbImg');
       const lbTitle = document.getElementById('nyaLbTitle');
       const lbCounter = document.getElementById('nyaLbCounter');
       const lbDownload = document.getElementById('nyaLbDownload');
+      const lbLoading = document.getElementById('nyaLbLoading');
+      const lbLoadingText = document.getElementById('nyaLbLoadingText');
+      const lbPrev = document.getElementById('nyaLbPrev');
+      const lbNext = document.getElementById('nyaLbNext');
 
       function showLightboxItem() {
         if (!lightboxItems.length) return;
         const item = lightboxItems[lightboxIndex];
-        lbImg.src = `${item.src}${item.src.includes('?') ? '&' : '?'}size=full`;
+        const previewSrc = item.src;
+        const fullSrc = item.full || previewSrc;
+        let upgraded = false;
+        const token = ++lbToken;
+        // The card already loaded previewSrc, so the lightbox opens instantly.
+        lbLoading.hidden = true;
+        lbImg.style.opacity = '1';
+        lbImg.onload = () => {
+          if (token !== lbToken) return;
+          lbImg.style.opacity = '1';
+          lbLoading.hidden = true;
+          if (fullSrc !== previewSrc && !upgraded) {
+            upgraded = true;
+            const fullImage = new Image();
+            fullImage.onload = () => { if (token === lbToken) lbImg.src = fullSrc; };
+            fullImage.src = fullSrc;
+          }
+        };
+        lbImg.onerror = () => {
+          if (token !== lbToken) return;
+          lbLoading.hidden = false;
+          lbLoadingText.textContent = '加载失败，点击图片重试';
+        };
+        lbImg.onclick = (event) => {
+          event.stopPropagation();
+          lbImg.src = `${fullSrc}${fullSrc.includes('?') ? '&' : '?'}_=${Date.now()}`;
+        };
+        lbImg.src = previewSrc;
         lbImg.alt = item.title;
         lbTitle.textContent = item.title;
         lbCounter.textContent = `${lightboxIndex + 1} / ${lightboxItems.length}`;
-        lbDownload.href = item.src;
+        lbDownload.href = fullSrc;
         lbDownload.download = `${item.code || 'cover'}.jpg`;
         lbDownload.textContent = '下载原图';
+        const single = lightboxItems.length <= 1;
+        lbPrev.style.display = single ? 'none' : '';
+        lbNext.style.display = single ? 'none' : '';
+        [1, -1].forEach((delta) => {
+          const neighbor = lightboxItems[(lightboxIndex + delta + lightboxItems.length) % lightboxItems.length];
+          if (neighbor && neighbor.full && neighbor.full !== fullSrc) { const pre = new Image(); pre.src = neighbor.full; }
+        });
       }
+
+      const contextMenu = document.getElementById('nyaContextMenu');
+      let contextItem = null;
+      let contextIndex = -1;
+      let contextCode = '';
+
+      function hideContextMenu() {
+        contextMenu.hidden = true;
+        contextItem = null;
+        contextIndex = -1;
+        contextCode = '';
+      }
+
+      function showContextMenu(event, item, index, code) {
+        contextItem = item;
+        contextIndex = index;
+        contextCode = code || '';
+        contextMenu.querySelector('[data-action="preview"]').hidden = !contextCode;
+        contextMenu.querySelector('[data-action="code"]').hidden = !contextCode;
+        contextMenu.querySelector('[data-action="cover"]').hidden = !contextCode;
+        contextMenu.hidden = false;
+        const width = contextMenu.offsetWidth || 140;
+        const height = contextMenu.offsetHeight || 140;
+        contextMenu.style.left = `${Math.max(8, Math.min(event.clientX, window.innerWidth - width - 8))}px`;
+        contextMenu.style.top = `${Math.max(8, Math.min(event.clientY, window.innerHeight - height - 8))}px`;
+      }
+
+      contextMenu.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-action]');
+        if (!button || !contextItem) return;
+        const item = contextItem;
+        const code = contextCode;
+        const index = contextIndex;
+        const action = button.dataset.action;
+        hideContextMenu();
+        if (action === 'preview') {
+          const lightboxIndex = lightboxItems.findIndex((entry) => entry.code === code);
+          if (lightboxIndex >= 0) openLightbox(lightboxIndex);
+          return;
+        }
+        if (action === 'thunder') {
+          const trigger = document.querySelector(`.nya-card[data-index="${index}"] .nya-actions button.primary`);
+          if (trigger) download(item, trigger);
+          return;
+        }
+        if (action === 'magnet') {
+          if (!item.magnet) { setStatus('该种子没有磁力链接', true); return; }
+          try { await navigator.clipboard.writeText(item.magnet); setStatus('磁力已复制'); }
+          catch (error) { setStatus('复制失败，请手动选择', true); }
+          return;
+        }
+        if (action === 'code') {
+          try { await navigator.clipboard.writeText(code); setStatus('番号已复制'); }
+          catch (error) { setStatus('复制失败，请手动选择', true); }
+          return;
+        }
+        if (action === 'cover') {
+          const link = document.createElement('a');
+          link.href = coverFull(code);
+          link.download = `${code}.jpg`;
+          link.click();
+        }
+      });
+      document.addEventListener('click', hideContextMenu);
+      document.addEventListener('scroll', hideContextMenu, true);
+      window.addEventListener('resize', hideContextMenu);
+      document.addEventListener('keydown', (event) => { if (event.key === 'Escape') hideContextMenu(); });
 
       function openLightbox(index) {
         if (!lightboxItems.length) return;

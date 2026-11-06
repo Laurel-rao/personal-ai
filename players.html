@@ -957,7 +957,7 @@
             box.classList.remove('selecting');
             const toolbar = document.getElementById('plPhotoToolbar');
             if (toolbar) toolbar.hidden = true;
-            box.innerHTML = `<div class="loading">正在抓取${targetKind === 'daily' ? '日常照' : '剧照'}（首次约 10-40 秒）…</div>`;
+            box.innerHTML = `<div class="loading">正在抓取${targetKind === 'daily' ? '日常照' : '剧照'}（首次约 30-90 秒，之后读缓存）…</div>`;
             try {
               const response = await fetch(`/api/players/photos?id=${encodeURIComponent(item.id)}${refresh ? '&refresh=1' : ''}&kind=${targetKind}`);
               const photos = await readJson(response);

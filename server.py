@@ -1655,7 +1655,7 @@ def _dmm_stills(roman_name: str, limit_codes: int = 10) -> list[tuple[str, list[
 
 
 def _player_photos(card_id: str, name: str, roman_name: str = "", sources: list[str] | None = None,
-                   limit: int = 12, force: bool = False, kind: str = "stills",
+                   limit: int = 30, force: bool = False, kind: str = "stills",
                    jp_name_for_photos: str = "") -> list[str]:
     key = re.sub(r"[^A-Za-z0-9_-]+", "-", card_id)[:80] or "player"
     if kind == "daily":
@@ -1669,7 +1669,10 @@ def _player_photos(card_id: str, name: str, roman_name: str = "", sources: list[
         except ValueError:
             manifest = {}
     files = sorted(p.name for p in folder.glob("*.jpg")) if folder.is_dir() else []
-    fresh = (time.time() - manifest.get("fetched_at", 0)) < 7 * 86400 and manifest.get("source") in {"theidolbase", "dmm-stills", "all4jp", "javdatabase-covers", "actorbase"}
+    cached_limit = int(manifest.get("limit") or 12)
+    fresh = ((time.time() - manifest.get("fetched_at", 0)) < 7 * 86400
+             and manifest.get("source") in {"theidolbase", "dmm-stills", "all4jp", "javdatabase-covers", "actorbase"}
+             and cached_limit >= limit)
     if not force and fresh and files:
         return [f"/api/players/photo/{key}/{name_}" for name_ in files]
     def download(candidate: str) -> bytes | None:
@@ -1712,7 +1715,8 @@ def _player_photos(card_id: str, name: str, roman_name: str = "", sources: list[
                     saved += 1
                     (folder / f"{saved:02d}.jpg").write_bytes(data)
         if saved:
-            manifest_file.write_text(json.dumps({"fetched_at": time.time(), "count": saved, "source": source_name},
+            manifest_file.write_text(json.dumps({"fetched_at": time.time(), "count": saved,
+                                                "source": source_name, "limit": limit},
                                                 ensure_ascii=False), encoding="utf-8")
         files = sorted(p.name for p in folder.glob("*.jpg"))
         return [f"/api/players/photo/{key}/{name_}" for name_ in files]
@@ -1724,7 +1728,7 @@ def _player_photos(card_id: str, name: str, roman_name: str = "", sources: list[
                 break
             tried += 1
             valid = 0
-            with futures.ThreadPoolExecutor(max_workers=5) as pool:
+            with futures.ThreadPoolExecutor(max_workers=8) as pool:
                 for data in pool.map(download, urls):
                     if saved >= limit:
                         break
@@ -1759,7 +1763,8 @@ def _player_photos(card_id: str, name: str, roman_name: str = "", sources: list[
                 saved += 1
                 (folder / f"{saved:02d}.jpg").write_bytes(data)
     if saved:
-        manifest_file.write_text(json.dumps({"fetched_at": time.time(), "count": saved, "source": source_name},
+        manifest_file.write_text(json.dumps({"fetched_at": time.time(), "count": saved,
+                                            "source": source_name, "limit": limit},
                                             ensure_ascii=False), encoding="utf-8")
     files = sorted(p.name for p in folder.glob("*.jpg"))
     return [f"/api/players/photo/{key}/{name_}" for name_ in files]

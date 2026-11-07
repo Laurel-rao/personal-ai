@@ -907,7 +907,7 @@
       }
 
       async function upgradePlayerAvatar(item) {
-        if (item.avatar_url) return;
+        if (!item.custom || item.avatar_url) return;
         try {
           const response = await fetch('/api/players/avatar/refresh', {
             method: 'POST',

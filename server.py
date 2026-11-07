@@ -658,7 +658,7 @@ def _am_item(card: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
         "social": profile.get("social") or {},
         "sources": profile.get("sources") or [],
         "card_image": card_image,
-        "avatar_url": _avatar_url(card.get("id")),
+        "avatar_url": _avatar_url(card.get("id")) if (profile.get("custom") or not card.get("card")) else "",
         "custom": bool(profile.get("custom")),
         "tags": _AM_STATE.get("tags", {}).get(card.get("id"), []),
         "dmm_id": dmm_id,

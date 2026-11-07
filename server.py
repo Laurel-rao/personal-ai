@@ -2382,10 +2382,12 @@ def _idolbase_slug_variants(names: list[str]) -> list[str]:
             continue
         for ordered in (tokens, list(reversed(tokens))):
             base = "-".join(ordered)
-            for slug in (base, _hepburn_slug(base)):
+            spellings = [base, _hepburn_slug(base)]
+            spellings += [re.sub(r"([aeiou])\1+", r"\1", value) for value in list(spellings)]
+            for slug in spellings:
                 if slug and slug not in variants:
                     variants.append(slug)
-    return variants[:8]
+    return variants[:6]
 
 
 def _ensure_player_avatar(card: dict[str, Any], profile: dict[str, Any], force: bool = False) -> dict[str, Any] | None:
@@ -2408,7 +2410,7 @@ def _ensure_player_avatar(card: dict[str, Any], profile: dict[str, Any], force: 
     for slug in slugs:
         page_url = f"https://www.theidolbase.com/actress/{slug}"
         try:
-            page = _nya_fetch(page_url, timeout=10).decode("utf-8", "ignore")
+            page = _nya_fetch(page_url, timeout=6).decode("utf-8", "ignore")
         except Exception:  # noqa: BLE001
             continue
         match = re.search(r"https://image\.yingzhiben\.info/avatar/[^\"'\s]+\.(?:jpg|jpeg|webp)", page)
@@ -2442,6 +2444,28 @@ def _ensure_player_avatar(card: dict[str, Any], profile: dict[str, Any], force: 
     meta[card_id] = {"source": "theidolbase-avatar", "url": source_url, "width": width, "height": height, "at": time.time()}
     _save_avatar_meta(meta)
     return {**meta[card_id], "cached": False}
+
+
+def _warm_custom_avatars() -> None:
+    """启动后慢慢补齐手动选手的 theidolbase 半身头像，单线程限速。"""
+    time.sleep(8)
+    try:
+        state = _am_load()
+    except Exception:  # noqa: BLE001
+        return
+    for card in state.get("cards", []):
+        profile = state.get("profiles", {}).get(card.get("id"), {})
+        if not profile.get("custom"):
+            continue
+        if _avatar_path(card.get("id")).is_file():
+            continue
+        try:
+            result = _ensure_player_avatar(card, profile)
+            if result:
+                print(f"[avatar] {card.get('displayName') or card.get('id')}: {result.get('width')}x{result.get('height')}", flush=True)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[avatar] {card.get('id')}: {exc}", flush=True)
+        time.sleep(0.8)
 
 
 def _player_avatar_meta(card_id: str) -> dict[str, Any]:
@@ -5281,6 +5305,8 @@ def create_console_app(config=None) -> Flask:
     threading.Thread(target=_resume_download_tasks, daemon=True).start()
     threading.Thread(target=_ensure_dmm_proxy, daemon=True).start()
     threading.Thread(target=_video_cover_scheduler, daemon=True).start()
+    if os.environ.get("AVATAR_WARM_ON_START", "1").strip().lower() not in {"0", "false", "no", "off"}:
+        threading.Thread(target=_warm_custom_avatars, daemon=True).start()
     app = Flask(__name__, static_folder=None)
     if config:
         app.config.update(config)

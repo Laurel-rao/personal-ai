@@ -92,6 +92,7 @@ chmod 600 .env
 | `THUNDER_APP` | macOS 迅雷应用名 |
 | `THUNDER_CMD` | 跨平台下载器命令；目标路径作为最后一个参数 |
 | `VIDEO_COVER_REFRESH_SECONDS` | 封面定时刷新间隔，最小 3600 |
+| `AVATAR_WARM_ON_START` | 启动后后台补手动选手高清头像；`0` 关闭 |
 | `PERSONAL_AI_STATE_DIR` | 账号库/会话密钥目录；默认 `data/` |
 | `PERSONAL_AI_SECRET_KEY` | 外部秘密管理提供；留空自动生成 |
 | `PERSONAL_AI_COOKIE_SECURE` | HTTPS 部署设为 `1` |

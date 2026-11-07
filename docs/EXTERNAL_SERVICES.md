@@ -40,7 +40,7 @@
 | `javdatabase` | `www.javdatabase.com` | `_javdatabase_info()`、`_javdatabase_codes()`、`_javdatabase_cover_bytes()`、`_release_date()` | 发售日、厂牌、女优、封面；ABP/ABW/ABF/CHN 海报兜底 | `DMM_PROXY` | `data/nya-release.json`、封面缓存、负缓存 | 回退 av-wiki/维基；仍失败则空字段 |
 | `av-wiki` | `av-wiki.net` | `_avwiki_release()` | 发售日兜底（企划单体覆盖较好） | `NYAA_PROXY` | `data/nya-release.json` | 返回空日期 |
 | `wikipedia` | `ja.wikipedia.org` | `_wiki_release()` | 发售日最后兜底 | `NYAA_PROXY` | `data/nya-release.json` | 返回空日期 |
-| `theidolbase` | `www.theidolbase.com`、`image.yingzhiben.info` | `_idolbase_profile()`、`_idolbase_gallery()`、`_ensure_player_avatar()` | 女优资料、写真画廊、480×600 半身头像 | `NYAA_PROXY` | 本地照片缓存、`data/amxiaolin/avatars/` | 返回空资料/跳过来源，保留 DMM 125px 小图 |
+| `theidolbase` | `www.theidolbase.com`、`image.yingzhiben.info` | `_idolbase_profile()`、`_idolbase_gallery()`、`_ensure_player_avatar()`、`_warm_custom_avatars()` | 女优资料、写真画廊、半身头像（通常 480×600 以上） | `NYAA_PROXY` | 本地照片缓存、`data/amxiaolin/avatars/`；启动后台补手动选手 | 返回空资料/跳过来源，保留 DMM 125px 小图 |
 | `theactorbase` | `www.theactorbase.com`、`image.theactorbase.com` | `_actorbase_works()`、`_actorbase_images()` | 精确作品表、日常照 | `NYAA_PROXY` | 本地照片缓存 | 返回空作品/图片 |
 | `ndl` | `ndlsearch.ndl.go.jp` | `_ndl_books()` | 写真集书目检索（NDL OpenSearch） | `NYAA_PROXY` | 请求缓存 | 返回空书目 |
 | `all4jp` | `all4jp.com` | `_all4jp_images()` | 写真图备用源 | `NYAA_PROXY` | 本地照片缓存 | 跳过该来源 |

@@ -27,6 +27,8 @@ try:
         return image_bytes
 
     server._nya_fetch = fake_fetch
+    assert "shiraishi-momo" in server._idolbase_slug_variants(["Siraisi Momo"])
+    assert "misaki-miyu" in server._idolbase_slug_variants(["Misaki Miyuu"])
     card = {"id": "test-avatar", "name": "Siraisi Momo", "displayName": "白石もも"}
     profile = {"name": "Siraisi Momo", "displayName": "白石もも", "aliases": []}
     result = server._ensure_player_avatar(card, profile)

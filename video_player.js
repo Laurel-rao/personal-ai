@@ -449,7 +449,9 @@
     const generation = ++state.refreshGeneration;
     $('playerStatus').textContent = '读取本地片库';
     try {
-      const response = await fetch(`/api/player/videos${state.showHidden ? '?show_hidden=1' : ''}`);
+      const params = new URLSearchParams({ refresh: '1' });
+      if (state.showHidden) params.set('show_hidden', '1');
+      const response = await fetch(`/api/player/videos?${params.toString()}`);
       if (!response.ok) throw new Error('片库请求失败');
       const data = await response.json();
       if (!Array.isArray(data.items)) throw new Error('片库格式无效');

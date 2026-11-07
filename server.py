@@ -2474,7 +2474,7 @@ def _player_avatar_meta(card_id: str) -> dict[str, Any]:
 
 _LOCAL_PHOTO_DIR = Path(os.environ.get("LOCAL_PHOTO_DIR", str(Path.home() / "Movies" / "写真"))).expanduser().resolve()
 _LOCAL_STATS: dict[str, tuple[float, int, int]] = {}
-_LOCAL_STATS_TTL = 60.0
+_LOCAL_STATS_TTL = 300.0
 
 
 def _local_stats(name: str) -> tuple[int, int]:
@@ -4106,7 +4106,7 @@ def api_nya_cover() -> Response:
 
 _VIDEO_CACHE: dict[str, Any] = {"at": 0.0, "items": [], "warning": ""}
 _VIDEO_LOCK = threading.RLock()
-_VIDEO_TTL = 60.0
+_VIDEO_TTL = 300.0
 
 
 def _all_videos() -> tuple[list[dict[str, Any]], str]:
@@ -4392,6 +4392,8 @@ def _video_target(relative: str) -> Path | None:
 @console_bp.get("/api/player/videos")
 def player_videos() -> Response:
     """列出配置的 Movies 目录下可播放的视频及其资料。"""
+    if request.args.get("refresh") == "1":
+        _VIDEO_CACHE.update(at=0.0)
     items, warning = _all_videos()
     if not MOVIES_DIR.is_dir():
         return jsonify({"items": [], "directory": str(MOVIES_DIR), "error": "Movies 目录不存在"})

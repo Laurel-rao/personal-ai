@@ -658,6 +658,7 @@ def _am_item(card: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
         "social": profile.get("social") or {},
         "sources": profile.get("sources") or [],
         "card_image": card_image,
+        "avatar_url": _avatar_url(card.get("id")),
         "custom": bool(profile.get("custom")),
         "tags": _AM_STATE.get("tags", {}).get(card.get("id"), []),
         "dmm_id": dmm_id,
@@ -2327,6 +2328,126 @@ def api_players_works() -> Response:
         return error_response(502, f"作品获取失败：{exc}")
 
 
+_PLAYER_AVATAR_DIR = DATA_DIR / "amxiaolin" / "avatars"
+_PLAYER_AVATAR_META = DATA_DIR / "amxiaolin" / "avatar-meta.json"
+_PLAYER_AVATAR_LOCK = threading.RLock()
+
+
+def _avatar_safe_id(card_id: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", str(card_id or "")).strip("-")[:120] or "player"
+
+
+def _avatar_path(card_id: str) -> Path:
+    return _PLAYER_AVATAR_DIR / f"{_avatar_safe_id(card_id)}.jpg"
+
+
+def _avatar_url(card_id: str) -> str:
+    path = _avatar_path(card_id)
+    try:
+        stamp = int(path.stat().st_mtime)
+    except OSError:
+        return ""
+    return f"/api/players/avatar/{urllib.parse.quote(_avatar_safe_id(card_id))}?v={stamp}"
+
+
+def _load_avatar_meta() -> dict[str, dict[str, Any]]:
+    try:
+        data = json.loads(_PLAYER_AVATAR_META.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {str(key): value for key, value in data.items() if isinstance(value, dict)} if isinstance(data, dict) else {}
+
+
+def _save_avatar_meta(data: dict[str, dict[str, Any]]) -> None:
+    _PLAYER_AVATAR_META.parent.mkdir(parents=True, exist_ok=True)
+    temporary = _PLAYER_AVATAR_META.with_name(f"{_PLAYER_AVATAR_META.name}.tmp")
+    with _PLAYER_AVATAR_LOCK:
+        temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(_PLAYER_AVATAR_META)
+
+
+def _hepburn_slug(value: str) -> str:
+    text = (value or "").lower()
+    for source, target in (("sya", "sha"), ("syu", "shu"), ("syo", "sho"),
+                           ("si", "shi"), ("zi", "ji"), ("tu", "tsu"), ("hu", "fu")):
+        text = text.replace(source, target)
+    return text
+
+
+def _idolbase_slug_variants(names: list[str]) -> list[str]:
+    variants: list[str] = []
+    for name in names:
+        tokens = [token for token in re.split(r"[^A-Za-z0-9]+", str(name or "").lower()) if token]
+        if not tokens:
+            continue
+        for ordered in (tokens, list(reversed(tokens))):
+            base = "-".join(ordered)
+            for slug in (base, _hepburn_slug(base)):
+                if slug and slug not in variants:
+                    variants.append(slug)
+    return variants[:8]
+
+
+def _ensure_player_avatar(card: dict[str, Any], profile: dict[str, Any], force: bool = False) -> dict[str, Any] | None:
+    """抓取高清半身头像；只接受至少 300×400 的 theidolbase avatar，缓存到本地。"""
+    card_id = str(card.get("id") or "")
+    if not card_id:
+        return None
+    path = _avatar_path(card_id)
+    meta = _load_avatar_meta()
+    cached = meta.get(card_id) or {}
+    if path.is_file() and not force:
+        return {**cached, "cached": True}
+    if not force and cached.get("failed_at") and time.time() - float(cached["failed_at"]) < 3600:
+        return None
+    names = [card.get("name"), profile.get("name"), card.get("displayName"), profile.get("displayName")]
+    names.extend(profile.get("aliases") or [])
+    slugs = _idolbase_slug_variants([str(name) for name in names if name])
+    source_url = ""
+    raw = None
+    for slug in slugs:
+        page_url = f"https://www.theidolbase.com/actress/{slug}"
+        try:
+            page = _nya_fetch(page_url, timeout=10).decode("utf-8", "ignore")
+        except Exception:  # noqa: BLE001
+            continue
+        match = re.search(r"https://image\.yingzhiben\.info/avatar/[^\"'\s]+\.(?:jpg|jpeg|webp)", page)
+        if not match:
+            continue
+        source_url = match.group(0)
+        try:
+            raw = _nya_fetch(source_url, timeout=20)
+        except Exception:  # noqa: BLE001
+            raw = None
+        if raw:
+            break
+    if not raw:
+        meta[card_id] = {**cached, "failed_at": time.time(), "reason": "theidolbase avatar not found"}
+        _save_avatar_meta(meta)
+        return None
+    try:
+        from PIL import Image
+        image = Image.open(io.BytesIO(raw)).convert("RGB")
+        width, height = image.size
+        if width < 300 or height < 400:
+            raise ValueError("头像尺寸不足 300×400")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(f"{path.name}.tmp")
+        image.save(temporary, "JPEG", quality=92, optimize=True)
+        temporary.replace(path)
+    except Exception as exc:  # noqa: BLE001
+        meta[card_id] = {**cached, "failed_at": time.time(), "reason": str(exc)[:160]}
+        _save_avatar_meta(meta)
+        return None
+    meta[card_id] = {"source": "theidolbase-avatar", "url": source_url, "width": width, "height": height, "at": time.time()}
+    _save_avatar_meta(meta)
+    return {**meta[card_id], "cached": False}
+
+
+def _player_avatar_meta(card_id: str) -> dict[str, Any]:
+    return _load_avatar_meta().get(str(card_id), {})
+
+
 _LOCAL_PHOTO_DIR = Path(os.environ.get("LOCAL_PHOTO_DIR", str(Path.home() / "Movies" / "写真"))).expanduser().resolve()
 _LOCAL_STATS: dict[str, tuple[float, int, int]] = {}
 _LOCAL_STATS_TTL = 60.0
@@ -3203,6 +3324,34 @@ def api_players_detail() -> Response:
             "variants": variants,
         })
     return error_response(404, "没有找到这位选手")
+
+
+@console_bp.get("/api/players/avatar/<path:name>")
+def api_players_avatar(name: str) -> Response:
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", name)
+    target = _PLAYER_AVATAR_DIR / f"{safe}.jpg"
+    if not target.is_file():
+        return error_response(404, "头像不存在")
+    return send_file(target, mimetype="image/jpeg", max_age=3600)
+
+
+@console_bp.post("/api/players/avatar/refresh")
+def api_players_avatar_refresh() -> Response:
+    payload = request.get_json(silent=True) or {}
+    card_id = str(payload.get("id") or "").strip()
+    if not card_id:
+        return error_response(400, "缺少选手 id")
+    state = _am_load()
+    card = next((item for item in state["cards"] if item.get("id") == card_id), None)
+    if card is None:
+        return error_response(404, "没有找到这位选手")
+    profile = state["profiles"].get(card_id, {})
+    result = _ensure_player_avatar(card, profile, force=bool(payload.get("force")))
+    if result is None:
+        return error_response(404, "未找到高质量半身头像")
+    return jsonify({"success": True, "url": _avatar_url(card_id), "source": result.get("source", ""),
+                    "width": result.get("width"), "height": result.get("height"),
+                    "cached": bool(result.get("cached"))})
 
 
 @console_bp.get("/api/players/card/<path:name>")

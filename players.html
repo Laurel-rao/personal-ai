@@ -629,6 +629,7 @@
       let detailDownloadToken = 0;
       let photoPollTimer = 0;
       let photoLoadToken = 0;
+      let currentDetailId = '';
 
       function cardHtml(item) {
         const stats = item.stats || {};
@@ -637,7 +638,7 @@
           .map((key) => `<span title="${key}">${stats[key]}</span>`).join('');
         return `
         <article class="pl-card${item.hidden ? ' is-hidden' : ''}" data-id="${esc(item.id)}">
-          <div class="pl-cover">${item.card_image ? `<img loading="lazy" src="${esc(item.card_image)}" alt="${esc(item.name)}">` : ''}${item.local_books ? `<button type="button" class="pl-local-badge" data-local="1" title="本地写真 ${item.local_books} 本 · ${item.local_pages} 张">写真 ${item.local_books}</button>` : ''}${item.video_count ? `<span class="pl-video-badge" title="本地视频 ${item.video_count} 部">视频 ${item.video_count}</span>` : ''}${item.hidden ? '<span class="pl-hidden-badge">已隐藏</span>' : ''}${item.group_size > 1 ? `<span class="pl-variant-badge">×${item.group_size}</span>` : ''}<button type="button" class="pl-hide-toggle" data-hidden="${item.hidden ? '1' : '0'}" aria-pressed="${item.hidden ? 'true' : 'false'}" title="${item.hidden ? '取消隐藏，恢复到默认列表' : '隐藏，默认列表不再展示'}">${item.hidden ? '取消隐藏' : '隐藏'}</button></div>
+          <div class="pl-cover">${item.avatar_url || item.card_image ? `<img loading="lazy" src="${esc(item.avatar_url || item.card_image)}" alt="${esc(item.name)}">` : ''}${item.local_books ? `<button type="button" class="pl-local-badge" data-local="1" title="本地写真 ${item.local_books} 本 · ${item.local_pages} 张">写真 ${item.local_books}</button>` : ''}${item.video_count ? `<span class="pl-video-badge" title="本地视频 ${item.video_count} 部">视频 ${item.video_count}</span>` : ''}${item.hidden ? '<span class="pl-hidden-badge">已隐藏</span>' : ''}${item.group_size > 1 ? `<span class="pl-variant-badge">×${item.group_size}</span>` : ''}<button type="button" class="pl-hide-toggle" data-hidden="${item.hidden ? '1' : '0'}" aria-pressed="${item.hidden ? 'true' : 'false'}" title="${item.hidden ? '取消隐藏，恢复到默认列表' : '隐藏，默认列表不再展示'}">${item.hidden ? '取消隐藏' : '隐藏'}</button></div>
           <div class="pl-name" title="${esc(item.name)}"><span class="pl-name-text">${esc(item.name)}</span>${item.age ? `<span class="pl-age">${item.age}岁</span>` : ''}</div>
           <div class="pl-meta">
             <span class="ov">${item.overall != null ? item.overall : '—'}</span>
@@ -905,7 +906,34 @@
         return hours ? `${hours}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}` : `${minutes}:${String(rest).padStart(2, '0')}`;
       }
 
+      async function upgradePlayerAvatar(item) {
+        if (item.avatar_url) return;
+        try {
+          const response = await fetch('/api/players/avatar/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: item.id }),
+          });
+          const result = await readJson(response);
+          if (!response.ok || !result.success || !result.url) return;
+          if (currentDetailId !== item.id) return;
+          item.avatar_url = result.url;
+          const wrap = document.querySelector('.pl-detail-cover-wrap');
+          if (!wrap) return;
+          let image = document.getElementById('plModalImg');
+          if (!image) {
+            image = document.createElement('img');
+            image.className = 'pl-detail-cover';
+            image.id = 'plModalImg';
+            image.alt = item.name || '';
+            wrap.replaceChildren(image);
+          }
+          image.src = result.url;
+        } catch (error) { /* 保留 DMM 小图 */ }
+      }
+
       async function openDetail(id) {
+        currentDetailId = id;
         const downloadToken = ++detailDownloadToken;
         stopDetailDownloadPoll();
         modalBox.classList.remove('pl-detail-box');
@@ -952,7 +980,7 @@
             <div class="pl-detail-shell">
               <aside class="pl-detail-side">
                 <div class="pl-detail-cover-wrap">
-                  ${item.card_image ? `<img class="pl-detail-cover" id="plModalImg" src="${esc(item.card_image)}" alt="${esc(item.name)}">` : `<div class="pl-detail-cover pl-noimg">${esc(item.name)}</div>`}
+                  ${item.avatar_url || item.card_image ? `<img class="pl-detail-cover" id="plModalImg" src="${esc(item.avatar_url || item.card_image)}" alt="${esc(item.name)}">` : `<div class="pl-detail-cover pl-noimg">${esc(item.name)}</div>`}
                 </div>
                 ${variantStrip}
                 <div class="pl-detail-actions">
@@ -1035,6 +1063,7 @@
               <button class="pl-detail-close" id="plClose2" type="button" aria-label="关闭">×</button>
             </div>`;
 
+          upgradePlayerAvatar(item);
           modalBox.querySelectorAll('.pl-video-thumb img[data-fallback]').forEach((img) => {
             img.addEventListener('error', () => {
               const fallback = img.dataset.fallback;
@@ -2147,6 +2176,7 @@
       }
 
       function closeModal() {
+        currentDetailId = '';
         modal.hidden = true;
         document.body.style.overflow = '';
         modalBox.classList.remove('pl-detail-box');

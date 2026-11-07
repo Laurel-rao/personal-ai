@@ -5299,11 +5299,29 @@ def api_chat_image(name: str) -> Response:
 
 # ---------------------------------------------------------------- 应用工厂
 
+def _warm_player_list_caches() -> None:
+    """预扫片库和首页写真统计，避免第一次打开选手库等待磁盘扫描。"""
+    time.sleep(2)
+    try:
+        _all_videos()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warm] video index: {exc}", flush=True)
+    try:
+        state = _am_load()
+        for card in state.get("cards", [])[:80]:
+            name = card.get("displayName") or card.get("name") or ""
+            if name:
+                _local_stats(name)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[warm] local photo stats: {exc}", flush=True)
+
+
 def create_console_app(config=None) -> Flask:
     task_store.interrupt_running("服务重启，任务已中断")
     task_store.delete_photo_tasks()
     threading.Thread(target=_resume_download_tasks, daemon=True).start()
     threading.Thread(target=_ensure_dmm_proxy, daemon=True).start()
+    threading.Thread(target=_warm_player_list_caches, daemon=True).start()
     threading.Thread(target=_video_cover_scheduler, daemon=True).start()
     if os.environ.get("AVATAR_WARM_ON_START", "1").strip().lower() not in {"0", "false", "no", "off"}:
         threading.Thread(target=_warm_custom_avatars, daemon=True).start()

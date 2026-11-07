@@ -3381,10 +3381,27 @@ def api_players_avatar_refresh() -> Response:
 @console_bp.get("/api/players/card/<path:name>")
 def api_players_card(name: str) -> Response:
     safe = re.sub(r"[^A-Za-z0-9._-]+", "-", name)
-    target = (_AM_DIR / "cards" / "players" / f"{safe}.webp").resolve()
     base = (_AM_DIR / "cards" / "players").resolve()
+    target = (base / f"{safe}.webp").resolve()
     if not str(target).startswith(str(base)) or not target.is_file():
         return error_response(404, "卡图不存在")
+    try:
+        width = max(120, min(int(request.args.get("w") or 0), 800))
+    except ValueError:
+        width = 0
+    if width:
+        thumb_dir = base / ".thumbs"
+        thumb = thumb_dir / f"{safe}-{width}.webp"
+        if not thumb.is_file():
+            try:
+                from PIL import Image
+                thumb_dir.mkdir(parents=True, exist_ok=True)
+                image = Image.open(target)
+                image.thumbnail((width, width * 2))
+                image.save(thumb, "WEBP", quality=82, method=4)
+            except Exception:  # noqa: BLE001
+                return send_file(target, mimetype="image/webp", max_age=86400)
+        return send_file(thumb, mimetype="image/webp", max_age=86400)
     return send_file(target, mimetype="image/webp", max_age=86400)
 
 
